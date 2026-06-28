@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-import { mkdir, readFile, stat } from "node:fs/promises";
-import { basename, dirname, resolve, sep } from "node:path";
+import { readFile, stat } from "node:fs/promises";
+import { basename, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Command } from "commander";
 import type { Agent } from "./agent/types.js";
@@ -102,21 +102,6 @@ export async function runCli(
     .exitOverride();
 
   program
-    .command("architecture")
-    .description("Generate architecture documentation for an app directory")
-    .argument("[dir]", "Path to the application directory (default: cwd)", ".")
-    .action(async (dir: string, _cmdOpts: unknown, cmd) => {
-      const globals = cmd.optsWithGlobals() as GlobalCliFlags;
-      await runFlowSubcommand({
-        dir,
-        flowName: "architecture",
-        subcommand: "architecture",
-        globals,
-        options,
-      });
-    });
-
-  program
     .command("init")
     .description("Generate full initial documentation for an app directory")
     .argument("[dir]", "Path to the application directory (default: cwd)", ".")
@@ -212,25 +197,6 @@ export async function runCli(
         dir,
         flowName: "verify-quick-updates",
         subcommand: "verify-quick-updates",
-        globals,
-        options,
-      });
-    });
-
-  program
-    .command("slice")
-    .description(
-      "Document a single phase from a plan: runs slice-doc and the " +
-        "verify/fix loop. Auto-derives the run dir when the plan path " +
-        "lives under $SAAGA_DIR/runs/<id>/plans/.",
-    )
-    .argument("<plan>", "Path to the plan file (absolute or relative)")
-    .argument("<phase>", "Phase number (positive integer)")
-    .action(async (plan: string, phase: string, _cmdOpts: unknown, cmd) => {
-      const globals = cmd.optsWithGlobals() as GlobalCliFlags;
-      await runSliceSubcommand({
-        plan,
-        phase,
         globals,
         options,
       });
@@ -417,90 +383,6 @@ async function runInstallRulesSubcommand(
   );
 }
 
-interface RunSliceSubcommandInput {
-  plan: string;
-  phase: string;
-  globals: GlobalCliFlags;
-  options: CliOptions;
-}
-
-async function runSliceSubcommand(
-  input: RunSliceSubcommandInput,
-): Promise<void> {
-  const { plan, phase, globals, options } = input;
-  if (!/^\d+$/.test(phase)) {
-    throw new Error(
-      `Phase number must be a positive integer, got: ${phase}`,
-    );
-  }
-  const phaseNumber = Number.parseInt(phase, 10);
-
-  const baseCwd = options.cwd ?? process.cwd();
-  const env = options.env ?? process.env;
-  const planAbs = resolve(baseCwd, plan);
-
-  let planStat: Awaited<ReturnType<typeof stat>>;
-  try {
-    planStat = await stat(planAbs);
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-      throw new Error(`Plan file not found: ${plan}`);
-    }
-    throw err;
-  }
-  if (!planStat.isFile()) {
-    throw new Error(`Plan path is not a file: ${plan}`);
-  }
-
-  const config = await loadConfig(baseCwd);
-  const saagaDir = resolveSaagaDir(env);
-  const derivedRunDir = deriveRunDirFromPlanPath(planAbs, saagaDir);
-
-  let runDir: string;
-  let runId: string;
-  if (derivedRunDir) {
-    runDir = derivedRunDir.runDir;
-    runId = derivedRunDir.runId;
-    await mkdir(resolve(runDir, `slice-${phaseNumber}`), { recursive: true });
-  } else {
-    const fallbackApp = basename(dirname(planAbs)) || "app";
-    const ctx = await createRunContext({
-      app: fallbackApp,
-      subcommand: `slice-${phaseNumber}`,
-      env,
-    });
-    runDir = ctx.runDir;
-    runId = ctx.runId;
-  }
-
-  const agent = resolveAgent(globals, options, { config });
-  const logger = createLogger(globals, options);
-
-  logger.info(
-    `saaga slice ${planAbs} phase=${phaseNumber} (backend=${agent.name}${
-      globals.model ? `, model=${globals.model}` : ""
-    })`,
-  );
-  logger.info(`run id: ${runId}`);
-  logger.info(`run dir: ${runDir}`);
-
-  const flow = await loadFlow("slice");
-  await runFlow(
-    flow,
-    {
-      plan: planAbs,
-      phase_number: phaseNumber,
-      run_id: runId,
-      run_dir: runDir,
-    },
-    {
-      agent,
-      cwd: baseCwd,
-      logger,
-    },
-  );
-}
-
 function createLogger(
   globals: GlobalCliFlags,
   options: CliOptions,
@@ -509,45 +391,6 @@ function createLogger(
     ci: globals.ci ?? false,
     stream: options.stderr ?? process.stderr,
   });
-}
-
-function resolveSaagaDir(env: NodeJS.ProcessEnv): string | null {
-  if (env.SAAGA_DIR && env.SAAGA_DIR.length > 0) {
-    return resolve(env.SAAGA_DIR);
-  }
-  if (env.HOME && env.HOME.length > 0) {
-    return resolve(env.HOME, ".saaga");
-  }
-  return null;
-}
-
-interface DerivedRunDir {
-  runDir: string;
-  runId: string;
-}
-
-/**
- * If `planAbs` lives at `<saagaDir>/runs/<id>/plans/<file>`, returns the
- * `<saagaDir>/runs/<id>` directory and run id so the slice flow can
- * write review/status outputs alongside the plan. Returns null when the
- * plan is outside that layout, signalling the caller to mint a fresh run.
- */
-function deriveRunDirFromPlanPath(
-  planAbs: string,
-  saagaDir: string | null,
-): DerivedRunDir | null {
-  if (!saagaDir) return null;
-  const runsRoot = resolve(saagaDir, "runs") + sep;
-  if (!planAbs.startsWith(runsRoot)) return null;
-  const remainder = planAbs.slice(runsRoot.length);
-  const slashIdx = remainder.indexOf(sep);
-  if (slashIdx === -1) return null;
-  const runId = remainder.slice(0, slashIdx);
-  if (runId.length === 0) return null;
-  return {
-    runId,
-    runDir: resolve(saagaDir, "runs", runId),
-  };
 }
 
 const isMain = process.argv[1] === fileURLToPath(import.meta.url);

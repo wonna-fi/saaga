@@ -34,7 +34,7 @@ describe("saaga --version", () => {
     const exitCode = await runCli(["--help"], { stdout: out });
     expect(exitCode).toBe(0);
     const text = out.text;
-    for (const cmd of ["architecture", "init", "update", "quick-update", "verify-quick-updates", "slice", "install-rules"]) {
+    for (const cmd of ["init", "update", "quick-update", "verify-quick-updates", "install-rules"]) {
       expect(text).toContain(cmd);
     }
     expect(text).toContain("--backend");
@@ -52,9 +52,9 @@ describe("saaga --version", () => {
 
   test("subcommand --help shows its own arguments", async () => {
     const out = new StringWritable();
-    const exitCode = await runCli(["slice", "--help"], { stdout: out });
+    const exitCode = await runCli(["install-rules", "--help"], { stdout: out });
     expect(exitCode).toBe(0);
-    expect(out.text).toContain("plan");
-    expect(out.text).toContain("phase");
+    expect(out.text).toContain("dir");
+    expect(out.text).toContain("--rule-target");
   });
 });

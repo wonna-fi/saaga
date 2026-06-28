@@ -26,8 +26,28 @@ describe("config-driven CLI integration", () => {
     const { app, home } = await tmpApp("salesforce", "backend: cursor\n");
     await writeFile(join(app, "README.md"), "x", "utf8");
 
+    const planContent = `---
+phases:
+  - number: 0
+    title: "Setup"
+---
+# Plan
+`;
+
     const fake = new FakeAgent({
       "Document the Architecture": { exitCode: 0 },
+      "Plan Domain Documentation": {
+        exitCode: 0,
+        effect: async (_opts, prompt) => {
+          const m = prompt.match(/Write the plan to `([^`]+)`/);
+          if (!m) throw new Error("plan path not found");
+          const { mkdir: mk } = await import("node:fs/promises");
+          const { dirname } = await import("node:path");
+          await mk(dirname(m[1]), { recursive: true });
+          await writeFile(m[1], planContent, "utf8");
+        },
+      },
+      "Document a Plan Slice": { exitCode: 0 },
     });
 
     // Even though no --backend is passed, the config provides it.
@@ -35,7 +55,7 @@ describe("config-driven CLI integration", () => {
     // the config loading path. The real resolution test is:
     // without FakeAgent and without --backend, having config.backend
     // should not throw "Backend must be specified".
-    const exitCode = await runCli(["architecture", app], {
+    const exitCode = await runCli(["init", app], {
       agent: fake,
       env: { HOME: home },
     });
