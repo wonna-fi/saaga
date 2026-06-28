@@ -2,7 +2,7 @@
 
 ## Overview
 
-The `saaga` CLI is the main user-facing entry point for generating and maintaining domain documentation. It provides seven subcommands — `architecture`, `init`, `install-rules`, `update`, `quick-update`, `verify-quick-updates`, and `slice`. Most subcommands resolve an AI agent backend, create an isolated run context, load a flow YAML file, and execute it. The `install-rules` subcommand is an exception: it is a deterministic local file operation that requires no agent backend. The CLI is built with Commander and designed for both interactive and CI usage.
+The `saaga` CLI is the main user-facing entry point for generating and maintaining domain documentation. It provides five subcommands — `init`, `install-rules`, `update`, `quick-update`, and `verify-quick-updates`. Most subcommands resolve an AI agent backend, create an isolated run context, load a flow YAML file, and execute it. The `install-rules` subcommand is an exception: it is a deterministic local file operation that requires no agent backend. The CLI is built with Commander and designed for both interactive and CI usage.
 
 ## Key Concepts
 
@@ -19,13 +19,11 @@ Before working with this feature, understand these concepts:
 
 | Subcommand | Arguments | Flow File | Description |
 |------------|-----------|-----------|-------------|
-| `architecture` | `[dir]` | `flows/architecture.flow.yaml` | Generate architecture documentation for an application |
-| `init` | `[dir]` | `flows/init.flow.yaml` | Generate full initial documentation (architecture → plan → slices → baseline); accepts `--rule-target` flag |
-| `install-rules` | `[dir]` | _(no flow — direct script)_ | Install documentation rule stubs (no agent backend required); accepts `--rule-target` flag |
+| `init` | `[dir]` | `flows/init.flow.yaml` | Generate full initial documentation (architecture → plan → slices → baseline); accepts `--rule-targets` flag |
+| `install-rules` | `[dir]` | _(no flow — direct script)_ | Install documentation rule stubs (no agent backend required); accepts `--rule-targets` flag |
 | `update` | `[dir]` | `flows/update.flow.yaml` | Incrementally update documentation based on changes since BASELINE |
 | `quick-update` | `[dir]` | `flows/quick-update.flow.yaml` | Fast single-session doc update using a cheaper model; produces a quick-update metadata artifact |
 | `verify-quick-updates` | `[dir]` | `flows/verify-quick-updates.flow.yaml` | Verify, correct, and consolidate all unverified quick-update artifacts |
-| `slice` | `<plan> <phase>` | `flows/slice.flow.yaml` | Document a single phase from a plan file |
 
 ### Global Flags
 
@@ -39,14 +37,14 @@ Before working with this feature, understand these concepts:
 
 ### User Flow: install-rules Subcommand
 
-1. User runs `saaga install-rules [dir] [--rule-target <targets>]` (dir defaults to the current working directory)
+1. User runs `saaga install-rules [dir] [--rule-targets <targets>]` (dir defaults to the current working directory)
 2. CLI validates the `dir` argument (must exist and be a directory)
 3. CLI loads config via `loadConfig(appPath)` (see [Project Configuration](../concepts/project-configuration.md))
-4. CLI resolves rule targets from `--rule-target` flag → `config.ruleTargets` → default `"agentsmd"` via `resolveRuleTargets()`
+4. CLI resolves rule targets from `--rule-targets` flag → `config.ruleTargets` → default `"agentsmd"` via `resolveRuleTargets()`
 5. CLI calls `installRules()` directly (no backend resolution, no run context)
 6. For each rule target: installs the rule stub (rendered from `rules/rule-stub.md`). Targets `agentsmd` and `claude` use managed-block markers (`<!-- saaga:begin --> … <!-- saaga:end -->`) for upsert into shared files. Targets `cursor` and `copilot` write a full owned file from their respective templates (`rules/cursor-rule.mdc` and `rules/copilot-rule.md`)
 
-### User Flow: Standard Subcommands (architecture, init, update, verify-quick-updates)
+### User Flow: Standard Subcommands (init, update, verify-quick-updates)
 
 1. User runs `saaga <subcommand> [dir] [flags]` (dir defaults to the current working directory)
 2. CLI validates the `dir` argument:
@@ -63,38 +61,18 @@ Before working with this feature, understand these concepts:
 
 The `quick-update` subcommand follows the same flow as standard subcommands (steps 1–8 above) with one difference: the agent is resolved using `config.quickModel` (from `.saaga/config.yaml`) or `defaultQuickModelFor(backend)` instead of the standard model. The `--model` flag overrides both.
 
-### User Flow: Slice Subcommand
-
-1. User runs `saaga slice <plan> <phase> [flags]`
-2. CLI validates the `<phase>` argument: must be a non-negative integer (regex: `/^\d+$/`)
-3. CLI validates the `<plan>` argument:
-   - Must exist on disk (otherwise: `Error: "Plan file not found: <plan>"`)
-   - Must be a file (otherwise: `Error: "Plan path is not a file: <plan>"`)
-4. CLI loads config via `loadConfig(baseCwd)` — note: uses the current working directory, not an app directory, since `slice` operates on a plan file (see [Project Configuration](../concepts/project-configuration.md))
-5. CLI resolves the Saaga base directory (`SAAGA_DIR` or `$HOME/.saaga`)
-6. CLI attempts to derive the run directory from the plan path:
-   - If the plan path matches `<saagaDir>/runs/<id>/<anything>` (any path under a run directory): reuses the existing run ID and directory, creates a `slice-<N>` subdirectory
-   - Otherwise: creates a fresh run context via `createRunContext()`
-7. CLI resolves the agent (passing config) and creates a `Logger` (via internal `createLogger()`). Logs startup info: `saaga slice <path> phase=<N> (backend=<name>)` with optional conditional segment `, model=<model>` only when `--model` is explicitly provided. Also logs run ID and run directory.
-8. CLI loads the `slice` flow
-9. CLI executes the flow with scope `{ plan, phase_number, run_id, run_dir }`, passing the logger in `RunFlowDeps`
-
 ### Edge Cases
 
 | Scenario | Behavior |
 |----------|----------|
 | Directory does not exist | Throws `Error: "Directory not found: <dir>"` |
 | Path is not a directory | Throws `Error: "Not a directory: <dir>"` |
-| Plan file does not exist | Throws `Error: "Plan file not found: <plan>"` |
-| Plan path is not a file | Throws `Error: "Plan path is not a file: <plan>"` |
-| Phase is not an integer | Throws `Error: "Phase number must be a positive integer, got: <phase>"` |
-| Phase is a decimal (e.g. `1.5`) | Throws `Error: "Phase number must be a positive integer, got: 1.5"` |
 | No backend specified, no test agent | Throws `BackendError: "Backend must be specified via --backend flag or .saaga/config.yaml"` |
 | Agent step exits with non-zero code | Throws `AgentStepFailedError`; CLI returns the exit code |
 | `--version` flag | Prints `package.json` version string and exits with code 0 |
 | `--help` flag | Prints help text listing all subcommands/flags and exits with code 0 |
 | `CliOptions.agent` provided (test mode) | Skips backend resolution entirely |
-| Invalid `--rule-target` value | Throws `Error: install-rules: invalid rule target '<val>' (allowed: agentsmd, cursor, claude, copilot, none)` before any agent steps run |
+| Invalid `--rule-targets` value | Throws `Error: install-rules: invalid rule target '<val>' (allowed: agentsmd, cursor, claude, copilot, none)` before any agent steps run |
 
 ## Technical Implementation
 
@@ -141,13 +119,10 @@ The program uses Commander's `exitOverride()` to prevent Commander from calling 
 | `src/cli.ts` | `readPackageVersion()` | Read version from `package.json` (not exported) |
 | `src/cli.ts` | `isCommanderInfoExit()` | Detect Commander version/help exit codes (not exported) |
 | `src/cli.ts` | `resolveAgent()` | Orchestrate backend resolution → model selection (standard or quick) → agent construction (not exported) |
-| `src/cli.ts` | `runFlowSubcommand()` | Shared handler for `architecture`, `init`, `update`, `quick-update`, `verify-quick-updates`: validates dir, creates run context, executes flow (not exported) |
-| `src/cli.ts` | `runSliceSubcommand()` | Handler for `slice`: validates plan/phase, derives or creates run context, executes flow (not exported) |
+| `src/cli.ts` | `runFlowSubcommand()` | Shared handler for `init`, `update`, `quick-update`, `verify-quick-updates`: validates dir, creates run context, executes flow (not exported) |
 | `src/cli.ts` | `runInstallRulesSubcommand()` | Handler for `install-rules`: validates dir, calls `installRules()` directly without backend/run context (not exported) |
 | `src/cli.ts` | `resolveRuleTargets()` | Resolves effective rule targets from CLI flag → `config.ruleTargets` → default `"agentsmd"`, then validates via `parseRuleTargets()` (not exported) |
 | `src/cli.ts` | `createLogger()` | Creates a `Logger` with `ci` from global flags and `stream` from CLI options (defaults to `process.stderr`) (not exported) |
-| `src/cli.ts` | `resolveSaagaDir()` | Resolve `SAAGA_DIR` or `$HOME/.saaga` (not exported) |
-| `src/cli.ts` | `deriveRunDirFromPlanPath()` | Extract run ID from plan path if it matches `<saagaDir>/runs/<id>/<anything>` (not exported) |
 
 ## Integration Points
 

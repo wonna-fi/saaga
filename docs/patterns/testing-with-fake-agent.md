@@ -123,7 +123,6 @@ const fake = new FakeAgent({
 |------|-----------------|-------|
 | `tests/cli/init.test.ts` | `planInitScenario()` helper | Extracts plan path from prompt, writes plan content as side effect |
 | `tests/cli/init.test.ts` | `verifyScenario()` helper | Stateful scenario that returns PASS or FAIL based on call count |
-| `tests/cli/slice.test.ts` | Slice subcommand tests | Tests run-dir derivation and fresh-context fallback with FakeAgent |
 | `tests/agent/fake-agent.test.ts` | Unit tests for FakeAgent | Covers matching, ordering, recording, and unmatched prompt errors |
 | `tests/engine/foreach.test.ts` | Engine-level tests | Uses FakeAgent to test flow control primitives |
 

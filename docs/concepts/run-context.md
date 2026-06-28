@@ -32,7 +32,6 @@ The run ID follows the pattern: `<app>-<subcommand>-<YYYYMMDD>-<HHMMSS>-<8 hex c
 Examples:
 - `salesforce-init-20260516-105303-2f498e6e`
 - `myapp-update-20260515-140022-a1b2c3d4`
-- `acme-slice-1-20260516-090000-deadbeef`
 
 The 8-hex-char suffix is generated from `crypto.randomBytes(4)`, ensuring uniqueness even when two runs occur within the same second.
 
@@ -43,9 +42,6 @@ $SAAGA_DIR/           (or $HOME/.saaga/)
   runs/
     <run-id>/             ← created by createRunContext()
       plans/              ← created by flow steps (e.g., plan-init agent step)
-      slice-<N>/          ← created for slice subcommand outputs
-        review-<iter>.md  ← verify/fix review output
-        status-<iter>.txt ← verify/fix status ("PASS" or "FAIL")
 ```
 
 ## Data Storage
@@ -53,7 +49,7 @@ $SAAGA_DIR/           (or $HOME/.saaga/)
 | Type | Field/Property | Purpose |
 |------|----------------|---------|
 | `CreateRunContextInput` | `app` | Application display name (used as the run-id prefix) |
-| `CreateRunContextInput` | `subcommand` | Subcommand label embedded in the run-id (e.g., `init`, `update`, `slice-1`) |
+| `CreateRunContextInput` | `subcommand` | Subcommand label embedded in the run-id (e.g., `init`, `update`, `quick-update`) |
 | `CreateRunContextInput` | `appPath` | Optional absolute path to the application directory; surfaced as `${app_path}` in flow scope |
 | `CreateRunContextInput` | `env` | Process env for reading `HOME` and `SAAGA_DIR` (defaults to `process.env`) |
 | `CreateRunContextInput` | `now` | Optional `Date` override for the timestamp portion (used by tests) |
@@ -76,14 +72,6 @@ $SAAGA_DIR/           (or $HOME/.saaga/)
 
 - `formatTimestamp()` in `src/run-context.ts` — formats a `Date` as `YYYYMMDD-HHMMSS` (not exported)
 - `formatDate()` in `src/run-context.ts` — formats a `Date` as `YYYYMMDD` for the `date` field (not exported)
-- `resolveSaagaDir()` in `src/cli.ts` — resolves `SAAGA_DIR` or falls back to `$HOME/.saaga`; returns `null` if neither is set (not exported)
-- `deriveRunDirFromPlanPath()` in `src/cli.ts` — checks whether a plan file path lives under `<saagaDir>/runs/<id>/<anything>` (any path under a run directory) and extracts the run ID and directory if so, allowing the `slice` subcommand to reuse an existing run context (not exported)
-
-## Slice Subcommand: Run Directory Derivation
-
-The `slice` subcommand has special behavior: if the plan file path matches the layout `<SAAGA_DIR>/runs/<id>/<anything>` (any path under a run directory), the run directory is derived from the existing path rather than creating a new one. This allows `slice` invocations to write outputs (review files, status files) alongside the original plan.
-
-When the plan path is outside this layout, a fresh run context is created using `createRunContext()`.
 
 ## Error Handling
 

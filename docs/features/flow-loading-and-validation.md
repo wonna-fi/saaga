@@ -15,7 +15,7 @@ Before working with this feature, understand these concepts:
 
 ### User Flow
 
-1. CLI subcommand determines which flow to run (e.g. `"init"`, `"update"`, `"slice"`)
+1. CLI subcommand determines which flow to run (e.g. `"init"`, `"update"`, `"quick-update"`)
 2. Calls `loadFlow(name)` which resolves the path: `<FLOWS_DIR>/<name>.flow.yaml`
 3. Reads the file contents as UTF-8
 4. Parses YAML into a raw JavaScript object using the `yaml` package

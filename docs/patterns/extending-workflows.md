@@ -7,10 +7,10 @@ Use this pattern when you need to modify an existing Saaga workflow — adding n
 ## Pattern
 
 ```yaml
-# Example: Adding a "lint documentation" step after the slice-doc agent step
-# in flows/slice.flow.yaml
+# Example: Adding a "lint documentation" step to a workflow
+# based on the pattern used in init.flow.yaml / update.flow.yaml
 
-name: slice
+name: my-workflow
 steps:
   - agent:
       prompt: slice-doc

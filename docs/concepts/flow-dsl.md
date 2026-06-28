@@ -128,7 +128,7 @@ The YAML syntax maps to the TypeScript types via the loader:
 - `src/engine/types.ts` — all type definitions for the flow DSL
 - `src/engine/loader.ts` — parser that validates YAML objects into the typed `FlowDefinition` structure
 - `flows/init.flow.yaml` — real-world flow using all six step types (agent, script, foreach, loop, if, read-file)
-- `flows/slice.flow.yaml` — compact flow demonstrating loop + read-file + if composition
+- `flows/update.flow.yaml` — demonstrates conditional branching with `if` at the top level and nested `foreach`/`loop`
 
 ## Related Concepts
 

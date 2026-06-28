@@ -39,11 +39,9 @@ program
    - Loads the flow via `loadFlow(flowName)`
    - Executes the flow via `runFlow()` with initial scope: `{ app, app_path, run_id, run_dir, date }`
 
-4. **For non-standard subcommands** (e.g., `slice` which takes a plan file instead of a directory), write a dedicated handler function following the same pattern: validate inputs → resolve agent → create/derive run context → load flow → run flow.
-
 ### Initial Scope Variables
 
-Standard subcommands (`architecture`, `init`, `update`, `quick-update`, `verify-quick-updates`) inject these variables into the flow scope:
+Standard subcommands (`init`, `update`, `quick-update`, `verify-quick-updates`) inject these variables into the flow scope:
 
 | Variable | Source | Description |
 |----------|--------|-------------|
@@ -52,15 +50,6 @@ Standard subcommands (`architecture`, `init`, `update`, `quick-update`, `verify-
 | `run_id` | `createRunContext()` | Unique run identifier |
 | `run_dir` | `createRunContext()` | Absolute path to the run directory |
 | `date` | `createRunContext()` | Run date formatted as YYYYMMDD |
-
-The `slice` subcommand uses a different initial scope:
-
-| Variable | Source | Description |
-|----------|--------|-------------|
-| `plan` | `resolve(baseCwd, plan)` | Absolute path to the plan file |
-| `phase_number` | CLI argument (parsed as integer) | Phase number to document |
-| `run_id` | Derived or generated | Run identifier |
-| `run_dir` | Derived or generated | Run directory path |
 
 ## Key Points
 
@@ -73,8 +62,8 @@ The `slice` subcommand uses a different initial scope:
 
 | File | Function/Pattern | Notes |
 |------|-----------------|-------|
-| `src/cli.ts` | `architecture` subcommand | Simplest case: single optional `[dir]` argument (defaults to cwd), delegates to `runFlowSubcommand()` |
-| `src/cli.ts` | `slice` subcommand | Complex case: takes `<plan>` and `<phase>` args, derives run dir from plan path, custom handler `runSliceSubcommand()` |
+| `src/cli.ts` | `init` subcommand | Standard subcommand with optional `[dir]` argument (defaults to cwd) plus `--rule-targets` flag, delegates to `runFlowSubcommand()` |
+| `src/cli.ts` | `update` subcommand | Simplest standard subcommand: single optional `[dir]` argument, delegates to `runFlowSubcommand()` |
 | `tests/cli/help-version.test.ts` | CLI flag tests | Verifies `--help` lists all subcommands and global flags |
 
 ## Anti-Patterns
@@ -84,4 +73,4 @@ The `slice` subcommand uses a different initial scope:
 - Call `process.exit()` directly — use `exitOverride()` and let errors propagate. The main entry point handles exit codes.
 - Skip input validation — always verify the target path exists before resolving the agent to avoid confusing credential errors on bad paths.
 - Hard-code the flow file path — use `loadFlow(name)` which resolves relative to `FLOWS_DIR`.
-- Export internal handler functions — `runFlowSubcommand()` and `runSliceSubcommand()` are intentionally internal. Only `runCli()` and `CliOptions` are part of the public API.
+- Export internal handler functions — `runFlowSubcommand()` and `runInstallRulesSubcommand()` are intentionally internal. Only `runCli()` and `CliOptions` are part of the public API.

@@ -39,12 +39,10 @@ Package root (PACKAGE_ROOT)
 ├── dist/
 │   └── paths.js          ← here = dist/ → resolve("..")  = root ✓
 ├── flows/                 ← FLOWS_DIR
-│   ├── architecture.flow.yaml
 │   ├── init.flow.yaml
-│   ├── update.flow.yaml
 │   ├── quick-update.flow.yaml
-│   ├── verify-quick-updates.flow.yaml
-│   └── slice.flow.yaml
+│   ├── update.flow.yaml
+│   └── verify-quick-updates.flow.yaml
 ├── prompts/               ← PROMPTS_DIR
 │   ├── document-architecture.md
 │   ├── plan-init.md

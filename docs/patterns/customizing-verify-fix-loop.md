@@ -7,8 +7,8 @@ Use this pattern when you need to understand or modify the quality verification 
 ## Pattern
 
 ```yaml
-# The standard verify/fix loop as used in flows/slice.flow.yaml
-# and embedded within foreach iterations in init.flow.yaml / update.flow.yaml
+# The standard verify/fix loop as embedded within foreach iterations
+# in init.flow.yaml / update.flow.yaml
 
 - loop:
     max: 3                           # 1. Hard iteration cap
@@ -121,8 +121,8 @@ Use this pattern when you need to understand or modify the quality verification 
 
 | File | Function/Method | Notes |
 |------|-----------------|-------|
-| `flows/slice.flow.yaml` | (flow definition) | Standalone verify/fix loop — simplest usage |
 | `flows/init.flow.yaml` | (flow definition) | Verify/fix nested inside a `foreach` with per-phase scoping |
+| `flows/update.flow.yaml` | (flow definition) | Verify/fix inside conditional `if` with nested `foreach` |
 | `src/engine/primitives/loop.ts` | `runLoopStep()` | Loop primitive implementation with iteration tracking |
 | `prompts/verify-domain-documentation.md` | (prompt template) | Defines verification criteria and output format |
 | `prompts/fix-documentation.md` | (prompt template) | Defines fix constraints (only fix flagged errors) |

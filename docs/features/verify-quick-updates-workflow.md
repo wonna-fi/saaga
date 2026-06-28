@@ -67,7 +67,7 @@ Step sequence:
    - `foreach` over `phases`:
      - `agent` — `slice-doc` prompt
      - `loop` (max 3, until `${status} == "PASS"`):
-       - `agent` — `verify-domain-documentation` prompt, vars include `changes_dir: ${app_path}/docs/metadata/quick_updates` (enables coverage verification against the raw change reports — unlike `init`/`update`/`slice` which pass `none`)
+       - `agent` — `verify-domain-documentation` prompt, vars include `changes_dir: ${app_path}/docs/metadata/quick_updates` (enables coverage verification against the raw change reports — unlike `init`/`update` which pass `none`)
        - `read-file` — reads status file into `status`
        - `if ${status} != "PASS"`: `agent` — `fix-documentation` prompt
    - `script` — `remove-quick-updates`: args `{ manifest: ${quick_updates.manifest_path} }`

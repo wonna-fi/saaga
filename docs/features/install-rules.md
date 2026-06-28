@@ -36,14 +36,14 @@ The `cursor` and `copilot` targets use standalone files rendered from their resp
 
 ### User Flow (CLI subcommand)
 
-1. User runs `saaga install-rules [dir] [--rule-target <targets>]` (dir defaults to the current working directory)
+1. User runs `saaga install-rules [dir] [--rule-targets <targets>]` (dir defaults to the current working directory)
 2. `<targets>` is a comma-separated list; `none` is a valid value that yields an empty list.
 3. CLI validates targets — throws on unknown values before any file I/O occurs.
 4. For each rule target: creates parent directories as needed, then writes or upserts the rule stub.
 
 ### Validation Rules
 
-- `--rule-target` values must be from: `agentsmd`, `cursor`, `claude`, `copilot`, `none`
+- `--rule-targets` values must be from: `agentsmd`, `cursor`, `claude`, `copilot`, `none`
 - `app_dir` must be a non-empty string (required argument)
 - `app` must be a non-empty string (required argument)
 - `rule_targets` must be provided (empty string throws)
@@ -52,7 +52,7 @@ The `cursor` and `copilot` targets use standalone files rendered from their resp
 
 | Scenario | Behavior |
 |----------|----------|
-| `--rule-target none` | No rule files written (no-op) |
+| `--rule-targets none` | No rule files written (no-op) |
 | Target file directory does not exist | Created recursively via `mkdir` |
 | Managed block markers are split (begin without end) | Treated as no block found; stub is appended |
 | Unknown target value | Throws `Error: install-rules: invalid rule target '<value>' (allowed: agentsmd, cursor, claude, copilot, none)` |
