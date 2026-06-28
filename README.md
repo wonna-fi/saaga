@@ -126,14 +126,9 @@ saaga verify-quick-updates [dir]
                                 Consolidate and verify all unverified
                                 quick-update artifacts.
 
-saaga architecture [dir]        Generate ARCHITECTURE.md only.
-
 saaga install-rules [dir]       Install always-on documentation rules
                                 into agent rule files. No agent backend
                                 required.
-
-saaga slice <plan> <phase>      Document a single phase from a plan,
-                                with the verify/fix loop.
 ```
 
 ### Global flags

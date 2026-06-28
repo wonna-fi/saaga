@@ -1,6 +1,0 @@
-name: architecture
-steps:
-  - agent:
-      prompt: document-architecture
-      vars:
-        app: ${app}
