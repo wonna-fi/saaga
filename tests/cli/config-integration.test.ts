@@ -62,7 +62,7 @@ phases:
     expect(exitCode).toBe(0);
   });
 
-  test("config ruleTargets is used for init when --rule-target not passed", async () => {
+  test("config ruleTargets is used for init when --rule-targets not passed", async () => {
     const { app, home } = await tmpApp("ruleapp", "ruleTargets: cursor\n");
     await writeFile(join(app, "README.md"), "x", "utf8");
 
@@ -113,7 +113,7 @@ phases:
     expect(agentsExists).toBe(false);
   });
 
-  test("--rule-target flag overrides config ruleTargets", async () => {
+  test("--rule-targets flag overrides config ruleTargets", async () => {
     const { app, home } = await tmpApp("flagwin", "ruleTargets: cursor\n");
     await writeFile(join(app, "README.md"), "x", "utf8");
 
@@ -141,7 +141,7 @@ phases:
       "Document a Plan Slice": { exitCode: 0 },
     });
 
-    const exitCode = await runCli(["init", app, "--rule-target", "agentsmd"], {
+    const exitCode = await runCli(["init", app, "--rule-targets", "agentsmd"], {
       agent: fake,
       env: { HOME: home },
     });
@@ -171,11 +171,11 @@ phases:
     expect(agentsExists).toBe(false);
   });
 
-  test("install-rules --rule-target flag overrides config", async () => {
+  test("install-rules --rule-targets flag overrides config", async () => {
     const { app } = await tmpApp("irflag", "ruleTargets: claude\n");
 
     const exitCode = await runCli(
-      ["install-rules", app, "--rule-target", "agentsmd"],
+      ["install-rules", app, "--rule-targets", "agentsmd"],
       { env: {} },
     );
     expect(exitCode).toBe(0);

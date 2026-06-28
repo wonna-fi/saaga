@@ -25,11 +25,11 @@ describe("saaga install-rules", () => {
     expect(agentsMd).toContain("docs/concepts/INDEX.md");
   });
 
-  test("honors --rule-target lists", async () => {
+  test("honors --rule-targets lists", async () => {
     const app = await tmpApp();
 
     const exitCode = await runCli(
-      ["install-rules", app, "--rule-target", "cursor,claude"],
+      ["install-rules", app, "--rule-targets", "cursor,claude"],
       { env: {} },
     );
     expect(exitCode).toBe(0);
@@ -64,7 +64,7 @@ describe("saaga install-rules", () => {
   test("fails on invalid targets", async () => {
     const app = await tmpApp();
     await expect(
-      runCli(["install-rules", app, "--rule-target", "bogus"], { env: {} }),
+      runCli(["install-rules", app, "--rule-targets", "bogus"], { env: {} }),
     ).rejects.toThrow(/invalid rule target 'bogus'/);
   });
 

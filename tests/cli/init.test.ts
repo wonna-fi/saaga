@@ -265,7 +265,7 @@ phases:
     expect(baseline.isFile()).toBe(true);
   });
 
-  test("--rule-target flag reaches the install step", async () => {
+  test("--rule-targets flag reaches the install step", async () => {
     const { app, home } = await tmpAppEnv("flagged");
     const fake = new FakeAgent({
       "Document the Architecture": { exitCode: 0 },
@@ -274,7 +274,7 @@ phases:
     });
 
     const exitCode = await runCli(
-      ["init", app, "--rule-target", "cursor,copilot"],
+      ["init", app, "--rule-targets", "cursor,copilot"],
       { agent: fake, env: { HOME: home } },
     );
 
@@ -295,12 +295,12 @@ phases:
     await expect(stat(join(app, "AGENTS.md"))).rejects.toThrow();
   });
 
-  test("invalid --rule-target fails fast before any agent call", async () => {
+  test("invalid --rule-targets fails fast before any agent call", async () => {
     const { app, home } = await tmpAppEnv("badflag");
     const fake = new FakeAgent({});
 
     await expect(
-      runCli(["init", app, "--rule-target", "bogus"], {
+      runCli(["init", app, "--rule-targets", "bogus"], {
         agent: fake,
         env: { HOME: home },
       }),
@@ -309,12 +309,12 @@ phases:
     expect(fake.calls).toHaveLength(0);
   });
 
-  test("empty/whitespace --rule-target fails fast before any agent call", async () => {
+  test("empty/whitespace --rule-targets fails fast before any agent call", async () => {
     const { app, home } = await tmpAppEnv("emptyflag");
     const fake = new FakeAgent({});
 
     await expect(
-      runCli(["init", app, "--rule-target", "   "], {
+      runCli(["init", app, "--rule-targets", "   "], {
         agent: fake,
         env: { HOME: home },
       }),

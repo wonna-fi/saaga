@@ -144,7 +144,7 @@ saaga install-rules [dir]       Install always-on documentation rules
 
 | Flag | Subcommands | Description |
 | ---- | ----------- | ----------- |
-| `--rule-target <targets>` | `init`, `install-rules` | Comma-separated rule targets: `agentsmd`, `cursor`, `claude`, `copilot`, `none` |
+| `--rule-targets <targets>` | `init`, `install-rules` | Comma-separated rule targets: `agentsmd`, `cursor`, `claude`, `copilot`, `none` |
 
 ### Output locations
 

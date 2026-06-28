@@ -45,7 +45,7 @@ describe("saaga --version", () => {
     const out = new StringWritable();
     const exitCode = await runCli(["init", "--help"], { stdout: out });
     expect(exitCode).toBe(0);
-    expect(out.text).toContain("--rule-target");
+    expect(out.text).toContain("--rule-targets");
     expect(out.text).not.toContain("--skill-target");
     expect(out.text).toContain("agentsmd");
   });
@@ -55,6 +55,6 @@ describe("saaga --version", () => {
     const exitCode = await runCli(["install-rules", "--help"], { stdout: out });
     expect(exitCode).toBe(0);
     expect(out.text).toContain("dir");
-    expect(out.text).toContain("--rule-target");
+    expect(out.text).toContain("--rule-targets");
   });
 });
