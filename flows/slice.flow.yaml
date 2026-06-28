@@ -1,0 +1,34 @@
+name: slice
+steps:
+  - agent:
+      prompt: slice-doc
+      vars:
+        plan: ${plan}
+        phase_number: ${phase_number}
+
+  - loop:
+      max: 3
+      until: '${status} == "PASS"'
+      do:
+        - agent:
+            prompt: verify-domain-documentation
+            vars:
+              plan: ${plan}
+              phase_number: ${phase_number}
+              review_path: ${run_dir}/slice-${phase_number}/review-${iteration}.md
+              status_path: ${run_dir}/slice-${phase_number}/status-${iteration}.txt
+              changes_dir: none
+
+        - read-file:
+            path: ${run_dir}/slice-${phase_number}/status-${iteration}.txt
+            set: status
+            trim: true
+
+        - if: '${status} != "PASS"'
+          then:
+            - agent:
+                prompt: fix-documentation
+                vars:
+                  plan: ${plan}
+                  phase_number: ${phase_number}
+                  review_path: ${run_dir}/slice-${phase_number}/review-${iteration}.md

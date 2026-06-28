@@ -1,0 +1,11 @@
+# Meta / VCS / packaging
+.gitignore
+.npmignore
+LICENSE
+pnpm-lock.yaml
+# Dev environment (not part of the product domain)
+.devcontainer/
+# IDE / agent tooling (not part of the product domain)
+.cursor/
+# Sample install hooks — illustrative, not domain logic
+examples/

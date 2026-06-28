@@ -1,0 +1,63 @@
+name: update
+steps:
+  - script:
+      name: detect-changes
+      app_dir: ${app_path}
+      output_dir: ${run_dir}
+      set: changes
+
+  - if: '${changes.count} != 0'
+    then:
+      - agent:
+          prompt: plan-update
+          vars:
+            app: ${app}
+            changes_path: ${changes.changes_path}
+            output_path: ${run_dir}/plans/${app}-update-${date}.plan.md
+          expect_file: ${run_dir}/plans/${app}-update-${date}.plan.md
+
+      - script:
+          name: parse-plan
+          file: ${run_dir}/plans/${app}-update-${date}.plan.md
+          set: phases
+
+      - foreach:
+          var: phase
+          in: ${phases}
+          do:
+            - agent:
+                prompt: slice-doc
+                vars:
+                  plan: ${run_dir}/plans/${app}-update-${date}.plan.md
+                  phase_number: ${phase.number}
+
+            - loop:
+                max: 3
+                until: '${status} == "PASS"'
+                do:
+                  - agent:
+                      prompt: verify-domain-documentation
+                      vars:
+                        plan: ${run_dir}/plans/${app}-update-${date}.plan.md
+                        phase_number: ${phase.number}
+                        review_path: ${run_dir}/slice-${phase.number}/review-${iteration}.md
+                        status_path: ${run_dir}/slice-${phase.number}/status-${iteration}.txt
+                        changes_dir: none
+
+                  - read-file:
+                      path: ${run_dir}/slice-${phase.number}/status-${iteration}.txt
+                      set: status
+                      trim: true
+
+                  - if: '${status} != "PASS"'
+                    then:
+                      - agent:
+                          prompt: fix-documentation
+                          vars:
+                            plan: ${run_dir}/plans/${app}-update-${date}.plan.md
+                            phase_number: ${phase.number}
+                            review_path: ${run_dir}/slice-${phase.number}/review-${iteration}.md
+
+      - script:
+          name: generate-baseline
+          app_dir: ${app_path}

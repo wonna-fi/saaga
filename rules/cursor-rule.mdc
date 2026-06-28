@@ -1,0 +1,6 @@
+---
+description: Domain documentation rules for {app}
+alwaysApply: true
+---
+
+{rule_body}

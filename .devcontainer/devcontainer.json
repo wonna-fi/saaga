@@ -1,0 +1,32 @@
+// Saaga dev container.
+//
+// Ships a Node toolchain only. Agent CLIs (cursor-agent, copilot, ...) are
+// installed via the postCreateCommand hook below. The shipped hook is an
+// empty stub — populate it (or replace it) to install the backends you
+// want, using the helper scripts under `examples/install-agents/`.
+{
+  "name": "saaga",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:22-bookworm",
+  "features": {
+    "ghcr.io/devcontainers/features/git:1": {}
+  },
+  "postCreateCommand": "bash .devcontainer/install-agents.sh",
+  "mounts": [
+    "source=${localEnv:HOME}/.cursor,target=/home/node/.cursor,type=bind,consistency=cached",
+    "source=${localEnv:HOME}/.saaga,target=/home/node/.saaga,type=bind,consistency=cached"
+  ],
+  "containerEnv": {
+    "CURSOR_API_KEY": "${localEnv:CURSOR_API_KEY}",
+    "AGENT_CURSOR_API_KEY": "${localEnv:AGENT_CURSOR_API_KEY}",
+    "AGENT_COPILOT_GITHUB_TOKEN": "${localEnv:AGENT_COPILOT_GITHUB_TOKEN}",
+    "ANTHROPIC_API_KEY": "${localEnv:ANTHROPIC_API_KEY}"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint"
+      ]
+    }
+  },
+  "remoteUser": "node"
+}

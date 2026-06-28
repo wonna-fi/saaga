@@ -1,0 +1,65 @@
+name: verify-quick-updates
+steps:
+  - script:
+      name: collect-quick-updates
+      metadata_dir: ${app_path}/docs/metadata/quick_updates
+      output_dir: ${run_dir}
+      set: quick_updates
+
+  - if: '${quick_updates.count} != 0'
+    then:
+      - agent:
+          prompt: plan-verify-quick-updates
+          vars:
+            app: ${app}
+            manifest_path: ${quick_updates.manifest_path}
+            metadata_dir: ${app_path}/docs/metadata/quick_updates
+            output_path: ${run_dir}/plans/${app}-verify-quick-updates-${date}.plan.md
+          expect_file: ${run_dir}/plans/${app}-verify-quick-updates-${date}.plan.md
+
+      - script:
+          name: parse-plan
+          file: ${run_dir}/plans/${app}-verify-quick-updates-${date}.plan.md
+          require_phases: true
+          set: phases
+
+      - foreach:
+          var: phase
+          in: ${phases}
+          do:
+            - agent:
+                prompt: slice-doc
+                vars:
+                  plan: ${run_dir}/plans/${app}-verify-quick-updates-${date}.plan.md
+                  phase_number: ${phase.number}
+
+            - loop:
+                max: 3
+                until: '${status} == "PASS"'
+                do:
+                  - agent:
+                      prompt: verify-domain-documentation
+                      vars:
+                        plan: ${run_dir}/plans/${app}-verify-quick-updates-${date}.plan.md
+                        phase_number: ${phase.number}
+                        review_path: ${run_dir}/slice-${phase.number}/review-${iteration}.md
+                        status_path: ${run_dir}/slice-${phase.number}/status-${iteration}.txt
+                        changes_dir: ${app_path}/docs/metadata/quick_updates
+
+                  - read-file:
+                      path: ${run_dir}/slice-${phase.number}/status-${iteration}.txt
+                      set: status
+                      trim: true
+
+                  - if: '${status} != "PASS"'
+                    then:
+                      - agent:
+                          prompt: fix-documentation
+                          vars:
+                            plan: ${run_dir}/plans/${app}-verify-quick-updates-${date}.plan.md
+                            phase_number: ${phase.number}
+                            review_path: ${run_dir}/slice-${phase.number}/review-${iteration}.md
+
+      - script:
+          name: remove-quick-updates
+          manifest: ${quick_updates.manifest_path}

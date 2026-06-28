@@ -1,0 +1,34 @@
+name: quick-update
+steps:
+  - script:
+      name: detect-changes
+      app_dir: ${app_path}
+      output_dir: ${run_dir}
+      set: changes
+
+  - if: '${changes.count} != 0'
+    then:
+      - agent:
+          prompt: quick-update
+          vars:
+            app: ${app}
+            changes_path: ${changes.changes_path}
+            status_path: ${run_dir}/quick-update-status.txt
+            summary_path: ${app_path}/docs/metadata/quick_updates/${run_id}/summary.md
+
+      - read-file:
+          path: ${run_dir}/quick-update-status.txt
+          set: status
+          trim: true
+
+      - if: '${status} == "UPDATED"'
+        then:
+          - script:
+              name: archive-quick-update
+              changes_path: ${changes.changes_path}
+              dest_dir: ${app_path}/docs/metadata/quick_updates/${run_id}
+              summary_path: ${app_path}/docs/metadata/quick_updates/${run_id}/summary.md
+
+      - script:
+          name: generate-baseline
+          app_dir: ${app_path}
