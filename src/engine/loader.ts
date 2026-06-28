@@ -20,7 +20,7 @@ export async function loadFlow(name: string): Promise<FlowDefinition> {
 
 export async function loadFlowFromFile(path: string): Promise<FlowDefinition> {
   const content = await readFile(path, "utf8");
-  const raw = parseYaml(content);
+  const raw: unknown = parseYaml(content);
   return parseFlowDefinition(raw);
 }
 

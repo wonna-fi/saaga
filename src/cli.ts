@@ -110,8 +110,8 @@ export async function runCli(
       "Comma-separated rule files to install documentation rules into " +
         "(agentsmd|cursor|claude|copilot|none)",
     )
-    .action(async (dir: string, cmdOpts: RuleTargetFlags, cmd) => {
-      const globals = cmd.optsWithGlobals() as GlobalCliFlags;
+    .action(async (dir: string, cmdOpts: RuleTargetFlags, cmd: Command) => {
+      const globals = cmd.optsWithGlobals<GlobalCliFlags>();
       await runFlowSubcommand({
         dir,
         flowName: "init",
@@ -134,8 +134,8 @@ export async function runCli(
       "Comma-separated rule files to install documentation rules into " +
         "(agentsmd|cursor|claude|copilot|none)",
     )
-    .action(async (dir: string, cmdOpts: RuleTargetFlags, cmd) => {
-      const globals = cmd.optsWithGlobals() as GlobalCliFlags;
+    .action(async (dir: string, cmdOpts: RuleTargetFlags, cmd: Command) => {
+      const globals = cmd.optsWithGlobals<GlobalCliFlags>();
       await runInstallRulesSubcommand({
         dir,
         ruleTargetFlag: cmdOpts.ruleTargets,
@@ -151,8 +151,8 @@ export async function runCli(
         "regenerate affected slices, refresh BASELINE",
     )
     .argument("[dir]", "Path to the application directory (default: cwd)", ".")
-    .action(async (dir: string, _cmdOpts: unknown, cmd) => {
-      const globals = cmd.optsWithGlobals() as GlobalCliFlags;
+    .action(async (dir: string, _cmdOpts: unknown, cmd: Command) => {
+      const globals = cmd.optsWithGlobals<GlobalCliFlags>();
       await runFlowSubcommand({
         dir,
         flowName: "update",
@@ -170,8 +170,8 @@ export async function runCli(
         "Uses a cheaper/faster model by default.",
     )
     .argument("[dir]", "Path to the application directory (default: cwd)", ".")
-    .action(async (dir: string, _cmdOpts: unknown, cmd) => {
-      const globals = cmd.optsWithGlobals() as GlobalCliFlags;
+    .action(async (dir: string, _cmdOpts: unknown, cmd: Command) => {
+      const globals = cmd.optsWithGlobals<GlobalCliFlags>();
       await runFlowSubcommand({
         dir,
         flowName: "quick-update",
@@ -191,8 +191,8 @@ export async function runCli(
         "processed artifacts.",
     )
     .argument("[dir]", "Path to the application directory (default: cwd)", ".")
-    .action(async (dir: string, _cmdOpts: unknown, cmd) => {
-      const globals = cmd.optsWithGlobals() as GlobalCliFlags;
+    .action(async (dir: string, _cmdOpts: unknown, cmd: Command) => {
+      const globals = cmd.optsWithGlobals<GlobalCliFlags>();
       await runFlowSubcommand({
         dir,
         flowName: "verify-quick-updates",
@@ -276,7 +276,7 @@ async function runFlowSubcommand(input: RunFlowSubcommandInput): Promise<void> {
     stats = await stat(appPath);
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-      throw new Error(`Directory not found: ${dir}`);
+      throw new Error(`Directory not found: ${dir}`, { cause: err });
     }
     throw err;
   }
@@ -356,7 +356,7 @@ async function runInstallRulesSubcommand(
     stats = await stat(appPath);
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-      throw new Error(`Directory not found: ${dir}`);
+      throw new Error(`Directory not found: ${dir}`, { cause: err });
     }
     throw err;
   }
