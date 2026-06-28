@@ -43,7 +43,7 @@ interface GlobalCliFlags {
 }
 
 interface RuleTargetFlags {
-  ruleTarget?: string;
+  ruleTargets?: string;
 }
 
 /**
@@ -106,7 +106,7 @@ export async function runCli(
     .description("Generate full initial documentation for an app directory")
     .argument("[dir]", "Path to the application directory (default: cwd)", ".")
     .option(
-      "--rule-target <targets>",
+      "--rule-targets <targets>",
       "Comma-separated rule files to install documentation rules into " +
         "(agentsmd|cursor|claude|copilot|none)",
     )
@@ -118,7 +118,7 @@ export async function runCli(
         subcommand: "init",
         globals,
         options,
-        ruleTargetFlag: cmdOpts.ruleTarget,
+        ruleTargetFlag: cmdOpts.ruleTargets,
       });
     });
 
@@ -130,7 +130,7 @@ export async function runCli(
     )
     .argument("[dir]", "Path to the application directory (default: cwd)", ".")
     .option(
-      "--rule-target <targets>",
+      "--rule-targets <targets>",
       "Comma-separated rule files to install documentation rules into " +
         "(agentsmd|cursor|claude|copilot|none)",
     )
@@ -138,7 +138,7 @@ export async function runCli(
       const globals = cmd.optsWithGlobals() as GlobalCliFlags;
       await runInstallRulesSubcommand({
         dir,
-        ruleTargetFlag: cmdOpts.ruleTarget,
+        ruleTargetFlag: cmdOpts.ruleTargets,
         globals,
         options,
       });
@@ -260,7 +260,7 @@ interface RunFlowSubcommandInput {
   globals: GlobalCliFlags;
   options: CliOptions;
   useQuickModel?: boolean;
-  /** CLI --rule-target flag value (only used by init). */
+  /** CLI --rule-targets flag value (only used by init). */
   ruleTargetFlag?: string;
   /** Additional variables merged into the initial flow scope. */
   extraScope?: Record<string, unknown>;
@@ -370,7 +370,7 @@ async function runInstallRulesSubcommand(
   const logger = createLogger(globals, options);
 
   logger.info(
-    `saaga install-rules ${appPath} (rule-target=${ruleTargets})`,
+    `saaga install-rules ${appPath} (rule-targets=${ruleTargets})`,
   );
 
   await installRules(
