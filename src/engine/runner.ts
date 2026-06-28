@@ -202,7 +202,7 @@ async function runLoopWithLogging(
 
   await runLoopStep(step, scope, async (child, iterScope) => {
     if (step.do.length > 0 && child === step.do[0]) {
-      iterationLogger.info(`iteration ${iterScope.iteration ?? "?"}`);
+      iterationLogger.info(`iteration ${String(iterScope.iteration ?? "?")}`);
     }
     await runStep(child, iterScope, bodyDeps, indexIn(step.do, child));
   });
@@ -279,7 +279,7 @@ function describeIterItem(varName: string, scope: Scope): string {
     const obj = value as Record<string, unknown>;
     const num = obj.number;
     const title = obj.title;
-    const numPart = num !== undefined ? `${varName}.number=${num}` : "";
+    const numPart = num !== undefined ? `${varName}.number=${String(num)}` : "";
     const titlePart =
       typeof title === "string"
         ? `${varName}.title=${JSON.stringify(title)}`

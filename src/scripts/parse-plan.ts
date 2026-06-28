@@ -42,7 +42,7 @@ export async function parsePlan(
       `parse-plan: no YAML frontmatter found in ${args.file}`,
     );
   }
-  const data = parseYaml(frontmatter);
+  const data: unknown = parseYaml(frontmatter);
   if (!data || typeof data !== "object" || !Array.isArray((data as { phases?: unknown }).phases)) {
     throw new Error(
       `parse-plan: missing or invalid 'phases' array in frontmatter of ${args.file}`,

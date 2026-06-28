@@ -80,5 +80,6 @@ export function createAgent(opts: CreateAgentOptions): Agent {
   if (opts.backend === "claude") {
     return new ClaudeAgent({ model: opts.model, ci: opts.ci });
   }
-  throw new BackendError(`Unsupported backend: ${opts.backend}`);
+  const _exhaustive: never = opts.backend;
+  throw new BackendError(`Unsupported backend: ${_exhaustive}`);
 }
