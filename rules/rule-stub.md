@@ -1,12 +1,12 @@
 ### Domain Documentation ({app})
 
-This codebase has structured domain documentation under `docs/`, organized into three types:
+This codebase has structured domain documentation under `{docs_dir}/`, organized into three types:
 
 | Type | Index | Answers |
 |------|-------|---------|
-| Concepts | `docs/concepts/INDEX.md` | What something is and where it lives |
-| Patterns | `docs/patterns/INDEX.md` | How to do common operations |
-| Features | `docs/features/INDEX.md` | How a feature works end-to-end |
+| Concepts | `{docs_dir}/concepts/INDEX.md` | What something is and where it lives |
+| Patterns | `{docs_dir}/patterns/INDEX.md` | How to do common operations |
+| Features | `{docs_dir}/features/INDEX.md` | How a feature works end-to-end |
 
 Classify your question, open the matching `INDEX.md`, and read the relevant document(s):
 

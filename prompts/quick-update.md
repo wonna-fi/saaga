@@ -6,7 +6,7 @@
 
 - Status file at `{status_path}` — write exactly `UPDATED` or `SKIPPED` (nothing else).
 - If UPDATED: summary file at `{summary_path}` — structured metadata about the quick update.
-- If UPDATED: modified/created documentation files under `docs/`.
+- If UPDATED: modified/created documentation files under `{docs_dir}/`.
 
 **Goal**: Perform a fast, single-session documentation update. Triage changes, update affected docs directly, do a light self-verification pass, and record what you did. Speed is the priority — this does not need to be perfect; a later `verify-quick-updates` run will harden the results.
 
@@ -46,10 +46,10 @@ If no change is document-worthy, write `SKIPPED` to `{status_path}` and stop. Do
 
 Read the documentation structure to understand what exists:
 
-- `docs/concepts/INDEX.md`
-- `docs/patterns/INDEX.md`
-- `docs/features/INDEX.md`
-- `docs/ARCHITECTURE.md` (if it exists)
+- `{docs_dir}/concepts/INDEX.md`
+- `{docs_dir}/patterns/INDEX.md`
+- `{docs_dir}/features/INDEX.md`
+- `{docs_dir}/ARCHITECTURE.md` (if it exists)
 
 For each doc-worthy change, determine:
 
@@ -72,9 +72,9 @@ For each affected area, read the relevant source code and update the documentati
 
 Create new files following these structural conventions:
 
-- **Concepts** → `docs/concepts/{name}.md`: Business Definition, Configuration, Data Storage, Key Services/Functions, Reference Implementations, Related Concepts
-- **Patterns** → `docs/patterns/{name}.md`: When to Use, Pattern (code example), Key Points, Reference Implementations, Anti-Patterns
-- **Features** → `docs/features/{name}.md`: Overview, Key Concepts, Functional Specification (User Flow, Validation Rules, Edge Cases), Technical Implementation, Integration Points, Extension Guide
+- **Concepts** → `{docs_dir}/concepts/{name}.md`: Business Definition, Configuration, Data Storage, Key Services/Functions, Reference Implementations, Related Concepts
+- **Patterns** → `{docs_dir}/patterns/{name}.md`: When to Use, Pattern (code example), Key Points, Reference Implementations, Anti-Patterns
+- **Features** → `{docs_dir}/features/{name}.md`: Overview, Key Concepts, Functional Specification (User Flow, Validation Rules, Edge Cases), Technical Implementation, Integration Points, Extension Guide
 
 ### For deletions/ignored files:
 
@@ -83,7 +83,7 @@ Create new files following these structural conventions:
 
 ### INDEX files:
 
-After all edits, update `docs/concepts/INDEX.md`, `docs/patterns/INDEX.md`, and `docs/features/INDEX.md` to reflect any added or removed documents.
+After all edits, update `{docs_dir}/concepts/INDEX.md`, `{docs_dir}/patterns/INDEX.md`, and `{docs_dir}/features/INDEX.md` to reflect any added or removed documents.
 
 ### Quality guardrails:
 
@@ -132,5 +132,5 @@ Write exactly `UPDATED` to `{status_path}`. Nothing else in this file.
 
 - Speed over perfection. This update will be verified and hardened later by `verify-quick-updates`.
 - When in doubt about a change's documentation impact, err on the side of documenting it (flag uncertainty in the summary).
-- Do NOT regenerate `docs/BASELINE` — that is handled by the tool after this session.
+- Do NOT regenerate `{docs_dir}/BASELINE` — that is handled by the tool after this session.
 - Do NOT use any IDE-specific tools (like CreatePlan). Write files directly.

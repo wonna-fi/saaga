@@ -6,13 +6,15 @@ import { computeManifest } from "./file-manifest.js";
 export interface GenerateBaselineArgs {
   /** Absolute path to the application directory. */
   app_dir: string;
+  /** Name of the documentation directory (e.g. `"saaga-docs"`). */
+  docs_dir: string;
 }
 
 /**
- * Writes `<app_dir>/docs/BASELINE` with:
+ * Writes `<app_dir>/<docs_dir>/BASELINE` with:
  *   - `# Generated: <iso timestamp>`
- *   - For every in-scope file (excluding `docs/`, `.saagaignore`, and any
- *     path matched by `.gitignore`/`.saagaignore` patterns):
+ *   - For every in-scope file (excluding `<docs_dir>/`, `.saagaignore`,
+ *     and any path matched by `.gitignore`/`.saagaignore` patterns):
  *     `<git-blob-hash> <relpath>`
  */
 export async function generateBaseline(
@@ -23,10 +25,14 @@ export async function generateBaseline(
   if (!appDir) {
     throw new Error("generate-baseline: 'app_dir' arg is required");
   }
+  const docsDir = args.docs_dir;
+  if (!docsDir) {
+    throw new Error("generate-baseline: 'docs_dir' arg is required");
+  }
 
-  await mkdir(resolve(appDir, "docs"), { recursive: true });
+  await mkdir(resolve(appDir, docsDir), { recursive: true });
 
-  const entries = await computeManifest(appDir);
+  const entries = await computeManifest(appDir, docsDir);
 
   const timestamp = new Date().toISOString();
   const lines: string[] = [`# Generated: ${timestamp}`];
@@ -36,7 +42,7 @@ export async function generateBaseline(
   }
 
   await writeFile(
-    resolve(appDir, "docs", "BASELINE"),
+    resolve(appDir, docsDir, "BASELINE"),
     lines.join("\n") + "\n",
     "utf8",
   );

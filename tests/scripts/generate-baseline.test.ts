@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { describe, expect, test } from "vitest";
+import { DEFAULT_DOCS_DIR } from "../../src/cli/config.js";
 import { gitBlobHash } from "../../src/scripts/file-manifest.js";
 import { generateBaseline } from "../../src/scripts/generate-baseline.js";
 
@@ -12,7 +13,7 @@ async function writeAt(dir: string, relpath: string, content: string): Promise<v
 }
 
 async function readBaseline(dir: string): Promise<string[]> {
-  const content = await readFile(join(dir, "docs", "BASELINE"), "utf8");
+  const content = await readFile(join(dir, DEFAULT_DOCS_DIR, "BASELINE"), "utf8");
   return content.split("\n").filter((l) => l.length > 0);
 }
 
@@ -21,7 +22,7 @@ describe("generate-baseline script", () => {
     const dir = await mkdtemp(join(tmpdir(), "saaga-bl-"));
     await writeAt(dir, "src/foo.ts", "x");
 
-    await generateBaseline({ app_dir: dir }, { cwd: dir });
+    await generateBaseline({ app_dir: dir, docs_dir: DEFAULT_DOCS_DIR }, { cwd: dir });
 
     const lines = await readBaseline(dir);
     expect(lines[0]).toMatch(/^# Generated: /);
@@ -33,7 +34,7 @@ describe("generate-baseline script", () => {
     await writeAt(dir, "src/foo.ts", "alpha");
     await writeAt(dir, "README.md", "beta");
 
-    await generateBaseline({ app_dir: dir }, { cwd: dir });
+    await generateBaseline({ app_dir: dir, docs_dir: DEFAULT_DOCS_DIR }, { cwd: dir });
 
     const lines = await readBaseline(dir);
     const fileLines = lines.slice(1);
@@ -51,19 +52,19 @@ describe("generate-baseline script", () => {
     }
   });
 
-  test("excludes files under docs/ and the .saagaignore file itself", async () => {
+  test("excludes files under the docs dir and the .saagaignore file itself", async () => {
     const dir = await mkdtemp(join(tmpdir(), "saaga-bl-"));
     await writeAt(dir, "src/foo.ts", "x");
-    await writeAt(dir, "docs/ARCHITECTURE.md", "doc");
+    await writeAt(dir, `${DEFAULT_DOCS_DIR}/ARCHITECTURE.md`, "doc");
     await writeAt(dir, ".saagaignore", "build/\n");
 
-    await generateBaseline({ app_dir: dir }, { cwd: dir });
+    await generateBaseline({ app_dir: dir, docs_dir: DEFAULT_DOCS_DIR }, { cwd: dir });
 
     const lines = await readBaseline(dir);
     const fileLines = lines.slice(1);
     const paths = fileLines.map((l) => l.split(" ").slice(1).join(" "));
     expect(paths).toContain("src/foo.ts");
-    expect(paths).not.toContain("docs/ARCHITECTURE.md");
+    expect(paths).not.toContain(`${DEFAULT_DOCS_DIR}/ARCHITECTURE.md`);
     expect(paths).not.toContain(".saagaignore");
   });
 
@@ -74,7 +75,7 @@ describe("generate-baseline script", () => {
     await writeAt(dir, "vendor/dep.js", "vendored");
     await writeAt(dir, ".saagaignore", "build/\nvendor/\n");
 
-    await generateBaseline({ app_dir: dir }, { cwd: dir });
+    await generateBaseline({ app_dir: dir, docs_dir: DEFAULT_DOCS_DIR }, { cwd: dir });
 
     const lines = await readBaseline(dir);
     const fileLines = lines.slice(1);
@@ -91,7 +92,7 @@ describe("generate-baseline script", () => {
     await writeAt(dir, "node_modules/dep/index.js", "dep");
     await writeAt(dir, ".gitignore", "dist/\nnode_modules/\n");
 
-    await generateBaseline({ app_dir: dir }, { cwd: dir });
+    await generateBaseline({ app_dir: dir, docs_dir: DEFAULT_DOCS_DIR }, { cwd: dir });
 
     const lines = await readBaseline(dir);
     const fileLines = lines.slice(1);
@@ -107,7 +108,7 @@ describe("generate-baseline script", () => {
     await writeAt(dir, "src/foo.ts", "existing");
     await writeAt(dir, "src/new-feature.ts", "brand new untracked");
 
-    await generateBaseline({ app_dir: dir }, { cwd: dir });
+    await generateBaseline({ app_dir: dir, docs_dir: DEFAULT_DOCS_DIR }, { cwd: dir });
 
     const lines = await readBaseline(dir);
     const paths = lines.slice(1).map((l) => l.split(" ").slice(1).join(" "));
@@ -119,7 +120,7 @@ describe("generate-baseline script", () => {
     const dir = await mkdtemp(join(tmpdir(), "saaga-bl-"));
     await writeAt(dir, "src/foo.ts", "x");
 
-    await generateBaseline({ app_dir: dir }, { cwd: dir });
+    await generateBaseline({ app_dir: dir, docs_dir: DEFAULT_DOCS_DIR }, { cwd: dir });
 
     const lines = await readBaseline(dir);
     expect(lines.length).toBeGreaterThanOrEqual(2);
@@ -128,7 +129,7 @@ describe("generate-baseline script", () => {
 
   test("requires the 'app_dir' arg", async () => {
     await expect(
-      generateBaseline({} as { app_dir: string }, { cwd: "/x" }),
+      generateBaseline({} as { app_dir: string; docs_dir: string }, { cwd: "/x" }),
     ).rejects.toThrow(/app_dir/);
   });
 
@@ -138,7 +139,7 @@ describe("generate-baseline script", () => {
     await writeAt(dir, ".git/config", "gitconfig");
     await writeAt(dir, ".git/objects/ab/1234", "obj");
 
-    await generateBaseline({ app_dir: dir }, { cwd: dir });
+    await generateBaseline({ app_dir: dir, docs_dir: DEFAULT_DOCS_DIR }, { cwd: dir });
 
     const lines = await readBaseline(dir);
     const paths = lines.slice(1).map((l) => l.split(" ").slice(1).join(" "));

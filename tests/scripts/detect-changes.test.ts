@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { beforeEach, describe, expect, test } from "vitest";
+import { DEFAULT_DOCS_DIR } from "../../src/cli/config.js";
 import { detectChanges } from "../../src/scripts/detect-changes.js";
 import { generateBaseline } from "../../src/scripts/generate-baseline.js";
 
@@ -25,7 +26,7 @@ async function makeBaselineDir(): Promise<{
   await writeAt(app, "src/foo.ts", "alpha");
   await writeAt(app, "src/bar.ts", "beta");
   await writeAt(app, "README.md", "readme");
-  await generateBaseline({ app_dir: app }, { cwd: app });
+  await generateBaseline({ app_dir: app, docs_dir: DEFAULT_DOCS_DIR }, { cwd: app });
   const outDir = join(root, "out");
   await mkdir(outDir, { recursive: true });
   return { app, outDir };
@@ -35,7 +36,7 @@ describe("detect-changes script", () => {
   test("returns zero count and writes a report when nothing changed", async () => {
     const { app, outDir } = await makeBaselineDir();
     const result = await detectChanges(
-      { app_dir: app, output_dir: outDir },
+      { app_dir: app, output_dir: outDir, docs_dir: DEFAULT_DOCS_DIR },
       { cwd: app },
     );
     expect(result.count).toBe(0);
@@ -49,7 +50,7 @@ describe("detect-changes script", () => {
     await writeAt(app, "src/foo.ts", "alpha-modified");
 
     const result = await detectChanges(
-      { app_dir: app, output_dir: outDir },
+      { app_dir: app, output_dir: outDir, docs_dir: DEFAULT_DOCS_DIR },
       { cwd: app },
     );
     expect(result.count).toBe(1);
@@ -64,7 +65,7 @@ describe("detect-changes script", () => {
     await writeAt(app, "src/baz.ts", "newcontent");
 
     const result = await detectChanges(
-      { app_dir: app, output_dir: outDir },
+      { app_dir: app, output_dir: outDir, docs_dir: DEFAULT_DOCS_DIR },
       { cwd: app },
     );
     expect(result.count).toBe(1);
@@ -78,7 +79,7 @@ describe("detect-changes script", () => {
     await writeAt(app, "src/untracked-feature.ts", "brand new untracked file");
 
     const result = await detectChanges(
-      { app_dir: app, output_dir: outDir },
+      { app_dir: app, output_dir: outDir, docs_dir: DEFAULT_DOCS_DIR },
       { cwd: app },
     );
     expect(result.count).toBe(1);
@@ -94,7 +95,7 @@ describe("detect-changes script", () => {
     await writeAt(app, "src/foo.ts", "alpha");
     await writeAt(app, "vendor/dep.ts", "vendored");
     await writeAt(app, ".saagaignore", "vendor/\n");
-    await generateBaseline({ app_dir: app }, { cwd: app });
+    await generateBaseline({ app_dir: app, docs_dir: DEFAULT_DOCS_DIR }, { cwd: app });
 
     await writeAt(app, ".saagaignore", "");
 
@@ -102,7 +103,7 @@ describe("detect-changes script", () => {
     await mkdir(outDir, { recursive: true });
 
     const result = await detectChanges(
-      { app_dir: app, output_dir: outDir },
+      { app_dir: app, output_dir: outDir, docs_dir: DEFAULT_DOCS_DIR },
       { cwd: app },
     );
     expect(result.new).toBe(1);
@@ -115,7 +116,7 @@ describe("detect-changes script", () => {
     await rm(join(app, "src/foo.ts"));
 
     const result = await detectChanges(
-      { app_dir: app, output_dir: outDir },
+      { app_dir: app, output_dir: outDir, docs_dir: DEFAULT_DOCS_DIR },
       { cwd: app },
     );
     expect(result.count).toBe(1);
@@ -131,7 +132,7 @@ describe("detect-changes script", () => {
     await mkdir(app);
     await writeAt(app, "src/foo.ts", "alpha");
     await writeAt(app, "vendor/dep.ts", "vendored");
-    await generateBaseline({ app_dir: app }, { cwd: app });
+    await generateBaseline({ app_dir: app, docs_dir: DEFAULT_DOCS_DIR }, { cwd: app });
 
     await writeAt(app, ".saagaignore", "vendor/\n");
 
@@ -139,7 +140,7 @@ describe("detect-changes script", () => {
     await mkdir(outDir, { recursive: true });
 
     const result = await detectChanges(
-      { app_dir: app, output_dir: outDir },
+      { app_dir: app, output_dir: outDir, docs_dir: DEFAULT_DOCS_DIR },
       { cwd: app },
     );
     expect(result.newly_ignored).toBe(1);
@@ -156,7 +157,7 @@ describe("detect-changes script", () => {
     await writeAt(app, "src/foo.ts/inner.ts", "now a directory");
 
     const result = await detectChanges(
-      { app_dir: app, output_dir: outDir },
+      { app_dir: app, output_dir: outDir, docs_dir: DEFAULT_DOCS_DIR },
       { cwd: app },
     );
     expect(result.truly_deleted).toBe(1);
@@ -168,7 +169,7 @@ describe("detect-changes script", () => {
   test("requires the app_dir arg", async () => {
     await expect(
       detectChanges(
-        {} as { app_dir: string; output_dir: string },
+        {} as { app_dir: string; output_dir: string; docs_dir: string },
         { cwd: "/x" },
       ),
     ).rejects.toThrow(/app_dir/);
@@ -182,7 +183,7 @@ describe("detect-changes script", () => {
     const outDir = join(root, "out");
     await mkdir(outDir, { recursive: true });
     await expect(
-      detectChanges({ app_dir: app, output_dir: outDir }, { cwd: app }),
+      detectChanges({ app_dir: app, output_dir: outDir, docs_dir: DEFAULT_DOCS_DIR }, { cwd: app }),
     ).rejects.toThrow(/BASELINE/);
   });
 
@@ -192,14 +193,14 @@ describe("detect-changes script", () => {
     await mkdir(app);
     await writeAt(app, "src/foo.ts", "alpha");
     await writeAt(app, ".gitignore", "dist/\n");
-    await generateBaseline({ app_dir: app }, { cwd: app });
+    await generateBaseline({ app_dir: app, docs_dir: DEFAULT_DOCS_DIR }, { cwd: app });
 
     await writeAt(app, "dist/bundle.js", "compiled");
 
     const outDir = join(root, "out");
     await mkdir(outDir, { recursive: true });
     const result = await detectChanges(
-      { app_dir: app, output_dir: outDir },
+      { app_dir: app, output_dir: outDir, docs_dir: DEFAULT_DOCS_DIR },
       { cwd: app },
     );
     expect(result.count).toBe(0);

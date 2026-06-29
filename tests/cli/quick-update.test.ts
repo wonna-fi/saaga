@@ -7,6 +7,7 @@ import {
   type FakeScenarioValue,
 } from "../../src/agent/fake-agent.js";
 import { runCli } from "../../src/cli.js";
+import { DEFAULT_DOCS_DIR } from "../../src/cli/config.js";
 import { generateBaseline } from "../../src/scripts/generate-baseline.js";
 
 async function tmpQuickUpdateEnv(name: string) {
@@ -16,7 +17,7 @@ async function tmpQuickUpdateEnv(name: string) {
   await mkdir(app);
   await mkdir(home);
   await writeFile(join(app, "src.ts"), "alpha", "utf8");
-  await generateBaseline({ app_dir: app }, { cwd: app });
+  await generateBaseline({ app_dir: app, docs_dir: DEFAULT_DOCS_DIR }, { cwd: app });
   return { root, app, home };
 }
 
@@ -82,7 +83,7 @@ describe("saaga quick-update", () => {
     expect(fake.calls).toHaveLength(1);
     expect(fake.calls[0].prompt).toContain("Quick-Update Domain Documentation");
 
-    const metaDir = join(app, "docs", "metadata", "quick_updates");
+    const metaDir = join(app, DEFAULT_DOCS_DIR, "metadata", "quick_updates");
     const metaEntries = await readdir(metaDir);
     expect(metaEntries).toHaveLength(1);
 
@@ -99,7 +100,7 @@ describe("saaga quick-update", () => {
     );
     expect(summaryContent).toContain("verified: false");
 
-    const baselineStat = await stat(join(app, "docs", "BASELINE"));
+    const baselineStat = await stat(join(app, DEFAULT_DOCS_DIR, "BASELINE"));
     expect(baselineStat.isFile()).toBe(true);
   });
 
@@ -118,10 +119,10 @@ describe("saaga quick-update", () => {
     expect(exitCode).toBe(0);
     expect(fake.calls).toHaveLength(1);
 
-    const metaDir = join(app, "docs", "metadata", "quick_updates");
+    const metaDir = join(app, DEFAULT_DOCS_DIR, "metadata", "quick_updates");
     await expect(readdir(metaDir)).rejects.toThrow();
 
-    const baselineStat = await stat(join(app, "docs", "BASELINE"));
+    const baselineStat = await stat(join(app, DEFAULT_DOCS_DIR, "BASELINE"));
     expect(baselineStat.isFile()).toBe(true);
   });
 });

@@ -26,8 +26,8 @@ Check for existing documentation about this application:
 
 - Read the `AGENTS.md` file in the workspace root for project-level context
 - Check `README.md` for setup and development information
-- Check `docs/ARCHITECTURE.md` for existing architecture documentation
-- Check if `docs/concepts/`, `docs/patterns/`, `docs/features/` already exist
+- Check `{docs_dir}/ARCHITECTURE.md` for existing architecture documentation
+- Check if `{docs_dir}/concepts/`, `{docs_dir}/patterns/`, `{docs_dir}/features/` already exist
 
 If domain documentation already exists, note it in the plan and build upon it rather than replacing it.
 
@@ -138,7 +138,7 @@ flowchart LR
 
 Deliverables for Phase 0:
 
-1. Create folder structure: `docs/concepts/`, `docs/patterns/`, `docs/features/`
+1. Create folder structure: `{docs_dir}/concepts/`, `{docs_dir}/patterns/`, `{docs_dir}/features/`
 2. Create empty INDEX.md files for each folder
 3. Update `AGENTS.md` to add a documentation section for this application (if `AGENTS.md` does not exist, create it with a basic structure first)
 
@@ -249,7 +249,7 @@ INDEX.md format:
 
 ### CONCEPT TEMPLATE
 
-File location: `docs/concepts/{concept-name}.md`
+File location: `{docs_dir}/concepts/{concept-name}.md`
 
 ```markdown
 # {Concept Name}
@@ -304,7 +304,7 @@ File location: `docs/concepts/{concept-name}.md`
 
 ### PATTERN TEMPLATE
 
-File location: `docs/patterns/{pattern-name}.md`
+File location: `{docs_dir}/patterns/{pattern-name}.md`
 
 ````markdown
 # {Pattern Name}
@@ -343,7 +343,7 @@ File location: `docs/patterns/{pattern-name}.md`
 
 ### FEATURE TEMPLATE
 
-File location: `docs/features/{feature-name}.md`
+File location: `{docs_dir}/features/{feature-name}.md`
 
 ```markdown
 # Feature: {Feature Name}
@@ -538,5 +538,5 @@ If you discover apparent bugs or inconsistencies while documenting:
 ## Notes
 
 - If `AGENTS.md` already has documentation sections for other applications, follow the same structure when adding the new section.
-- If the application has an existing `docs/ARCHITECTURE.md`, use it as a starting point for understanding domain areas.
+- If the application has an existing `{docs_dir}/ARCHITECTURE.md`, use it as a starting point for understanding domain areas.
 - Write the plan to `{output_path}`. Do NOT use any IDE-specific tools (like CreatePlan). Write the file directly.

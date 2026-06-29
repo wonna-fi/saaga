@@ -11,6 +11,8 @@ export interface DetectChangesArgs {
    * `<output_dir>/changes.md`. Required.
    */
   output_dir: string;
+  /** Name of the documentation directory (e.g. `"saaga-docs"`). */
+  docs_dir: string;
 }
 
 export interface DetectChangesResult {
@@ -27,8 +29,8 @@ export interface DetectChangesResult {
 
 /**
  * Compares the current state of the work tree against
- * `<app_dir>/docs/BASELINE` and classifies every difference into one of:
- * changed, new, truly deleted, newly ignored.
+ * `<app_dir>/<docs_dir>/BASELINE` and classifies every difference into
+ * one of: changed, new, truly deleted, newly ignored.
  *
  * Writes a markdown report to `<output_dir>/changes.md` and returns the
  * detected counts so the flow engine can early-exit via
@@ -46,10 +48,14 @@ export async function detectChanges(
   if (!outputDir) {
     throw new Error("detect-changes: 'output_dir' arg is required");
   }
+  const docsDir = args.docs_dir;
+  if (!docsDir) {
+    throw new Error("detect-changes: 'docs_dir' arg is required");
+  }
   if (!(await isDir(appDir))) {
     throw new Error(`detect-changes: directory not found: ${appDir}`);
   }
-  const baselinePath = resolve(appDir, "docs", "BASELINE");
+  const baselinePath = resolve(appDir, docsDir, "BASELINE");
   if (!(await isFile(baselinePath))) {
     throw new Error(
       `detect-changes: BASELINE file not found at ${baselinePath}. ` +
@@ -60,7 +66,7 @@ export async function detectChanges(
   const baselineContent = await readFile(baselinePath, "utf8");
   const baselineDate = extractHeaderValue(baselineContent, "Generated");
   const baselineEntries = parseBaselineBody(baselineContent);
-  const currentEntries = await computeManifest(appDir);
+  const currentEntries = await computeManifest(appDir, docsDir);
 
   const baselineMap = new Map(baselineEntries.map((e) => [e.path, e.hash]));
   const currentMap = new Map(currentEntries.map((e) => [e.path, e.hash]));

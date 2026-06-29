@@ -4,17 +4,17 @@
 
 This application has structured domain documentation organized into three types:
 
-- **Concepts** (`docs/concepts/INDEX.md`) — Domain concepts: what something is and where it lives (agent interface, flow DSL types, expression evaluation, scope, templates)
-- **Patterns** (`docs/patterns/INDEX.md`) — Implementation patterns: how to do common operations (adding agent backends, adding flow primitives, adding built-in scripts, creating prompt templates)
-- **Features** (`docs/features/INDEX.md`) — Feature specifications: end-to-end feature documentation (init workflow, update workflow, slice workflow, verify/fix loop)
+- **Concepts** (`saaga-docs/concepts/INDEX.md`) — Domain concepts: what something is and where it lives (agent interface, flow DSL types, expression evaluation, scope, templates)
+- **Patterns** (`saaga-docs/patterns/INDEX.md`) — Implementation patterns: how to do common operations (adding agent backends, adding flow primitives, adding built-in scripts, creating prompt templates)
+- **Features** (`saaga-docs/features/INDEX.md`) — Feature specifications: end-to-end feature documentation (init workflow, update workflow, slice workflow, verify/fix loop)
 
 #### When to Use Each Type
 
 | If you need to understand... | Read a... | Example |
 |------------------------------|-----------|---------|
-| What "scope" means and how data flows between steps | Concept | `docs/concepts/scope-and-expressions.md` |
-| How to add a new agent backend | Pattern | `docs/patterns/adding-agent-backends.md` |
-| How the `init` command works end-to-end | Feature | `docs/features/init-workflow.md` |
+| What "scope" means and how data flows between steps | Concept | `saaga-docs/concepts/scope-and-expressions.md` |
+| How to add a new agent backend | Pattern | `saaga-docs/patterns/adding-agent-backends.md` |
+| How the `init` command works end-to-end | Feature | `saaga-docs/features/init-workflow.md` |
 
 #### Behavioral Rules
 

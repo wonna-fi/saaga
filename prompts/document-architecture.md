@@ -2,7 +2,7 @@
 
 **Input**: The application to document is at the project root (`.`). The application name is `{app}`.
 
-**Goal**: Analyze the application and write a comprehensive architecture document to `docs/ARCHITECTURE.md`.
+**Goal**: Analyze the application and write a comprehensive architecture document to `{docs_dir}/ARCHITECTURE.md`.
 
 ---
 
@@ -39,6 +39,6 @@ If a `.saagaignore` file exists at the project root, it lists paths and patterns
 
 ## Notes
 
-- Write the document to `docs/ARCHITECTURE.md`. Create the `docs/` directory if it does not exist.
+- Write the document to `{docs_dir}/ARCHITECTURE.md`. Create the `{docs_dir}/` directory if it does not exist.
 - If you create diagrams, draw them as mermaid charts with accessible colors.
 - A high quality document is imperative. Write it with professional pride.

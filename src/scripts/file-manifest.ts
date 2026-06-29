@@ -34,17 +34,20 @@ interface IgnoreLayer {
  * outcome.
  *
  * Hard-excluded (regardless of ignore files):
- *   - `.git/`   (top-level only)
- *   - `docs/`   (top-level only)
+ *   - `.git/`      (top-level only)
+ *   - `<docsDir>/` (top-level only, defaults to `saaga-docs`)
  *   - any file named `.saagaignore` (at any depth)
  *
  * Regular files and symlinks are included; symlinks are hashed git-style
  * (the hash of their link target, never followed). Paths are
  * POSIX-normalized relative to `appDir`.
  */
-export async function computeManifest(appDir: string): Promise<FileEntry[]> {
+export async function computeManifest(
+  appDir: string,
+  docsDir: string,
+): Promise<FileEntry[]> {
   const files: string[] = [];
-  await walk(appDir, "", [], files);
+  await walk(appDir, "", [], files, docsDir);
   files.sort();
 
   const entries: FileEntry[] = [];
@@ -88,6 +91,7 @@ async function walk(
   dir: string,
   parentChain: IgnoreLayer[],
   out: string[],
+  docsDir: string,
 ): Promise<void> {
   const abs = dir ? join(root, dir) : root;
 
@@ -100,14 +104,12 @@ async function walk(
     const relPath = dir ? `${dir}/${entry.name}` : entry.name;
     const isDir = entry.isDirectory();
 
-    if (isHardExcluded(relPath, isDir)) continue;
+    if (isHardExcluded(relPath, isDir, docsDir)) continue;
     if (isIgnoredByChain(chain, relPath, isDir)) continue;
 
     if (isDir) {
-      await walk(root, relPath, chain, out);
+      await walk(root, relPath, chain, out, docsDir);
     } else if (entry.isFile() || entry.isSymbolicLink()) {
-      // Symlinks are treated as files (git stores them as blobs and never
-      // traverses symlinked directories).
       out.push(relPath);
     }
   }
@@ -133,10 +135,15 @@ function isIgnoredByChain(
   return verdict;
 }
 
-function isHardExcluded(relPath: string, isDir: boolean): boolean {
+function isHardExcluded(
+  relPath: string,
+  isDir: boolean,
+  docsDir: string,
+): boolean {
   if (isDir) {
     const top = relPath.split("/")[0];
-    if (top === ".git" || top === "docs") return true;
+    if (top === ".git") return true;
+    if (relPath === docsDir || relPath.startsWith(docsDir + "/")) return true;
   }
   if (basename(relPath) === ".saagaignore") return true;
   return false;

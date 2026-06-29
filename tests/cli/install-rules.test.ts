@@ -22,7 +22,7 @@ describe("saaga install-rules", () => {
     const agentsMd = await readFile(join(app, "AGENTS.md"), "utf8");
     expect(agentsMd).toContain("<!-- saaga:begin -->");
     expect(agentsMd).toContain("### Domain Documentation (myapp)");
-    expect(agentsMd).toContain("docs/concepts/INDEX.md");
+    expect(agentsMd).toContain("saaga-docs/concepts/INDEX.md");
   });
 
   test("honors --rule-targets lists", async () => {

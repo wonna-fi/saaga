@@ -109,6 +109,29 @@ describe("loadConfig", () => {
     );
   });
 
+  test("parses docsDir config option", async () => {
+    const dir = await tmpDir();
+    await mkdir(join(dir, ".saaga"), { recursive: true });
+    await writeFile(
+      join(dir, ".saaga", "config.yaml"),
+      "docsDir: docs\n",
+      "utf8",
+    );
+    const config = await loadConfig(dir);
+    expect(config).toEqual({ docsDir: "docs" });
+  });
+
+  test("throws ConfigError when docsDir is not a string", async () => {
+    const dir = await tmpDir();
+    await mkdir(join(dir, ".saaga"), { recursive: true });
+    await writeFile(
+      join(dir, ".saaga", "config.yaml"),
+      "docsDir: 123\n",
+      "utf8",
+    );
+    await expect(loadConfig(dir)).rejects.toThrow(/'docsDir' must be a string/);
+  });
+
   test("ignores unknown keys (forward-compat)", async () => {
     const dir = await tmpDir();
     await mkdir(join(dir, ".saaga"), { recursive: true });

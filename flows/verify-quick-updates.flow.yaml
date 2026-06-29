@@ -2,7 +2,7 @@ name: verify-quick-updates
 steps:
   - script:
       name: collect-quick-updates
-      metadata_dir: ${app_path}/docs/metadata/quick_updates
+      metadata_dir: ${app_path}/${docs_dir}/metadata/quick_updates
       output_dir: ${run_dir}
       set: quick_updates
 
@@ -12,8 +12,9 @@ steps:
           prompt: plan-verify-quick-updates
           vars:
             app: ${app}
+            docs_dir: ${docs_dir}
             manifest_path: ${quick_updates.manifest_path}
-            metadata_dir: ${app_path}/docs/metadata/quick_updates
+            metadata_dir: ${app_path}/${docs_dir}/metadata/quick_updates
             output_path: ${run_dir}/plans/${app}-verify-quick-updates-${date}.plan.md
           expect_file: ${run_dir}/plans/${app}-verify-quick-updates-${date}.plan.md
 
@@ -44,7 +45,8 @@ steps:
                         phase_number: ${phase.number}
                         review_path: ${run_dir}/slice-${phase.number}/review-${iteration}.md
                         status_path: ${run_dir}/slice-${phase.number}/status-${iteration}.txt
-                        changes_dir: ${app_path}/docs/metadata/quick_updates
+                        changes_dir: ${app_path}/${docs_dir}/metadata/quick_updates
+                        docs_dir: ${docs_dir}
 
                   - read-file:
                       path: ${run_dir}/slice-${phase.number}/status-${iteration}.txt

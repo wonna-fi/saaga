@@ -87,6 +87,8 @@ export interface InstallRulesArgs {
   app: string;
   /** Comma-separated rule targets (agentsmd|cursor|claude|copilot|none). */
   rule_targets: string;
+  /** Name of the documentation directory (e.g. `"saaga-docs"`). */
+  docs_dir: string;
 }
 
 /**
@@ -108,6 +110,9 @@ export async function installRules(
   if (args.rule_targets == null || args.rule_targets === "") {
     throw new Error("install-rules: 'rule_targets' arg is required");
   }
+  if (!args.docs_dir) {
+    throw new Error("install-rules: 'docs_dir' arg is required");
+  }
 
   const ruleTargets = parseRuleTargets(args.rule_targets);
   if (ruleTargets.length === 0) return;
@@ -115,6 +120,7 @@ export async function installRules(
   const ruleBody = (
     await renderPromptFile(join(RULES_DIR, "rule-stub.md"), {
       app: args.app,
+      docs_dir: args.docs_dir,
     })
   ).trimEnd();
 

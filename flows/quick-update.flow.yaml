@@ -4,6 +4,7 @@ steps:
       name: detect-changes
       app_dir: ${app_path}
       output_dir: ${run_dir}
+      docs_dir: ${docs_dir}
       set: changes
 
   - if: '${changes.count} != 0'
@@ -12,9 +13,10 @@ steps:
           prompt: quick-update
           vars:
             app: ${app}
+            docs_dir: ${docs_dir}
             changes_path: ${changes.changes_path}
             status_path: ${run_dir}/quick-update-status.txt
-            summary_path: ${app_path}/docs/metadata/quick_updates/${run_id}/summary.md
+            summary_path: ${app_path}/${docs_dir}/metadata/quick_updates/${run_id}/summary.md
 
       - read-file:
           path: ${run_dir}/quick-update-status.txt
@@ -26,9 +28,10 @@ steps:
           - script:
               name: archive-quick-update
               changes_path: ${changes.changes_path}
-              dest_dir: ${app_path}/docs/metadata/quick_updates/${run_id}
-              summary_path: ${app_path}/docs/metadata/quick_updates/${run_id}/summary.md
+              dest_dir: ${app_path}/${docs_dir}/metadata/quick_updates/${run_id}
+              summary_path: ${app_path}/${docs_dir}/metadata/quick_updates/${run_id}/summary.md
 
       - script:
           name: generate-baseline
           app_dir: ${app_path}
+          docs_dir: ${docs_dir}
