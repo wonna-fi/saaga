@@ -8,34 +8,41 @@ Use this pattern when you need to modify an existing Saaga workflow — adding n
 
 ```yaml
 # Example: Adding a "lint documentation" step after the slice-doc agent step
-# in flows/slice.flow.yaml
+# in the foreach body of flows/init.flow.yaml or flows/update.flow.yaml
 
-name: slice
+name: init
 steps:
-  - agent:
-      prompt: slice-doc
-      vars:
-        plan: ${plan}
-        phase_number: ${phase_number}
+  # ... earlier steps ...
+
+  - foreach:
+      var: phase
+      in: ${phases}
+      when: '${phase.number} != 0'
+      do:
+        - agent:
+            prompt: slice-doc
+            vars:
+              plan: ${plan}
+              phase_number: ${phase_number}
 
   # 1. Add a new script step that runs after documentation is written
-  - script:
-      name: lint-docs
-      app_dir: ${app_path}
-      set: lint_result
+        - script:
+            name: lint-docs
+            app_dir: ${app_path}
+            set: lint_result
 
-  # 2. Add a new agent step with a custom prompt template
-  - agent:
-      prompt: my-custom-prompt
-      vars:
-        plan: ${plan}
-        lint_output: ${lint_result.report_path}
+        # 2. Add a new agent step with a custom prompt template
+        - agent:
+            prompt: my-custom-prompt
+            vars:
+              plan: ${plan}
+              lint_output: ${lint_result.report_path}
 
-  - loop:
-      max: 3
-      until: '${status} == "PASS"'
-      do:
-        # ... existing verify/fix loop steps ...
+        - loop:
+            max: 3
+            until: '${status} == "PASS"'
+            do:
+              # ... existing verify/fix loop steps ...
 ```
 
 ### Adding a New Agent Step

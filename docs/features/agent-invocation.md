@@ -101,14 +101,14 @@ The internal `runAgentStep()` function handles each agent step:
 | Module | Function | Purpose |
 |--------|----------|---------|
 | `src/cli.ts` | `resolveAgent()` | Orchestrates backend resolution, model selection, and agent construction (not exported) |
-| `src/cli.ts` | `runFlowSubcommand()` | Shared logic for `architecture`, `init`, `update`, `quick-update`, and `verify-quick-updates` subcommands (not exported) |
+| `src/cli.ts` | `runFlowSubcommand()` | Shared logic for `init`, `update`, `quick-update`, and `verify-quick-updates` subcommands (not exported) |
 | `src/engine/runner.ts` | `runAgentStep()` | Renders prompt and invokes agent for a single step (not exported) |
 | `src/engine/runner.ts` | `assertFileExists()` | Checks `expect_file` existence (not exported) |
 
 ## Integration Points
 
 - **Depends on**: Agent backend CLIs (`cursor-agent`, `copilot`, `claude`), prompt templates in `prompts/`, flow YAML definitions in `flows/`
-- **Used by**: Six CLI subcommands (`architecture`, `init`, `update`, `quick-update`, `verify-quick-updates`, `slice`) — every subcommand except `install-rules` resolves an agent and executes a flow containing agent steps
+- **Used by**: Four CLI subcommands (`init`, `update`, `quick-update`, `verify-quick-updates`) — every subcommand except `install-rules` resolves an agent and executes a flow containing agent steps
 - **External systems**: External agent CLI binaries invoked via `execa`
 
 ## Extension Guide

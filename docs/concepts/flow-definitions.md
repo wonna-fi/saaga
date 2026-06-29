@@ -2,7 +2,7 @@
 
 ## Business Definition
 
-Flow definitions are the YAML-based workflow files that define the step sequences for each Saaga command. Each flow file describes what the command does end-to-end — which agent prompts to invoke, which scripts to run, and how to control iteration and branching. The six flows (`architecture`, `init`, `update`, `slice`, `quick-update`, `verify-quick-updates`) map 1:1 to CLI subcommands.
+Flow definitions are the YAML-based workflow files that define the step sequences for each Saaga command. Each flow file describes what the command does end-to-end — which agent prompts to invoke, which scripts to run, and how to control iteration and branching. The four flows (`init`, `update`, `quick-update`, `verify-quick-updates`) map 1:1 to CLI subcommands that execute flows.
 
 ## Configuration
 
@@ -23,29 +23,14 @@ Flow definitions are the YAML-based workflow files that define the step sequence
 | `FlowDefinition` | `name` | Identifier for the flow (matches the YAML `name:` field) |
 | `FlowDefinition` | `steps` | Ordered array of `Step` objects composing the workflow |
 
-## The Six Flow Files
+## The Four Flow Files
 
 | Flow | File | Purpose |
 |------|------|---------|
-| architecture | `flows/architecture.flow.yaml` | Single agent step producing `ARCHITECTURE.md` |
 | init | `flows/init.flow.yaml` | Full documentation generation: architecture → plan → phases → baseline |
 | update | `flows/update.flow.yaml` | Incremental update: detect changes → plan → phases → baseline |
-| slice | `flows/slice.flow.yaml` | Standalone single-phase documentation with verify/fix loop |
 | quick-update | `flows/quick-update.flow.yaml` | Fast single-session documentation update: detect changes → agent-driven triage/update → archive → baseline |
 | verify-quick-updates | `flows/verify-quick-updates.flow.yaml` | Batch verification: collect unverified quick-update artifacts → plan → foreach phase (slice + verify/fix) → remove artifacts |
-
-### architecture.flow.yaml
-
-The simplest flow — one `agent` step using the `document-architecture` prompt:
-
-```yaml
-name: architecture
-steps:
-  - agent:
-      prompt: document-architecture
-      vars:
-        app: ${app}
-```
 
 ### init.flow.yaml
 
@@ -66,13 +51,6 @@ Conditional workflow for incremental updates:
 1. `script` — `detect-changes` compares work tree vs. BASELINE
 2. `if` — only proceeds when `${changes.count} != 0`
 3. Inside the `if`: plan → parse-plan → foreach phase (slice + verify/fix loop) → regenerate baseline
-
-### slice.flow.yaml
-
-Minimal standalone workflow for documenting a single phase:
-
-1. `agent` — document the slice (`slice-doc`)
-2. `loop` (max 3) — verify → read-status → conditionally fix
 
 ### quick-update.flow.yaml
 
@@ -112,8 +90,6 @@ Batch verification flow that consolidates and hardens accumulated quick-update a
 
 - `flows/init.flow.yaml` — demonstrates all step types: agent, script, foreach (with `when`), loop, read-file, if
 - `flows/update.flow.yaml` — demonstrates conditional branching with `if` at the top level and nested `foreach`/`loop`
-- `flows/slice.flow.yaml` — minimal composition of agent + loop with verify/fix pattern
-- `flows/architecture.flow.yaml` — simplest possible flow (single agent step)
 - `flows/quick-update.flow.yaml` — demonstrates agent writing a status file that controls conditional archiving
 - `flows/verify-quick-updates.flow.yaml` — demonstrates collecting external artifacts, planning from them, and cleaning up afterwards
 

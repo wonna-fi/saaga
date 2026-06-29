@@ -53,7 +53,7 @@ flowchart TD
 
 ### CLI (`src/cli.ts`)
 
-Entry point. Defines seven subcommands (`architecture`, `init`, `install-rules`, `update`, `quick-update`, `verify-quick-updates`, `slice`) using `commander`. Six of these resolve the agent, create a run context, load the corresponding flow, and call the engine. The `install-rules` subcommand is standalone: it runs the rule installer directly without an agent backend.
+Entry point. Defines five subcommands (`init`, `install-rules`, `update`, `quick-update`, `verify-quick-updates`) using `commander`. Four of these resolve the agent, create a run context, load the corresponding flow, and call the engine. The `install-rules` subcommand is standalone: it runs the rule installer directly without an agent backend.
 
 **Exports**: `runCli(argv, options): Promise<number>`, `CliOptions`
 
@@ -263,12 +263,10 @@ YAML files that define the step sequence for each subcommand. The engine loads t
 
 | Flow | Subcommand | Steps |
 |------|------------|-------|
-| `architecture.flow.yaml` | `architecture` | Single agent step: generate `ARCHITECTURE.md`. |
 | `init.flow.yaml` | `init` | Architecture → plan → phase-0 slice → install-rules → foreach phase (slice + verify/fix loop) → generate baseline. |
 | `update.flow.yaml` | `update` | Detect changes → if changes exist: plan → foreach phase (slice + verify/fix loop) → regenerate baseline. |
 | `quick-update.flow.yaml` | `quick-update` | Detect changes → if changes exist: agent quick-update → read status → if UPDATED: archive-quick-update → generate baseline. |
 | `verify-quick-updates.flow.yaml` | `verify-quick-updates` | Collect quick-updates → if any: plan → foreach phase (slice + verify/fix loop) → remove processed artifacts. |
-| `slice.flow.yaml` | `slice` | Single-phase slice + verify/fix loop (up to 3 iterations). |
 
 ### Prompt Templates (`prompts/`)
 

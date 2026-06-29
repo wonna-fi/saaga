@@ -128,8 +128,8 @@ when: ${phase.number} != 0
 |------|-------------|
 | `flows/init.flow.yaml` | Full workflow using all six step types: sequential agents, scripts, foreach with when filter, nested loop with read-file and if |
 | `flows/update.flow.yaml` | Demonstrates top-level if conditional and nested foreach with loop |
-| `flows/slice.flow.yaml` | Minimal focused workflow: agent → loop (verify/fix pattern) |
-| `flows/architecture.flow.yaml` | Single-step flow (simplest possible flow) |
+| `flows/quick-update.flow.yaml` | Agent writing a status file that controls conditional archiving |
+| `flows/verify-quick-updates.flow.yaml` | Collecting external artifacts, planning from them, and cleaning up afterwards |
 
 ## Anti-Patterns
 
