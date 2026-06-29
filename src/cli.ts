@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { realpathSync } from "node:fs";
 import { readFile, stat } from "node:fs/promises";
 import { basename, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -425,8 +426,20 @@ async function isFile(path: string): Promise<boolean> {
   }
 }
 
-const isMain = process.argv[1] === fileURLToPath(import.meta.url);
-if (isMain) {
+function isMainModule(): boolean {
+  const argv1 = process.argv[1];
+  if (!argv1) return false;
+  const modulePath = fileURLToPath(import.meta.url);
+  try {
+    // Resolve symlinks so global bin installs (where argv[1] is a symlink
+    // into the npm bin dir) still match the real module path.
+    return realpathSync(argv1) === modulePath;
+  } catch {
+    return argv1 === modulePath;
+  }
+}
+
+if (isMainModule()) {
   runCli(process.argv.slice(2)).then(
     (code) => {
       process.exit(code);
