@@ -36,44 +36,44 @@ Flow definitions are the YAML-based workflow files that define the step sequence
 
 The most complex flow. Step sequence:
 
-1. `agent` — generate architecture docs (`document-architecture`)
-2. `agent` — create a documentation plan (`plan-init`), with `expect_file` assertion
+1. `agent` — generate architecture docs (`document-architecture`); passes `docs_dir`
+2. `agent` — create a documentation plan (`plan-init`); passes `docs_dir`, with `expect_file` assertion
 3. `script` — `parse-plan` extracts phases from the plan's YAML frontmatter
 4. `agent` — document phase 0 (`slice-doc`)
-5. `script` — `install-rules` installs rule stubs using `${app_path}`, `${app}`, and `${rule_targets}` from scope
-6. `foreach` — iterate non-zero phases: document each with `slice-doc`, then enter a `loop` (max 3) of verify → read-status → conditionally fix
-7. `script` — `generate-baseline` creates the content manifest
+5. `script` — `install-rules` installs rule stubs using `${app_path}`, `${app}`, `${rule_targets}`, and `${docs_dir}` from scope
+6. `foreach` — iterate non-zero phases: document each with `slice-doc`, then enter a `loop` (max 3) of verify → read-status → conditionally fix; `verify-domain-documentation` passes `docs_dir`
+7. `script` — `generate-baseline` creates the content manifest; passes `docs_dir`
 
 ### update.flow.yaml
 
 Conditional workflow for incremental updates:
 
-1. `script` — `detect-changes` compares work tree vs. BASELINE
+1. `script` — `detect-changes` compares work tree vs. BASELINE; passes `docs_dir`
 2. `if` — only proceeds when `${changes.count} != 0`
-3. Inside the `if`: plan → parse-plan → foreach phase (slice + verify/fix loop) → regenerate baseline
+3. Inside the `if`: plan (passes `docs_dir`) → parse-plan → foreach phase (slice + verify/fix loop with `docs_dir`) → regenerate baseline (passes `docs_dir`)
 
 ### quick-update.flow.yaml
 
 Fast single-session update using a cheaper/faster model by default. Step sequence:
 
-1. `script` — `detect-changes` compares work tree vs. BASELINE; stores result as `changes`
+1. `script` — `detect-changes` compares work tree vs. BASELINE; passes `docs_dir`; stores result as `changes`
 2. `if` — only proceeds when `${changes.count} != 0`
 3. Inside the `if`:
-   - `agent` — `quick-update` prompt: triage changes, update docs, write status (`UPDATED`/`SKIPPED`) and summary artifact
+   - `agent` — `quick-update` prompt: passes `docs_dir`; triage changes, update docs, write status (`UPDATED`/`SKIPPED`) and summary artifact to `${app_path}/${docs_dir}/metadata/quick_updates/${run_id}/summary.md`
    - `read-file` — reads the status file into scope as `status`
-   - `if` — when `${status} == "UPDATED"`: runs `archive-quick-update` with `summary_path`; the script verifies the summary exists before copying the changes report into the quick-update metadata folder
-   - `script` — `generate-baseline` regenerates the content manifest
+   - `if` — when `${status} == "UPDATED"`: runs `archive-quick-update` with `dest_dir` using `${docs_dir}` in the metadata path
+   - `script` — `generate-baseline` regenerates the content manifest; passes `docs_dir`
 
 ### verify-quick-updates.flow.yaml
 
 Batch verification flow that consolidates and hardens accumulated quick-update artifacts. Step sequence:
 
-1. `script` — `collect-quick-updates` snapshots all unverified metadata folders; stores result (including `manifest_path` and `count`) as `quick_updates`
+1. `script` — `collect-quick-updates` snapshots all unverified metadata folders from `${app_path}/${docs_dir}/metadata/quick_updates`; stores result (including `manifest_path` and `count`) as `quick_updates`
 2. `if` — only proceeds when `${quick_updates.count} != 0`
 3. Inside the `if`:
-   - `agent` — `plan-verify-quick-updates` prompt: reads all artifact summaries, consolidates into a verification plan
+   - `agent` — `plan-verify-quick-updates` prompt: passes `docs_dir` and `metadata_dir` (`${app_path}/${docs_dir}/metadata/quick_updates`); reads all artifact summaries, consolidates into a verification plan
    - `script` — `parse-plan` extracts phases from the plan
-   - `foreach` — iterate phases: document each with `slice-doc`, then enter a `loop` (max 3) of verify → read-status → conditionally fix
+   - `foreach` — iterate phases: document each with `slice-doc`, then enter a `loop` (max 3) of verify → read-status → conditionally fix; `verify-domain-documentation` passes `docs_dir` and `changes_dir` (`${app_path}/${docs_dir}/metadata/quick_updates`)
    - `script` — `remove-quick-updates` deletes exactly the metadata folders listed in the manifest (artifacts created after the snapshot are preserved)
 
 ## Key Services/Functions (PUBLIC/EXPORTED only)

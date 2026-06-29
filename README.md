@@ -168,21 +168,67 @@ docsDir: saaga-docs        # name of the generated docs folder (default: saaga-d
 
 Resolution order: **CLI flag -> `.saaga/config.yaml` -> built-in default**.
 
+### Excluding files (.saagaignore)
+
+Create a `.saagaignore` file in the project root to exclude source files
+or directories from Saaga's documentation scope. Excluded files are
+omitted from baseline generation and will not trigger documentation
+updates during `saaga update`.
+
+The syntax follows gitignore conventions (globs, negation with `!`,
+trailing `/` for directories). `.gitignore` rules are also honored
+automatically. The generated docs directory (`saaga-docs/`) and `.git/`
+are always excluded regardless of ignore files.
+
+Nested `.saagaignore` files inside subdirectories apply to their subtree
+only, with "deepest match wins" semantics.
+
+```gitignore
+# Vendored dependencies and build output
+vendor/
+dist/
+
+# Lock files
+package-lock.json
+
+# Generated assets
+*.min.js
+*.map
+```
+
 ## Running in containers (recommended)
 
 The agent backend executes with broad autonomy over the filesystem and
 network. Running Saaga inside a container sandboxes it from your host
-environment.
+environment so the agent cannot affect anything outside the mounted
+project directory.
 
-**Devcontainer** — a ready-to-use dev container ships under
-[`.devcontainer/`](./.devcontainer/). Agent CLIs are installed via the
-`postCreateCommand` hook (`install-agents.sh`). Populate it from the
-helpers under [`examples/install-agents/`](./examples/install-agents/)
-to match the backends you want available.
+[`examples/Dockerfile`](./examples/Dockerfile) provides a starting
+point. It bakes Saaga and an agent backend CLI into a self-contained
+image, then uses your project as a bind-mounted volume at runtime.
 
-**Standalone image** — see
-[`examples/Dockerfile`](./examples/Dockerfile) for a self-contained
-build.
+Build the image from the repository root:
+
+```bash
+docker build -f examples/Dockerfile -t my-saaga .
+```
+
+Run against your project:
+
+```bash
+docker run --rm -v /path/to/your/app:/workspace \
+    my-saaga --backend cursor init /workspace
+```
+
+**Choosing backends** — the Dockerfile installs `cursor-agent` by
+default. Uncomment or add `RUN` lines for the backends you need; helper
+scripts under [`examples/install-agents/`](./examples/install-agents/)
+show the install commands for each supported backend.
+
+**Authentication** — agent CLIs need valid credentials inside the
+container. Mount your credential files or pass tokens as environment
+variables (e.g. `-e ANTHROPIC_API_KEY`). Saaga does not manage API keys
+itself.
 
 ## Development
 

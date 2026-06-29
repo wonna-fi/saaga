@@ -25,12 +25,12 @@ Before working with this feature, understand these concepts:
 5. Agent triages changes, updates affected documentation files, and writes:
    - `{status_path}` — exactly `UPDATED` or `SKIPPED`
    - `{summary_path}` — structured YAML frontmatter + prose summary (only when `UPDATED`)
-6. Flow reads the status file; if `UPDATED`, runs `archive-quick-update` with `summary_path` — the script first verifies the summary file exists at that path (throwing if it doesn't), then copies the changes report into the quick-update metadata folder at `docs/metadata/quick_updates/<run_id>/`
+6. Flow reads the status file; if `UPDATED`, runs `archive-quick-update` with `summary_path` — the script first verifies the summary file exists at that path (throwing if it doesn't), then copies the changes report into the quick-update metadata folder at `<docs_dir>/metadata/quick_updates/<run_id>/`
 7. Flow runs `generate-baseline` to regenerate the content manifest
 
 ### Metadata Artifact Layout
 
-When status is `UPDATED`, two files are written under the app's `docs/metadata/quick_updates/<run_id>/` folder:
+When status is `UPDATED`, two files are written under the app's `<docs_dir>/metadata/quick_updates/<run_id>/` folder:
 
 | File | Written by | Contents |
 |------|-----------|----------|
@@ -58,16 +58,16 @@ When status is `UPDATED`, two files are written under the app's `docs/metadata/q
 
 ### Flow Execution
 
-The flow is defined in `flows/quick-update.flow.yaml` and executed by `runFlow()` with initial scope `{ app, app_path, run_id, run_dir, date }`.
+The flow is defined in `flows/quick-update.flow.yaml` and executed by `runFlow()` with initial scope `{ app, app_path, docs_dir, run_id, run_dir, date }`.
 
 Step sequence:
 
-1. `script` — `detect-changes`: args `{ app_dir: ${app_path}, output_dir: ${run_dir} }`; stores result as `changes` (includes `changes.count` and `changes.changes_path`)
+1. `script` — `detect-changes`: args `{ app_dir: ${app_path}, output_dir: ${run_dir}, docs_dir: ${docs_dir} }`; stores result as `changes` (includes `changes.count` and `changes.changes_path`)
 2. `if ${changes.count} != 0`:
-   - `agent` — `quick-update` prompt: vars `{ app, changes_path, status_path, summary_path }`; `status_path` = `${run_dir}/quick-update-status.txt`; `summary_path` = `${app_path}/docs/metadata/quick_updates/${run_id}/summary.md`
+   - `agent` — `quick-update` prompt: vars `{ app, docs_dir, changes_path, status_path, summary_path }`; `status_path` = `${run_dir}/quick-update-status.txt`; `summary_path` = `${app_path}/${docs_dir}/metadata/quick_updates/${run_id}/summary.md`
    - `read-file` — reads status file into `status` scope variable
-   - `if ${status} == "UPDATED"`: `script` — `archive-quick-update`: args `{ changes_path: ${changes.changes_path}, dest_dir: ${app_path}/docs/metadata/quick_updates/${run_id}, summary_path: ${app_path}/docs/metadata/quick_updates/${run_id}/summary.md }`
-   - `script` — `generate-baseline`: args `{ app_dir: ${app_path} }`
+   - `if ${status} == "UPDATED"`: `script` — `archive-quick-update`: args `{ changes_path: ${changes.changes_path}, dest_dir: ${app_path}/${docs_dir}/metadata/quick_updates/${run_id}, summary_path: ${app_path}/${docs_dir}/metadata/quick_updates/${run_id}/summary.md }`
+   - `script` — `generate-baseline`: args `{ app_dir: ${app_path}, docs_dir: ${docs_dir} }`
 
 ### Services/Functions
 
@@ -75,7 +75,7 @@ Step sequence:
 |--------|-----------------|---------|
 | `src/scripts/detect-changes.ts` | `detectChanges()` | Compares work tree against BASELINE; returns counts and path to changes report |
 | `src/scripts/archive-quick-update.ts` | `archiveQuickUpdate()` | Copies the changes report into the quick-update metadata folder |
-| `src/scripts/generate-baseline.ts` | `generateBaseline()` | Regenerates `docs/BASELINE` after the update |
+| `src/scripts/generate-baseline.ts` | `generateBaseline()` | Regenerates `<docs_dir>/BASELINE` after the update |
 | `src/cli/backend.ts` | `defaultQuickModelFor()` | Returns the faster/cheaper default model for quick-update |
 | `src/cli.ts` | `runCli()` | Entry point; dispatches `quick-update` subcommand with `useQuickModel: true` |
 

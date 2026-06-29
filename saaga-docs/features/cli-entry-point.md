@@ -52,14 +52,17 @@ Before working with this feature, understand these concepts:
    - Must be a directory (otherwise: `Error: "Not a directory: <dir>"`)
 3. CLI loads config via `loadConfig(appPath)` (see [Project Configuration](../concepts/project-configuration.md))
 4. CLI extracts the app name as `basename(appPath)` and resolves the agent via the backend resolution chain, passing config (see [Backend Resolution](../concepts/backend-resolution.md))
-5. CLI creates a run context: generates a unique run ID and creates the run directory on disk (see [Run Context and Isolation](../concepts/run-context.md))
-6. CLI creates a `Logger` (via internal `createLogger()`) and logs startup info: `saaga <subcommand> <path> (backend=<name>)` with optional conditional segment `, model=<model>` only when `--model` is explicitly provided. Also logs run ID and run directory.
-7. CLI loads the flow definition: `loadFlow(flowName)` reads `flows/<flowName>.flow.yaml`
-8. CLI executes the flow: `runFlow(flow, initialScope, deps)` with scope `{ app, app_path, run_id, run_dir, date }`, passing the logger in `RunFlowDeps`
+5. CLI creates a `Logger` (via internal `createLogger()`)
+6. CLI creates a run context: generates a unique run ID and creates the run directory on disk (see [Run Context and Isolation](../concepts/run-context.md))
+7. Logger logs startup info: `saaga <subcommand> <path> (backend=<name>)` with optional conditional segment `, model=<model>` only when `--model` is explicitly provided. Also logs run ID and run directory.
+8. CLI resolves the effective documentation directory via `resolveDocsDir(config)` (falls back to `DEFAULT_DOCS_DIR` = `"saaga-docs"`)
+9. CLI checks for a legacy `docs/` directory: if `config.docsDir` is not set, `docs/BASELINE` exists, and `<docsDir>/BASELINE` does not exist, it logs a warning suggesting the user set `docsDir: docs` in `.saaga/config.yaml` or migrate contents
+10. CLI loads the flow definition: `loadFlow(flowName)` reads `flows/<flowName>.flow.yaml`
+11. CLI executes the flow: `runFlow(flow, initialScope, deps)` with scope `{ app, app_path, docs_dir, run_id, run_dir, date }`, passing the logger in `RunFlowDeps`
 
 ### User Flow: quick-update Subcommand
 
-The `quick-update` subcommand follows the same flow as standard subcommands (steps 1–8 above) with one difference: the agent is resolved using `config.quickModel` (from `.saaga/config.yaml`) or `defaultQuickModelFor(backend)` instead of the standard model. The `--model` flag overrides both.
+The `quick-update` subcommand follows the same flow as standard subcommands (steps 1–11 above) with one difference: the agent is resolved using `config.quickModel` (from `.saaga/config.yaml`) or `defaultQuickModelFor(backend)` instead of the standard model. The `--model` flag overrides both.
 
 ### Edge Cases
 
@@ -99,7 +102,8 @@ The program uses Commander's `exitOverride()` to prevent Commander from calling 
 | `src/cli.ts` | `runCli()` | CLI entry point — parses args, dispatches to subcommand handlers, returns exit code |
 | `src/cli.ts` | `CliOptions` (interface) | Options for `runCli()`: optional `agent`, `cwd`, `env`, `stdout`, `stderr` overrides |
 | `src/cli/config.ts` | `loadConfig()` | Load project config from `.saaga/config.yaml`; returns `SaagaConfig` |
-| `src/cli/config.ts` | `SaagaConfig` (interface) | Shape of the parsed config: `backend?`, `model?`, `quickModel?`, `ruleTargets?` |
+| `src/cli/config.ts` | `SaagaConfig` (interface) | Shape of the parsed config: `backend?`, `model?`, `quickModel?`, `ruleTargets?`, `docsDir?` |
+| `src/cli/config.ts` | `DEFAULT_DOCS_DIR` (constant) | Default documentation directory name: `"saaga-docs"` |
 | `src/cli/config.ts` | `ConfigError` (class) | Error for malformed config YAML or invalid field types |
 | `src/cli/backend.ts` | `resolveBackend()` | Resolve backend name from flag → config → error |
 | `src/cli/backend.ts` | `defaultModelFor()` | Return the default model for a backend (standard subcommands) |
@@ -122,6 +126,8 @@ The program uses Commander's `exitOverride()` to prevent Commander from calling 
 | `src/cli.ts` | `runFlowSubcommand()` | Shared handler for `init`, `update`, `quick-update`, `verify-quick-updates`: validates dir, creates run context, executes flow (not exported) |
 | `src/cli.ts` | `runInstallRulesSubcommand()` | Handler for `install-rules`: validates dir, calls `installRules()` directly without backend/run context (not exported) |
 | `src/cli.ts` | `resolveRuleTargets()` | Resolves effective rule targets from CLI flag → `config.ruleTargets` → default `"agentsmd"`, then validates via `parseRuleTargets()` (not exported) |
+| `src/cli.ts` | `resolveDocsDir()` | Resolves effective docs directory from `config.docsDir` → `DEFAULT_DOCS_DIR` (`"saaga-docs"`) (not exported) |
+| `src/cli.ts` | `isFile()` | Checks whether a path exists as a file (used for legacy `docs/BASELINE` migration warning) (not exported) |
 | `src/cli.ts` | `createLogger()` | Creates a `Logger` with `ci` from global flags and `stream` from CLI options (defaults to `process.stderr`) (not exported) |
 
 ## Integration Points
