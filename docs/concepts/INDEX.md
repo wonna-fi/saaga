@@ -12,5 +12,5 @@
 | [Run Context and Isolation](./run-context.md) | Run ID format, `SAAGA_DIR` resolution, and run directory creation for artifact isolation |
 | [Script Registry](./script-registry.md) | The `ScriptRegistry` map, `ScriptHandler` signature, `ScriptContext`, and how built-in scripts are registered and invoked |
 | [Baseline and Change Detection](./baseline-and-change-detection.md) | The `docs/BASELINE` file format, `.saagaignore` filtering, and change classification system |
-| [Flow Definitions](./flow-definitions.md) | The six flow YAML files, their step sequences, and how they compose agent steps, scripts, and control flow |
+| [Flow Definitions](./flow-definitions.md) | The four flow YAML files, their step sequences, and how they compose agent steps, scripts, and control flow |
 | [Prompt Templates](./prompt-templates.md) | The eight prompt template files, their `{var}` placeholders, and their role in each workflow |

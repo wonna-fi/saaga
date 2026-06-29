@@ -80,7 +80,7 @@ The CLI provides these scope variables to the flow:
 | `${run_id}` | Unique run identifier (format: `<app>-init-<YYYYMMDD>-<HHMMSS>-<hex>`) |
 | `${run_dir}` | Absolute path to the run artifacts directory |
 | `${date}` | Run date formatted as YYYYMMDD |
-| `${rule_targets}` | Comma-separated rule targets from `--rule-target` flag, `config.ruleTargets`, or default `"agentsmd"` |
+| `${rule_targets}` | Comma-separated rule targets from `--rule-targets` flag, `config.ruleTargets`, or default `"agentsmd"` |
 
 ### Services/Functions
 

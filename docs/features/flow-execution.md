@@ -113,7 +113,7 @@ interface RunFlowDeps {
 ## Integration Points
 
 - **Depends on**: Agent backend (via `RunFlowDeps.agent`), template rendering (`renderPromptFile`), script registry (`defaultScriptRegistry`), expression engine (`interpolate`, `resolveValue`, `evaluatePredicate`), `Logger` (via `RunFlowDeps.logger`, optional)
-- **Used by**: CLI subcommands (`architecture`, `init`, `update`, `quick-update`, `verify-quick-updates`, `slice`) which load a flow and call `runFlow()`
+- **Used by**: CLI subcommands (`init`, `update`, `quick-update`, `verify-quick-updates`) which load a flow and call `runFlow()`
 - **External systems**: Filesystem (via `readFile` in `read-file.ts`)
 
 ## Extension Guide

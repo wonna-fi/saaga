@@ -23,7 +23,7 @@ Project configuration is the mechanism by which a Saaga-managed project declares
 | `SaagaConfig` | `backend` | Optional backend name (`"cursor"`, `"copilot"`, or `"claude"`); used as fallback when `--backend` flag is absent |
 | `SaagaConfig` | `model` | Optional AI model override for standard subcommands; used as fallback when `--model` flag is absent |
 | `SaagaConfig` | `quickModel` | Optional AI model override for the `quick-update` subcommand; used instead of `defaultQuickModelFor(backend)` |
-| `SaagaConfig` | `ruleTargets` | Optional rule targets string; accepts a comma-separated string or a YAML list of strings; used as fallback when `--rule-target` flag is absent |
+| `SaagaConfig` | `ruleTargets` | Optional rule targets string; accepts a comma-separated string or a YAML list of strings; used as fallback when `--rule-targets` flag is absent |
 
 ### Config File Example
 
@@ -78,7 +78,7 @@ Config values participate in every resolution chain as the second-priority sourc
 | Backend | `--backend` flag → `config.backend` → `BackendError` |
 | Model (standard) | `--model` flag → `config.model` → `defaultModelFor(backend)` |
 | Model (quick-update) | `--model` flag → `config.quickModel` → `defaultQuickModelFor(backend)` |
-| Rule targets | `--rule-target` flag → `config.ruleTargets` → `"agentsmd"` |
+| Rule targets | `--rule-targets` flag → `config.ruleTargets` → `"agentsmd"` |
 
 ## Error Handling
 

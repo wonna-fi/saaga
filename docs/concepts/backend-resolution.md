@@ -35,7 +35,7 @@ Empty strings are treated as absent — an empty `--backend ""` or an empty `con
 
 ### Model Resolution Precedence
 
-For standard subcommands (`architecture`, `init`, `update`, `slice`, `verify-quick-updates`):
+For standard subcommands (`init`, `update`, `verify-quick-updates`):
 ```
 --model flag  →  config.model  →  defaultModelFor(backend)
 ```
