@@ -19,7 +19,7 @@ Before working with this feature, understand these concepts:
 
 1. User runs `saaga verify-quick-updates [dir] [flags]` (dir defaults to the current working directory)
 2. CLI validates `dir`, resolves the agent using the standard model, creates a run context, and executes `flows/verify-quick-updates.flow.yaml`
-3. Flow runs `collect-quick-updates` — snapshots all subdirectories under `docs/metadata/quick_updates/`; if none are found, flow exits early
+3. Flow runs `collect-quick-updates` — snapshots all subdirectories under `<docs_dir>/metadata/quick_updates/`; if none are found, flow exits early
 4. Agent receives the `plan-verify-quick-updates` prompt; reads each artifact's `changes.md` and `summary.md`, consolidates them into a phased verification plan, and writes the plan file
 5. Flow parses the plan's YAML frontmatter to extract phases
 6. For each phase, the flow:
@@ -31,7 +31,7 @@ Before working with this feature, understand these concepts:
 
 | Stage | Action |
 |-------|--------|
-| Before run | `docs/metadata/quick_updates/<id>/` folders exist for each unverified quick-update |
+| Before run | `<docs_dir>/metadata/quick_updates/<id>/` folders exist for each unverified quick-update |
 | `collect-quick-updates` | Writes `quick-updates-manifest.json` in the run directory listing all current folder IDs |
 | After all phases | `remove-quick-updates` deletes the folders listed in the manifest |
 | Folders created during run | Preserved (not in manifest) |
@@ -56,18 +56,18 @@ Before working with this feature, understand these concepts:
 
 ### Flow Execution
 
-The flow is defined in `flows/verify-quick-updates.flow.yaml` and executed by `runFlow()` with initial scope `{ app, app_path, run_id, run_dir, date }`.
+The flow is defined in `flows/verify-quick-updates.flow.yaml` and executed by `runFlow()` with initial scope `{ app, app_path, docs_dir, run_id, run_dir, date }`.
 
 Step sequence:
 
-1. `script` — `collect-quick-updates`: args `{ metadata_dir: ${app_path}/docs/metadata/quick_updates, output_dir: ${run_dir} }`; stores result as `quick_updates` (includes `quick_updates.count` and `quick_updates.manifest_path`)
+1. `script` — `collect-quick-updates`: args `{ metadata_dir: ${app_path}/${docs_dir}/metadata/quick_updates, output_dir: ${run_dir} }`; stores result as `quick_updates` (includes `quick_updates.count` and `quick_updates.manifest_path`)
 2. `if ${quick_updates.count} != 0`:
-   - `agent` — `plan-verify-quick-updates` prompt: vars `{ app, manifest_path, metadata_dir, output_path }`; `expect_file` asserts the plan file is written
+   - `agent` — `plan-verify-quick-updates` prompt: vars `{ app, docs_dir, manifest_path, metadata_dir, output_path }`; `metadata_dir` = `${app_path}/${docs_dir}/metadata/quick_updates`; `expect_file` asserts the plan file is written
    - `script` — `parse-plan`: args `{ file: ${run_dir}/plans/..., require_phases: "true" }`; stores result as `phases`; the `require_phases` flag causes an error if the plan has no phases — this guards against silently skipping verification and then deleting metadata
    - `foreach` over `phases`:
      - `agent` — `slice-doc` prompt
      - `loop` (max 3, until `${status} == "PASS"`):
-       - `agent` — `verify-domain-documentation` prompt, vars include `changes_dir: ${app_path}/docs/metadata/quick_updates` (enables coverage verification against the raw change reports — unlike `init`/`update` which pass `none`)
+       - `agent` — `verify-domain-documentation` prompt, vars include `changes_dir: ${app_path}/${docs_dir}/metadata/quick_updates` and `docs_dir: ${docs_dir}` (enables coverage verification against the raw change reports — unlike `init`/`update` which pass `none`)
        - `read-file` — reads status file into `status`
        - `if ${status} != "PASS"`: `agent` — `fix-documentation` prompt
    - `script` — `remove-quick-updates`: args `{ manifest: ${quick_updates.manifest_path} }`

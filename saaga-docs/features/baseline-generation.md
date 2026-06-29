@@ -2,7 +2,7 @@
 
 ## Overview
 
-The baseline generation feature creates a content manifest (`docs/BASELINE`) for an application's source files. This manifest records a SHA-1 git blob hash of every in-scope file, along with a timestamp of when it was generated. It serves as the reference point for future change detection, enabling the `update` workflow to identify exactly which files changed since documentation was last written. No git CLI is required — hashes are computed locally.
+The baseline generation feature creates a content manifest (`<docs_dir>/BASELINE`) for an application's source files. This manifest records a SHA-1 git blob hash of every in-scope file, along with a timestamp of when it was generated. It serves as the reference point for future change detection, enabling the `update` workflow to identify exactly which files changed since documentation was last written. No git CLI is required — hashes are computed locally.
 
 ## Key Concepts
 
@@ -16,9 +16,9 @@ Before working with this feature, understand these concepts:
 
 1. The `init` workflow runs all documentation phases
 2. As the final step, the flow invokes `generate-baseline` with the application directory
-3. The script ensures `docs/` exists (creates it if needed)
-4. It calls `computeManifest()` from `file-manifest.ts`, which recursively walks the directory, applying `.gitignore` and `.saagaignore` exclusion rules, and computes a SHA-1 git blob hash for each in-scope file
-5. It writes the `docs/BASELINE` file with a `# Generated:` header and sorted hash-path body lines
+3. The script ensures `<docs_dir>/` exists (creates it if needed)
+4. It calls `computeManifest(appDir, docsDir)` from `file-manifest.ts`, which recursively walks the directory, applying `.gitignore` and `.saagaignore` exclusion rules, and computes a SHA-1 git blob hash for each in-scope file
+5. It writes the `<docs_dir>/BASELINE` file with a `# Generated:` header and sorted hash-path body lines
 
 ### Output Format
 
@@ -39,11 +39,12 @@ Body lines are sorted alphabetically by path. Each line contains the 40-characte
 | Scenario | Behavior |
 |----------|----------|
 | `app_dir` arg is missing or empty | Throws `Error: generate-baseline: 'app_dir' arg is required` |
-| `docs/` directory does not exist | Created automatically via `mkdir({ recursive: true })` |
+| `docs_dir` arg is missing or empty | Throws `Error: generate-baseline: 'docs_dir' arg is required` |
+| `<docs_dir>/` directory does not exist | Created automatically via `mkdir({ recursive: true })` |
 | No files remain in scope after filtering | Writes the header line only (no body lines) |
-| `.saagaignore` does not exist | No `.saagaignore` pattern filtering applied; only `.gitignore` and hardcoded exclusions (`docs/`, `.git/`) |
+| `.saagaignore` does not exist | No `.saagaignore` pattern filtering applied; only `.gitignore` and hardcoded exclusions (`<docs_dir>/`, `.git/`) |
 | `.saagaignore` exists with patterns | Matching files are excluded from the baseline |
-| `docs/BASELINE` already exists | Overwritten with the new content |
+| `<docs_dir>/BASELINE` already exists | Overwritten with the new content |
 | Symlinks in `app_dir` | Included as manifest entries and hashed git-style (hash of the link target path string, not the linked file's content); symlinked directories are not traversed |
 
 ## Technical Implementation
@@ -60,6 +61,7 @@ In `flows/init.flow.yaml` (final step), `flows/update.flow.yaml` (final step wit
 - script:
     name: generate-baseline
     app_dir: ${app_path}
+    docs_dir: ${docs_dir}
 ```
 
 The script does not use `set:` because it returns `void` — its purpose is the side effect of writing the BASELINE file.
@@ -68,19 +70,19 @@ The script does not use `set:` because it returns `void` — its purpose is the 
 
 | Module | Function/Method | Purpose |
 |--------|-----------------|---------|
-| `src/scripts/generate-baseline.ts` | `generateBaseline()` | Main handler: computes manifest and writes `docs/BASELINE` |
-| `src/scripts/file-manifest.ts` | `computeManifest()` | Walks `appDir`, applies `.gitignore`/`.saagaignore`, returns sorted `FileEntry[]` |
+| `src/scripts/generate-baseline.ts` | `generateBaseline()` | Main handler: computes manifest and writes `<docs_dir>/BASELINE` |
+| `src/scripts/file-manifest.ts` | `computeManifest()` | Walks `appDir`, applies `.gitignore`/`.saagaignore`, excludes `<docsDir>/`; accepts `(appDir, docsDir)` parameters; returns sorted `FileEntry[]` |
 | `src/scripts/registry.ts` | `defaultScriptRegistry` | Registers `"generate-baseline"` → `generateBaseline` |
 
 ### Internal Implementation
 
-`generateBaseline()` calls `computeManifest(appDir)` and writes a `# Generated: <timestamp>` header followed by one `<hash> <path>` line per `FileEntry`. No external processes are spawned.
+`generateBaseline()` calls `computeManifest(appDir, docsDir)` and writes a `# Generated: <timestamp>` header followed by one `<hash> <path>` line per `FileEntry`. No external processes are spawned.
 
 ## Integration Points
 
 - **Depends on**: `src/scripts/file-manifest.ts` for manifest computation, `node:fs/promises` for file I/O
 - **Used by**: `flows/init.flow.yaml` (final step after all documentation is written), `flows/update.flow.yaml` (final step after documentation updates), `flows/quick-update.flow.yaml` (final step after archiving the quick-update artifact)
-- **Consumed by**: `detect-changes` script (reads `docs/BASELINE` as the reference point for change detection)
+- **Consumed by**: `detect-changes` script (reads `<docs_dir>/BASELINE` as the reference point for change detection)
 
 ## Extension Guide
 

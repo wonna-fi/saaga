@@ -30,14 +30,14 @@ Prompt templates are markdown files in the `prompts/` directory that define the 
 
 | Template | File | Placeholders | Role |
 |----------|------|--------------|------|
-| document-architecture | `prompts/document-architecture.md` | `{app}` | Generate `docs/ARCHITECTURE.md` for an application |
-| plan-init | `prompts/plan-init.md` | `{app}`, `{output_path}` | Create a full documentation plan from scratch |
-| plan-update | `prompts/plan-update.md` | `{app}`, `{changes_path}`, `{output_path}` | Create an incremental update plan based on detected changes |
+| document-architecture | `prompts/document-architecture.md` | `{app}`, `{docs_dir}` | Generate `<docs_dir>/ARCHITECTURE.md` for an application |
+| plan-init | `prompts/plan-init.md` | `{app}`, `{docs_dir}`, `{output_path}` | Create a full documentation plan from scratch |
+| plan-update | `prompts/plan-update.md` | `{app}`, `{docs_dir}`, `{changes_path}`, `{output_path}` | Create an incremental update plan based on detected changes |
 | slice-doc | `prompts/slice-doc.md` | `{plan}`, `{phase_number}` | Document a single phase from a plan |
-| verify-domain-documentation | `prompts/verify-domain-documentation.md` | `{plan}`, `{phase_number}`, `{review_path}`, `{status_path}`, `{changes_dir}` | Verify documentation quality; write PASS/FAIL status; optionally verify coverage against change reports |
+| verify-domain-documentation | `prompts/verify-domain-documentation.md` | `{plan}`, `{phase_number}`, `{review_path}`, `{status_path}`, `{changes_dir}`, `{docs_dir}` | Verify documentation quality; write PASS/FAIL status; optionally verify coverage against change reports |
 | fix-documentation | `prompts/fix-documentation.md` | `{plan}`, `{phase_number}`, `{review_path}` | Fix errors identified in a verification report |
-| quick-update | `prompts/quick-update.md` | `{app}`, `{changes_path}`, `{status_path}`, `{summary_path}` | Fast single-session doc update: triage, apply targeted edits, write UPDATED/SKIPPED status and summary |
-| plan-verify-quick-updates | `prompts/plan-verify-quick-updates.md` | `{app}`, `{manifest_path}`, `{metadata_dir}`, `{output_path}` | Consolidate unverified quick-update artifacts into a verification plan |
+| quick-update | `prompts/quick-update.md` | `{app}`, `{docs_dir}`, `{changes_path}`, `{status_path}`, `{summary_path}` | Fast single-session doc update: triage, apply targeted edits, write UPDATED/SKIPPED status and summary |
+| plan-verify-quick-updates | `prompts/plan-verify-quick-updates.md` | `{app}`, `{docs_dir}`, `{manifest_path}`, `{metadata_dir}`, `{output_path}` | Consolidate unverified quick-update artifacts into a verification plan |
 
 ## Placeholder Substitution Behavior
 
@@ -61,9 +61,9 @@ The `{var}` placeholder system (implemented in `src/templates.ts`) has specific 
 
 ## Reference Implementations
 
-- `prompts/document-architecture.md` — simplest template: single `{app}` placeholder
-- `prompts/verify-domain-documentation.md` — most complex template: five placeholders controlling review output paths and optional coverage verification
-- `prompts/plan-update.md` — three placeholders including a path to a pre-computed changes report
+- `prompts/document-architecture.md` — two placeholders: `{app}` and `{docs_dir}`
+- `prompts/verify-domain-documentation.md` — most complex template: six placeholders controlling review output paths, docs dir, and optional coverage verification
+- `prompts/plan-update.md` — four placeholders including `{docs_dir}` and a path to a pre-computed changes report
 
 ## Related Concepts
 

@@ -2,7 +2,7 @@
 
 ## Overview
 
-The change detection feature compares the current state of an application's source files against a previously generated `docs/BASELINE` manifest. It classifies every difference into one of four categories (changed, new, truly deleted, newly ignored), writes a markdown report, and returns structured counts so the flow engine can decide whether documentation updates are needed.
+The change detection feature compares the current state of an application's source files against a previously generated `<docs_dir>/BASELINE` manifest. It classifies every difference into one of four categories (changed, new, truly deleted, newly ignored), writes a markdown report, and returns structured counts so the flow engine can decide whether documentation updates are needed.
 
 ## Key Concepts
 
@@ -15,9 +15,9 @@ Before working with this feature, understand these concepts:
 
 ### User Flow
 
-1. User runs `saaga update <dir>` on an application that already has `docs/BASELINE`
+1. User runs `saaga update <dir>` on an application that already has `<docs_dir>/BASELINE`
 2. The update flow invokes `detect-changes` as its first step
-3. The script reads `docs/BASELINE` to get the previous file manifest
+3. The script reads `<docs_dir>/BASELINE` to get the previous file manifest
 4. It computes the current manifest via `computeManifest()` from `file-manifest.ts` — a pure Node.js walk that applies `.gitignore` and `.saagaignore` filtering without invoking git
 5. It compares the two manifests and classifies every difference
 6. For files absent from the current manifest but present in the baseline, it calls `fileExists()` to determine whether the file is truly deleted (absent on disk) or newly ignored (still on disk but excluded by ignore rules)
@@ -62,7 +62,8 @@ Each section lists paths as inline code items, or `_None_` if the category has z
 | `app_dir` arg is missing | Throws `Error: detect-changes: 'app_dir' arg is required` |
 | `output_dir` arg is missing | Throws `Error: detect-changes: 'output_dir' arg is required` |
 | `app_dir` does not exist or is not a directory | Throws `Error: detect-changes: directory not found: <app_dir>` |
-| `docs/BASELINE` file does not exist | Throws `Error: detect-changes: BASELINE file not found at <path>. Run 'init' first to create initial documentation and baseline.` |
+| `docs_dir` arg is missing | Throws `Error: detect-changes: 'docs_dir' arg is required` |
+| `<docs_dir>/BASELINE` file does not exist | Throws `Error: detect-changes: BASELINE file not found at <path>. Run 'init' first to create initial documentation and baseline.` |
 | No changes detected | Returns `{ count: 0, ... }` with a report showing all zeros — flow uses `if: '${changes.count} != 0'` to skip |
 | `.saagaignore` patterns changed since baseline | Affected files are classified as `newly_ignored` (removed from scope) or `new` (added to scope) |
 | `output_dir` does not exist | Created automatically via `mkdir({ recursive: true })` |
@@ -82,6 +83,7 @@ Registered as `"detect-changes"` in `defaultScriptRegistry` (`src/scripts/regist
     name: detect-changes
     app_dir: ${app_path}
     output_dir: ${run_dir}
+    docs_dir: ${docs_dir}
     set: changes
 
 - if: '${changes.count} != 0'
@@ -94,7 +96,7 @@ Registered as `"detect-changes"` in `defaultScriptRegistry` (`src/scripts/regist
 | Module | Function/Method | Purpose |
 |--------|-----------------|---------|
 | `src/scripts/detect-changes.ts` | `detectChanges()` | Main handler: compares work tree against BASELINE, writes report, returns counts |
-| `src/scripts/file-manifest.ts` | `computeManifest()` | Walks `appDir`, applies nested `.gitignore`/`.saagaignore` with deepest-match-wins semantics, handles symlinks git-style; returns sorted `FileEntry[]` |
+| `src/scripts/file-manifest.ts` | `computeManifest()` | Walks `appDir`, applies nested `.gitignore`/`.saagaignore` with deepest-match-wins semantics, excludes `<docsDir>/`; accepts `(appDir, docsDir)` parameters; handles symlinks git-style; returns sorted `FileEntry[]` |
 | `src/scripts/file-manifest.ts` | `fileExists()` | Checks whether a path exists as a regular file or symlink (uses `lstat`; returns `false` for directories — used to distinguish deleted vs. newly ignored) |
 | `src/scripts/registry.ts` | `defaultScriptRegistry` | Registers `"detect-changes"` → `detectChanges` |
 
@@ -128,8 +130,8 @@ Returns `DetectChangesResult`:
 
 ## Integration Points
 
-- **Depends on**: `docs/BASELINE` (must exist — created by `generate-baseline`), `src/scripts/file-manifest.ts` for manifest computation, Node.js `fs/promises` for file I/O
-- **Used by**: `flows/update.flow.yaml` as the first step, gating whether the update proceeds
+- **Depends on**: `<docs_dir>/BASELINE` (must exist — created by `generate-baseline`), `src/scripts/file-manifest.ts` for manifest computation, Node.js `fs/promises` for file I/O
+- **Used by**: `flows/update.flow.yaml` and `flows/quick-update.flow.yaml` as the first step, gating whether the update proceeds
 - **Produces data for**: The `plan-update` prompt template (via `${changes.changes_path}`), flow `if` conditions (via `${changes.count}`)
 
 ## Extension Guide

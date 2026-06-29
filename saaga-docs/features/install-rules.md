@@ -2,7 +2,7 @@
 
 ## Overview
 
-The `install-rules` command installs always-on documentation rules into an application directory. It writes a documentation guidance block into agent rule files (e.g., `AGENTS.md`, `CLAUDE.md`, Copilot instructions, or Cursor `.mdc` rules), telling agents to read `docs/` before exploring source code.
+The `install-rules` command installs always-on documentation rules into an application directory. It writes a documentation guidance block into agent rule files (e.g., `AGENTS.md`, `CLAUDE.md`, Copilot instructions, or Cursor `.mdc` rules), telling agents to read `<docs_dir>/` before exploring source code.
 
 The operation is deterministic and idempotent: existing managed blocks are replaced in-place; owned files (Cursor `.mdc` and Copilot `.instructions.md`) are overwritten; missing parent directories are created. No agent backend is required.
 
@@ -63,7 +63,7 @@ The `cursor` and `copilot` targets use standalone files rendered from their resp
 
 | Template | Purpose |
 |----------|---------|
-| `rules/rule-stub.md` | Rendered with `{app}` → inserted as managed block in rule files |
+| `rules/rule-stub.md` | Rendered with `{app}` and `{docs_dir}` → inserted as managed block in rule files |
 | `rules/cursor-rule.mdc` | Rendered with `{app}`, `{rule_body}` → written as the full Cursor `.mdc` rule file |
 | `rules/copilot-rule.md` | Rendered with `{app}`, `{rule_body}` → written as the full Copilot `.instructions.md` file |
 
@@ -77,7 +77,7 @@ The `cursor` and `copilot` targets use standalone files rendered from their resp
 | `src/scripts/install-rules.ts` | `MANAGED_BLOCK_BEGIN` | HTML comment marker: `"<!-- saaga:begin -->"` |
 | `src/scripts/install-rules.ts` | `MANAGED_BLOCK_END` | HTML comment marker: `"<!-- saaga:end -->"` |
 | `src/scripts/install-rules.ts` | `RuleTarget` (type) | Union of valid rule target strings |
-| `src/scripts/install-rules.ts` | `InstallRulesArgs` (interface) | Arguments accepted by `installRules()` |
+| `src/scripts/install-rules.ts` | `InstallRulesArgs` (interface) | Arguments accepted by `installRules()`: `app_dir`, `app`, `rule_targets`, `docs_dir` |
 
 ## Integration Points
 

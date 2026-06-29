@@ -20,7 +20,7 @@ Before working with this feature, understand these concepts:
 
 1. User runs `saaga init [dir]` (dir defaults to the current working directory)
 2. CLI resolves the agent backend and creates a run context with a unique run ID
-3. Agent generates `docs/ARCHITECTURE.md` for the application
+3. Agent generates `<docs_dir>/ARCHITECTURE.md` for the application
 4. Agent creates a documentation plan at `<run_dir>/plans/<app>-init.plan.md`
 5. Engine asserts the plan file was created (`expect_file`)
 6. Script `parse-plan` extracts phases from the plan's YAML frontmatter
@@ -29,7 +29,7 @@ Before working with this feature, understand these concepts:
 9. For each subsequent phase (where `phase.number != 0`):
    - Agent documents the slice using `slice-doc`
    - Verify/fix loop (up to 3 iterations): verify → read status → conditionally fix
-10. Script `generate-baseline` writes `docs/BASELINE` content manifest
+10. Script `generate-baseline` writes `<docs_dir>/BASELINE` content manifest
 
 ### Validation Rules
 
@@ -61,13 +61,13 @@ Before working with this feature, understand these concepts:
 
 | # | Type | Details |
 |---|------|---------|
-| 1 | `agent` | Prompt: `document-architecture`, vars: `{app}` |
-| 2 | `agent` | Prompt: `plan-init`, vars: `{app}`, `{output_path}`, expect_file: plan path |
+| 1 | `agent` | Prompt: `document-architecture`, vars: `{app}`, `{docs_dir}` |
+| 2 | `agent` | Prompt: `plan-init`, vars: `{app}`, `{docs_dir}`, `{output_path}`, expect_file: plan path |
 | 3 | `script` | Name: `parse-plan`, reads plan file, sets `${phases}` in scope |
 | 4 | `agent` | Prompt: `slice-doc`, vars: `{plan}`, `{phase_number}=0` |
-| 5 | `script` | Name: `install-rules`, args: `{app_dir}`, `{app}`, `{rule_targets}` |
+| 5 | `script` | Name: `install-rules`, args: `{app_dir}`, `{app}`, `{rule_targets}`, `{docs_dir}` |
 | 6 | `foreach` | Over `${phases}`, when `${phase.number} != 0`: slice-doc + verify/fix loop (max 3) |
-| 7 | `script` | Name: `generate-baseline`, writes `docs/BASELINE` |
+| 7 | `script` | Name: `generate-baseline`, args: `{app_dir}`, `{docs_dir}`, writes `<docs_dir>/BASELINE` |
 
 ### Initial Scope
 
@@ -77,6 +77,7 @@ The CLI provides these scope variables to the flow:
 |----------|-------|
 | `${app}` | Application directory basename |
 | `${app_path}` | Absolute path to the application directory |
+| `${docs_dir}` | Documentation directory name (from `config.docsDir` or default `"saaga-docs"`) |
 | `${run_id}` | Unique run identifier (format: `<app>-init-<YYYYMMDD>-<HHMMSS>-<hex>`) |
 | `${run_dir}` | Absolute path to the run artifacts directory |
 | `${date}` | Run date formatted as YYYYMMDD |
@@ -90,7 +91,7 @@ The CLI provides these scope variables to the flow:
 | `src/engine/runner.ts` | `runFlow()` | Executes the loaded flow definition |
 | `src/engine/loader.ts` | `loadFlow()` | Loads `flows/init.flow.yaml` |
 | `src/scripts/parse-plan.ts` | `parsePlan()` | Extracts phases from the plan's YAML frontmatter |
-| `src/scripts/generate-baseline.ts` | `generateBaseline()` | Writes `docs/BASELINE` content manifest |
+| `src/scripts/generate-baseline.ts` | `generateBaseline()` | Writes `<docs_dir>/BASELINE` content manifest |
 | `src/scripts/install-rules.ts` | `installRules()` | Installs documentation rule stubs into the app directory |
 | `src/run-context.ts` | `createRunContext()` | Creates run ID and run directory |
 | `src/templates.ts` | `renderPromptFile()` | Renders prompt templates with variables |

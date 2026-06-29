@@ -15,6 +15,7 @@ Project configuration is the mechanism by which a Saaga-managed project declares
 - `loadConfig(projectDir)` — reads and validates `.saaga/config.yaml` from the given directory; returns a `SaagaConfig` object (empty `{}` when the file does not exist)
 - `CONFIG_DIR` (constant) — the directory name `".saaga"` where the config file lives
 - `CONFIG_FILE` (constant) — the file name `"config.yaml"`
+- `DEFAULT_DOCS_DIR` (constant) — `"saaga-docs"`, the default documentation directory name when `docsDir` is not configured
 
 ## Data Storage
 
@@ -24,6 +25,7 @@ Project configuration is the mechanism by which a Saaga-managed project declares
 | `SaagaConfig` | `model` | Optional AI model override for standard subcommands; used as fallback when `--model` flag is absent |
 | `SaagaConfig` | `quickModel` | Optional AI model override for the `quick-update` subcommand; used instead of `defaultQuickModelFor(backend)` |
 | `SaagaConfig` | `ruleTargets` | Optional rule targets string; accepts a comma-separated string or a YAML list of strings; used as fallback when `--rule-targets` flag is absent |
+| `SaagaConfig` | `docsDir` | Optional documentation directory name; overrides the default `"saaga-docs"` directory where BASELINE and metadata are stored |
 
 ### Config File Example
 
@@ -42,15 +44,22 @@ ruleTargets:
   - cursor
 ```
 
+For projects that previously used the hardcoded `docs/` directory, set `docsDir` to preserve the existing path:
+
+```yaml
+docsDir: docs
+```
+
 ## Key Services/Functions (PUBLIC/EXPORTED only)
 
 | Module | Function/Method | Purpose |
 |---------|--------|---------|
 | `src/cli/config.ts` | `loadConfig()` | Load and validate `.saaga/config.yaml`; returns `SaagaConfig` (empty object when file is absent) |
 | `src/cli/config.ts` | `ConfigError` (class) | Error class thrown for malformed YAML or invalid field types |
-| `src/cli/config.ts` | `SaagaConfig` (interface) | Shape of the parsed config: `backend?`, `model?`, `quickModel?`, `ruleTargets?` |
+| `src/cli/config.ts` | `SaagaConfig` (interface) | Shape of the parsed config: `backend?`, `model?`, `quickModel?`, `ruleTargets?`, `docsDir?` |
 | `src/cli/config.ts` | `CONFIG_DIR` (constant) | String `".saaga"` — directory containing the config file |
 | `src/cli/config.ts` | `CONFIG_FILE` (constant) | String `"config.yaml"` — config file name |
+| `src/cli/config.ts` | `DEFAULT_DOCS_DIR` (constant) | String `"saaga-docs"` — default documentation directory name |
 
 ## Internal Implementation
 
@@ -58,6 +67,7 @@ ruleTargets:
 >
 > - `normalizeRuleTargets()` in `src/cli/config.ts` — converts `ruleTargets` from either a string or an array of strings into a single comma-separated string suitable for `parseRuleTargets()`
 > - `resolveRuleTargets()` in `src/cli.ts` — resolves the effective rule-target string from CLI flag → `config.ruleTargets` → default `"agentsmd"`, then validates via `parseRuleTargets()`
+> - `resolveDocsDir()` in `src/cli.ts` — resolves the effective documentation directory from `config.docsDir` → `DEFAULT_DOCS_DIR` (`"saaga-docs"`)
 
 ## Loading Behavior
 
@@ -68,6 +78,7 @@ ruleTargets:
 5. **Invalid field type** (e.g., `backend: 123`): throws `ConfigError: ".saaga/config.yaml: 'backend' must be a string"`
 6. **Invalid `ruleTargets` type** (e.g., array containing non-strings): throws `ConfigError: ".saaga/config.yaml: 'ruleTargets' array items must be strings"`
 7. **Invalid `ruleTargets` type** (e.g., a number): throws `ConfigError: ".saaga/config.yaml: 'ruleTargets' must be a string or array of strings"`
+8. **Invalid `docsDir` type** (e.g., `docsDir: 123`): throws `ConfigError: ".saaga/config.yaml: 'docsDir' must be a string"`
 
 ## Resolution Chains
 
@@ -79,6 +90,7 @@ Config values participate in every resolution chain as the second-priority sourc
 | Model (standard) | `--model` flag → `config.model` → `defaultModelFor(backend)` |
 | Model (quick-update) | `--model` flag → `config.quickModel` → `defaultQuickModelFor(backend)` |
 | Rule targets | `--rule-targets` flag → `config.ruleTargets` → `"agentsmd"` |
+| Docs dir | `config.docsDir` → `DEFAULT_DOCS_DIR` (`"saaga-docs"`) |
 
 ## Error Handling
 
@@ -91,6 +103,7 @@ Config values participate in every resolution chain as the second-priority sourc
 | `quickModel` is not a string | `ConfigError: ".saaga/config.yaml: 'quickModel' must be a string"` |
 | `ruleTargets` is not a string or array | `ConfigError: ".saaga/config.yaml: 'ruleTargets' must be a string or array of strings"` |
 | `ruleTargets` array contains non-string | `ConfigError: ".saaga/config.yaml: 'ruleTargets' array items must be strings"` |
+| `docsDir` is not a string | `ConfigError: ".saaga/config.yaml: 'docsDir' must be a string"` |
 
 ## Reference Implementations
 
