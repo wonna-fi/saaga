@@ -106,11 +106,11 @@ describe("saaga init", () => {
     const agentsMd = await readFile(join(app, "AGENTS.md"), "utf8");
     expect(agentsMd).toContain("<!-- saaga:begin -->");
     expect(agentsMd).toContain("### Domain Documentation (salesforce)");
-    expect(agentsMd).toContain("docs/concepts/INDEX.md");
+    expect(agentsMd).toContain("saaga-docs/concepts/INDEX.md");
 
     // generate-baseline is a script step, so it doesn't show up in agent calls
-    // but it should have produced docs/BASELINE.
-    const stats = await stat(join(app, "docs", "BASELINE"));
+    // but it should have produced saaga-docs/BASELINE.
+    const stats = await stat(join(app, "saaga-docs", "BASELINE"));
     expect(stats.isFile()).toBe(true);
 
     const planPath = planScenario.getPath();
@@ -261,7 +261,7 @@ phases:
     const agentsMd = await readFile(join(app, "AGENTS.md"), "utf8");
     expect(agentsMd).toContain("<!-- saaga:begin -->");
 
-    const baseline = await stat(join(app, "docs", "BASELINE"));
+    const baseline = await stat(join(app, "saaga-docs", "BASELINE"));
     expect(baseline.isFile()).toBe(true);
   });
 

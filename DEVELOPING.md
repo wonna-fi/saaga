@@ -36,35 +36,35 @@ pnpm test:watch     # vitest watch
 | `flows/` | Flow YAML files (one per subcommand) |
 | `prompts/` | Prompt templates with `{var}` placeholders |
 | `rules/` | Rule stub templates installed by `install-rules` |
-| `docs/` | Domain documentation (concepts, features, patterns) |
+| `saaga-docs/` | Domain documentation (concepts, features, patterns) |
 | `examples/` | Dockerfile, agent install scripts |
 | `.devcontainer/` | Dev container configuration |
 
 ## Domain documentation
 
-The `docs/` directory contains the authoritative source for
+The `saaga-docs/` directory contains the authoritative source for
 understanding the system. **Always read the domain documentation before
 exploring source code.**
 
-- [Concepts](./docs/concepts/INDEX.md) — what something is and where
-  it lives (agent interface, flow DSL, scope, templates, configuration).
-- [Features](./docs/features/INDEX.md) — end-to-end feature
+- [Concepts](./saaga-docs/concepts/INDEX.md) — what something is and
+  where it lives (agent interface, flow DSL, scope, templates, configuration).
+- [Features](./saaga-docs/features/INDEX.md) — end-to-end feature
   specifications (init workflow, update workflow, verify/fix loop).
-- [Patterns](./docs/patterns/INDEX.md) — how to do common operations
-  (adding backends, adding flow primitives, creating prompts).
+- [Patterns](./saaga-docs/patterns/INDEX.md) — how to do common
+  operations (adding backends, adding flow primitives, creating prompts).
 
 ## Extending Saaga
 
 The domain docs include step-by-step patterns for common extensions:
 
-- [Adding agent backends](./docs/patterns/adding-agent-backends.md)
-- [Adding CLI subcommands](./docs/patterns/adding-cli-subcommands.md)
-- [Adding flow primitives](./docs/patterns/adding-flow-primitives.md)
-- [Adding built-in scripts](./docs/patterns/adding-built-in-scripts.md)
-- [Creating prompt templates](./docs/patterns/creating-prompt-templates.md)
-- [Writing flow YAML files](./docs/patterns/writing-flow-yaml-files.md)
-- [Testing with FakeAgent](./docs/patterns/testing-with-fake-agent.md)
-- [Customizing the verify/fix loop](./docs/patterns/customizing-verify-fix-loop.md)
+- [Adding agent backends](./saaga-docs/patterns/adding-agent-backends.md)
+- [Adding CLI subcommands](./saaga-docs/patterns/adding-cli-subcommands.md)
+- [Adding flow primitives](./saaga-docs/patterns/adding-flow-primitives.md)
+- [Adding built-in scripts](./saaga-docs/patterns/adding-built-in-scripts.md)
+- [Creating prompt templates](./saaga-docs/patterns/creating-prompt-templates.md)
+- [Writing flow YAML files](./saaga-docs/patterns/writing-flow-yaml-files.md)
+- [Testing with FakeAgent](./saaga-docs/patterns/testing-with-fake-agent.md)
+- [Customizing the verify/fix loop](./saaga-docs/patterns/customizing-verify-fix-loop.md)
 
 ## Flows and prompts
 

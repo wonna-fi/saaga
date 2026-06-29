@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import type { ScriptContext } from "./registry.js";
 
 export interface CollectQuickUpdatesArgs {
-  /** Absolute path to `<app>/docs/metadata/quick_updates`. */
+  /** Absolute path to `<app>/<docs_dir>/metadata/quick_updates`. */
   metadata_dir: string;
   /** Run directory where the manifest is written. */
   output_dir: string;

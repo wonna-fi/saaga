@@ -19,7 +19,7 @@ async function tmpVerifyEnv(name: string) {
 }
 
 async function seedQuickUpdateArtifact(app: string, id: string) {
-  const dir = join(app, "docs", "metadata", "quick_updates", id);
+  const dir = join(app, "saaga-docs", "metadata", "quick_updates", id);
   await mkdir(dir, { recursive: true });
   await writeFile(
     join(dir, "changes.md"),
@@ -112,7 +112,7 @@ phases:
     expect(fake.calls[1].prompt).toContain("Document a Plan Slice");
     expect(fake.calls[2].prompt).toContain("Verify Domain Documentation Slice");
 
-    const metaDir = join(app, "docs", "metadata", "quick_updates");
+    const metaDir = join(app, "saaga-docs", "metadata", "quick_updates");
     const remaining = await readdir(metaDir);
     expect(remaining).toEqual([]);
   });
@@ -174,7 +174,7 @@ phases:
     });
     expect(exitCode).toBe(0);
 
-    const metaDir = join(app, "docs", "metadata", "quick_updates");
+    const metaDir = join(app, "saaga-docs", "metadata", "quick_updates");
     const remaining = await readdir(metaDir);
     expect(remaining).toEqual([]);
   });

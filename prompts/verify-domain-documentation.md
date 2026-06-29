@@ -26,7 +26,7 @@ Read the plan file and extract:
 
 ## Step 2: Identify Documents to Review
 
-From the phase definition, determine which documents were created. Find them in the `docs/concepts/`, `docs/patterns/`, and `docs/features/` directories.
+From the phase definition, determine which documents were created. Find them in the `{docs_dir}/concepts/`, `{docs_dir}/patterns/`, and `{docs_dir}/features/` directories.
 
 Review documents in this order: concepts first, then patterns, then features (same order they were created).
 
@@ -70,7 +70,7 @@ After reviewing all documents in the slice, check that:
 
 2. **Enumerate documentation-worthy changes.** From the change report(s), list the changed/new source surfaces that warrant documentation: new or changed public APIs, exported functions/classes/modules, new features or user-facing flows, data-model or validation changes, integration/configuration changes, and architectural shifts. Ignore non-doc-worthy noise: pure styling, assets, tests, lockfiles, whitespace/comment-only edits, and pure internal refactors that preserve public behavior.
 
-3. **Check each doc-worthy change for coverage.** For every doc-worthy change, search `docs/concepts/`, `docs/patterns/`, and `docs/features/` for documentation that actually reflects it. Coverage means a real, evidence-based description of the new/changed surface — not merely that a file name appears somewhere.
+3. **Check each doc-worthy change for coverage.** For every doc-worthy change, search `{docs_dir}/concepts/`, `{docs_dir}/patterns/`, and `{docs_dir}/features/` for documentation that actually reflects it. Coverage means a real, evidence-based description of the new/changed surface — not merely that a file name appears somewhere.
 
 4. **Flag every uncovered change as a Coverage Gap error.** If a doc-worthy change has no corresponding documentation, record it as an error (see Step 4) with claim type "Coverage Gap". Severity is **Critical** when an entirely new public surface or feature is undocumented, and **Major** when an existing documented surface changed but its doc was not updated. Do NOT mark an undocumented-but-non-doc-worthy change as an error.
 
@@ -82,7 +82,7 @@ For each error found, record:
 
 | Field | Description |
 |---|---|
-| **Document** | File path of the document (for a Coverage Gap where no doc exists yet, write the expected target path, e.g. `docs/features/<name>.md`, and mark it `(missing)`) |
+| **Document** | File path of the document (for a Coverage Gap where no doc exists yet, write the expected target path, e.g. `{docs_dir}/features/<name>.md`, and mark it `(missing)`) |
 | **Section** | Which section contains the error (for a Coverage Gap, the undocumented source surface) |
 | **Claim** | The specific incorrect claim, or for a Coverage Gap the doc-worthy change that is missing from the documentation |
 | **Evidence** | What the source code actually shows (for a Coverage Gap, the change-report entry plus the source surface that warrants documentation) |

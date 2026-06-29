@@ -33,8 +33,8 @@ Claude Code) through a multi-phase workflow:
 
 After `saaga init`, your project contains:
 
-- **`docs/`** — structured domain documentation organized into three
-  categories:
+- **`saaga-docs/`** — structured domain documentation organized into
+  three categories:
   - **Concepts** — what something is and where it lives (architecture,
     data models, configuration).
   - **Features** — end-to-end feature specifications (workflows, user
@@ -43,8 +43,8 @@ After `saaga init`, your project contains:
     extending workflows, testing).
 
 - **Always-on agent rules** — Saaga installs guidance into the rule
-  files your agent already reads, telling it to consult `docs/` before
-  exploring source. Supported targets:
+  files your agent already reads, telling it to consult `saaga-docs/`
+  before exploring source. Supported targets:
 
   | Target | File |
   | ------ | ---- |
@@ -53,7 +53,7 @@ After `saaga init`, your project contains:
   | `claude` | `CLAUDE.md` (managed block) |
   | `copilot` | `.github/instructions/domain-docs.instructions.md` |
 
-- **`docs/BASELINE`** — a content manifest that lets `saaga update`
+- **`saaga-docs/BASELINE`** — a content manifest that lets `saaga update`
   detect what changed and re-document only the affected areas.
 
 ## Prerequisites
@@ -150,7 +150,7 @@ saaga install-rules [dir]       Install always-on documentation rules
 
 - **Run artifacts** (plans, status files, change reports) are written
   under `$SAAGA_DIR/runs/<run-id>/` (defaults to `$HOME/.saaga/runs/`).
-- **Generated docs** land in `<project>/docs/`.
+- **Generated docs** land in `<project>/saaga-docs/`.
 
 ## Configuration
 
@@ -163,6 +163,7 @@ backend: cursor            # cursor | copilot | claude
 model: opus                # model for standard subcommands
 quickModel: sonnet         # model for quick-update subcommand
 ruleTargets: [agentsmd]    # agentsmd | cursor | claude | copilot | none
+docsDir: saaga-docs        # name of the generated docs folder (default: saaga-docs)
 ```
 
 Resolution order: **CLI flag -> `.saaga/config.yaml` -> built-in default**.

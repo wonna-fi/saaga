@@ -7,6 +7,7 @@ import {
   type FakeScenarioValue,
 } from "../../src/agent/fake-agent.js";
 import { runCli } from "../../src/cli.js";
+import { DEFAULT_DOCS_DIR } from "../../src/cli/config.js";
 import { generateBaseline } from "../../src/scripts/generate-baseline.js";
 
 async function tmpUpdateEnv(name: string) {
@@ -17,7 +18,7 @@ async function tmpUpdateEnv(name: string) {
   await mkdir(home);
   await writeFile(join(app, "src.ts"), "alpha", "utf8");
   await writeFile(join(app, "README.md"), "readme", "utf8");
-  await generateBaseline({ app_dir: app }, { cwd: app });
+  await generateBaseline({ app_dir: app, docs_dir: DEFAULT_DOCS_DIR }, { cwd: app });
   return { root, app, home };
 }
 
@@ -143,7 +144,7 @@ phases:
     expect(fake.calls[3].prompt).toContain("phase) `2`");
     expect(fake.calls[4].prompt).toContain("Verify Domain Documentation Slice");
 
-    const newBaseline = await stat(join(app, "docs", "BASELINE"));
+    const newBaseline = await stat(join(app, DEFAULT_DOCS_DIR, "BASELINE"));
     expect(newBaseline.isFile()).toBe(true);
   });
 

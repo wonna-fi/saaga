@@ -23,6 +23,7 @@ function defaultArgs(app: string) {
     app_dir: app,
     app: "myapp",
     rule_targets: "agentsmd",
+    docs_dir: "saaga-docs",
   };
 }
 
@@ -73,9 +74,9 @@ describe("install-rules script", () => {
     expect(agentsMd).toContain("No documentation updates during implementation");
     expect(agentsMd).toContain("Consult before implementing");
     // Navigation content folded into the rule body.
-    expect(agentsMd).toContain("docs/concepts/INDEX.md");
-    expect(agentsMd).toContain("docs/patterns/INDEX.md");
-    expect(agentsMd).toContain("docs/features/INDEX.md");
+    expect(agentsMd).toContain("saaga-docs/concepts/INDEX.md");
+    expect(agentsMd).toContain("saaga-docs/patterns/INDEX.md");
+    expect(agentsMd).toContain("saaga-docs/features/INDEX.md");
     // No unrendered placeholders left behind.
     expect(agentsMd).not.toContain("{app}");
   });

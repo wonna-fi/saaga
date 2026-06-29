@@ -11,7 +11,11 @@ import {
   defaultQuickModelFor,
   resolveBackend,
 } from "./cli/backend.js";
-import { type SaagaConfig, loadConfig } from "./cli/config.js";
+import {
+  DEFAULT_DOCS_DIR,
+  type SaagaConfig,
+  loadConfig,
+} from "./cli/config.js";
 import { loadFlow } from "./engine/loader.js";
 import { AgentStepFailedError, runFlow } from "./engine/runner.js";
 import { Logger } from "./logger.js";
@@ -58,6 +62,10 @@ function resolveRuleTargets(
   const raw = flag ?? config.ruleTargets ?? "agentsmd";
   parseRuleTargets(raw);
   return raw;
+}
+
+function resolveDocsDir(config: SaagaConfig): string {
+  return config.docsDir ?? DEFAULT_DOCS_DIR;
 }
 
 async function readPackageVersion(): Promise<string> {
@@ -308,6 +316,18 @@ async function runFlowSubcommand(input: RunFlowSubcommandInput): Promise<void> {
   logger.info(`run id: ${runCtx.runId}`);
   logger.info(`run dir: ${runCtx.runDir}`);
 
+  const docsDir = resolveDocsDir(config);
+
+  if (!config.docsDir && docsDir === DEFAULT_DOCS_DIR) {
+    const hasLegacy = await isFile(resolve(appPath, "docs", "BASELINE"));
+    const hasCurrent = await isFile(resolve(appPath, docsDir, "BASELINE"));
+    if (hasLegacy && !hasCurrent) {
+      logger.warn(
+        `found legacy docs/ with a BASELINE; set 'docsDir: docs' in .saaga/config.yaml to keep it, or migrate its contents to ${DEFAULT_DOCS_DIR}/`,
+      );
+    }
+  }
+
   const extraScope: Record<string, unknown> = { ...input.extraScope };
   if (subcommand === "init") {
     extraScope.rule_targets = resolveRuleTargets(input.ruleTargetFlag, config);
@@ -319,6 +339,7 @@ async function runFlowSubcommand(input: RunFlowSubcommandInput): Promise<void> {
     {
       app: appName,
       app_path: appPath,
+      docs_dir: docsDir,
       run_id: runCtx.runId,
       run_dir: runCtx.runDir,
       date: runCtx.date,
@@ -366,6 +387,7 @@ async function runInstallRulesSubcommand(
 
   const config = await loadConfig(appPath);
   const ruleTargets = resolveRuleTargets(input.ruleTargetFlag, config);
+  const docsDir = resolveDocsDir(config);
   const appName = basename(appPath);
   const logger = createLogger(globals, options);
 
@@ -378,6 +400,7 @@ async function runInstallRulesSubcommand(
       app_dir: appPath,
       app: appName,
       rule_targets: ruleTargets,
+      docs_dir: docsDir,
     },
     { cwd: appPath },
   );
@@ -391,6 +414,15 @@ function createLogger(
     ci: globals.ci ?? false,
     stream: options.stderr ?? process.stderr,
   });
+}
+
+async function isFile(path: string): Promise<boolean> {
+  try {
+    const s = await stat(path);
+    return s.isFile();
+  } catch {
+    return false;
+  }
 }
 
 const isMain = process.argv[1] === fileURLToPath(import.meta.url);

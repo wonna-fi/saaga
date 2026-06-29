@@ -4,6 +4,7 @@ import { parse as parseYaml } from "yaml";
 
 export const CONFIG_DIR = ".saaga";
 export const CONFIG_FILE = "config.yaml";
+export const DEFAULT_DOCS_DIR = "saaga-docs";
 
 export class ConfigError extends Error {
   constructor(message: string) {
@@ -17,6 +18,7 @@ export interface SaagaConfig {
   model?: string;
   quickModel?: string;
   ruleTargets?: string;
+  docsDir?: string;
 }
 
 /**
@@ -88,6 +90,15 @@ export async function loadConfig(projectDir: string): Promise<SaagaConfig> {
 
   if (obj.ruleTargets !== undefined) {
     config.ruleTargets = normalizeRuleTargets(obj.ruleTargets);
+  }
+
+  if (obj.docsDir !== undefined) {
+    if (typeof obj.docsDir !== "string") {
+      throw new ConfigError(
+        `${CONFIG_DIR}/${CONFIG_FILE}: 'docsDir' must be a string`,
+      );
+    }
+    config.docsDir = obj.docsDir;
   }
 
   return config;

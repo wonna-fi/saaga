@@ -4,6 +4,7 @@ steps:
       name: detect-changes
       app_dir: ${app_path}
       output_dir: ${run_dir}
+      docs_dir: ${docs_dir}
       set: changes
 
   - if: '${changes.count} != 0'
@@ -12,6 +13,7 @@ steps:
           prompt: plan-update
           vars:
             app: ${app}
+            docs_dir: ${docs_dir}
             changes_path: ${changes.changes_path}
             output_path: ${run_dir}/plans/${app}-update-${date}.plan.md
           expect_file: ${run_dir}/plans/${app}-update-${date}.plan.md
@@ -43,6 +45,7 @@ steps:
                         review_path: ${run_dir}/slice-${phase.number}/review-${iteration}.md
                         status_path: ${run_dir}/slice-${phase.number}/status-${iteration}.txt
                         changes_dir: none
+                        docs_dir: ${docs_dir}
 
                   - read-file:
                       path: ${run_dir}/slice-${phase.number}/status-${iteration}.txt
@@ -61,3 +64,4 @@ steps:
       - script:
           name: generate-baseline
           app_dir: ${app_path}
+          docs_dir: ${docs_dir}

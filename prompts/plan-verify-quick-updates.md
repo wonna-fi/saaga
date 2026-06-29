@@ -51,9 +51,9 @@ For each phase, identify:
 
 Verify that all three INDEX files exist:
 
-- `docs/concepts/INDEX.md`
-- `docs/patterns/INDEX.md`
-- `docs/features/INDEX.md`
+- `{docs_dir}/concepts/INDEX.md`
+- `{docs_dir}/patterns/INDEX.md`
+- `{docs_dir}/features/INDEX.md`
 
 If any are missing, note it in the plan as a prerequisite issue.
 
@@ -190,7 +190,7 @@ For each phase:
 
 - **Quick Update(s)**: Which artifact ID(s) this phase consolidates
 - **Summary**: What was changed in the original quick-update(s) and what documentation was affected
-- **Coverage gaps to close**: Doc-worthy changes (from Step 2 gap detection) that have NO documentation yet and must be newly created in this phase. List the source surface and the target doc path (e.g., `docs/features/<name>.md`). Write "None" if the gap detection found no missing documentation for this phase.
+- **Coverage gaps to close**: Doc-worthy changes (from Step 2 gap detection) that have NO documentation yet and must be newly created in this phase. List the source surface and the target doc path (e.g., `{docs_dir}/features/<name>.md`). Write "None" if the gap detection found no missing documentation for this phase.
 - **Uncertainty focus**: Specific areas flagged as uncertain that need extra verification
 - **Documents to verify/re-document**: List of doc files with specific aspects to verify
 - **Key files to analyze**: Source files to read for verification
@@ -230,7 +230,7 @@ INDEX.md format:
 
 ### CONCEPT TEMPLATE
 
-File location: `docs/concepts/{concept-name}.md`
+File location: `{docs_dir}/concepts/{concept-name}.md`
 
 ```markdown
 # {Concept Name}
@@ -285,7 +285,7 @@ File location: `docs/concepts/{concept-name}.md`
 
 ### PATTERN TEMPLATE
 
-File location: `docs/patterns/{pattern-name}.md`
+File location: `{docs_dir}/patterns/{pattern-name}.md`
 
 ````markdown
 # {Pattern Name}
@@ -324,7 +324,7 @@ File location: `docs/patterns/{pattern-name}.md`
 
 ### FEATURE TEMPLATE
 
-File location: `docs/features/{feature-name}.md`
+File location: `{docs_dir}/features/{feature-name}.md`
 
 ```markdown
 # Feature: {Feature Name}
