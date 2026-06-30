@@ -140,16 +140,8 @@ Deliverables for Phase 0:
 
 1. Create folder structure: `{docs_dir}/concepts/`, `{docs_dir}/patterns/`, `{docs_dir}/features/`
 2. Create empty INDEX.md files for each folder
-3. Update `AGENTS.md` to add a documentation section for this application (if `AGENTS.md` does not exist, create it with a basic structure first)
 
-Include the exact AGENTS.md text to add, adapted for the target application. The text must include:
-
-- The three doc types with their INDEX.md paths and descriptions
-- "When to use each type" guidance with examples relevant to the application
-- Maintenance instructions:
-  - "Before implementing new features, always check these docs to understand existing patterns and reuse existing services/modules."
-  - "After implementing new features, document every new concept, pattern and feature added."
-  - "After modifying existing features, check the related concepts, patterns and features, and update them if needed."
+Do NOT create or modify any agent rule file (`AGENTS.md`, `CLAUDE.md`, Cursor `.mdc`, or Copilot instructions) in this phase. Installing the documentation guidance into rule files is handled separately by the `install-rules` step, which is the single source of truth for that content.
 
 #### 3. Documentation Templates
 
@@ -241,7 +233,6 @@ INDEX.md format:
 - Each concept doc explains where configuration lives and which services/functions to use
 - Each pattern doc provides copy-pasteable code examples
 - Each feature doc links to the concepts and patterns it uses
-- AGENTS.md tells new agents where to find this documentation
 
 ---
 
@@ -537,6 +528,6 @@ If you discover apparent bugs or inconsistencies while documenting:
 
 ## Notes
 
-- If `AGENTS.md` already has documentation sections for other applications, follow the same structure when adding the new section.
+- Do NOT author or edit agent rule files (`AGENTS.md`, `CLAUDE.md`, Cursor `.mdc`, Copilot instructions); the `install-rules` step owns the documentation guidance written into them.
 - If the application has an existing `{docs_dir}/ARCHITECTURE.md`, use it as a starting point for understanding domain areas.
 - Write the plan to `{output_path}`. Do NOT use any IDE-specific tools (like CreatePlan). Write the file directly.

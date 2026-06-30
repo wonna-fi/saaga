@@ -1,6 +1,6 @@
 {
   "name": "@wonna/saaga",
-  "version": "1.0.0-alpha.2",
+  "version": "1.0.0-alpha.3",
   "description": "Drive a coding agent to write concise domain documentation for your codebase, then install always-on rules so agents read it before touching source.",
   "type": "module",
   "license": "MIT",
