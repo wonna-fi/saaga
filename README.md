@@ -98,6 +98,13 @@ Generate initial documentation (run from inside your project):
 saaga init --backend cursor
 ```
 
+> **Heads up** — `init` is the heavy one. It drives the agent through
+> several phases (analyze, plan, document, verify/fix), so it can run for
+> many hours and consume a large number of tokens on a sizeable
+> codebase. This is a one-time cost; afterwards you maintain the docs
+> with the much cheaper `update` and `quick-update`. See
+> [Runtime and cost](#runtime-and-cost) before your first run.
+
 After code changes, update the docs incrementally:
 
 ```bash
@@ -151,6 +158,28 @@ saaga install-rules [dir]       Install always-on documentation rules
 - **Run artifacts** (plans, status files, change reports) are written
   under `$SAAGA_DIR/runs/<run-id>/` (defaults to `$HOME/.saaga/runs/`).
 - **Generated docs** land in `<project>/saaga-docs/`.
+
+## Runtime and cost
+
+Saaga works by driving a real coding-agent CLI, so its runtime and token
+usage track whatever your backend charges — they scale with the size of
+your codebase and the amount of documentation being generated. Treat the
+guidance below as relative expectations, not fixed numbers.
+
+| Command | What it runs | Expect |
+| ------- | ------------ | ------ |
+| `init` | Multiple agent sessions across all phases over the whole codebase | **Longest and most token-intensive.** Many hours; a large, one-time token spend. |
+| `update` | Re-documents only the slices that changed since `BASELINE` | Proportional to how much changed — usually a fraction of `init`, ~20-30 minutes |
+| `quick-update` | A single session on a cheaper model | Fast and cheap; the lightest agent-backed command. ~3-10 minutes. |
+| `verify-quick-updates` | One consolidation/verification session | Short; scales with the number of pending quick-update artifacts. Comparable to one `update`. |
+| `install-rules` | No agent backend at all | Effectively instant; no tokens used. |
+
+> **Token usage disclaimer** — `init` in particular can consume a
+> substantial number of tokens, since it reads across your entire
+> codebase and runs several agent phases including a verify/fix loop.
+> Costs depend on your chosen backend and model. If you want to keep the
+> initial spend down, point `--model` at a cheaper model or scope what
+> gets documented with [`.saagaignore`](#excluding-files-saagaignore).
 
 ## Configuration
 
