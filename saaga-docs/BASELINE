@@ -1,19 +1,19 @@
-# Generated: 2026-06-29T17:24:24.156Z
+# Generated: 2026-06-30T19:26:35.891Z
 207ce2b0b21e99567a5b41e1c60c8426b10f29a2 .npmrc
-9d454b85e1a66c49c3b888c8789dcb204cf5957c .saaga/config.yaml
+e6e049282066cc6a04ad49b176dd513469ede8c9 .saaga/config.yaml
 57f11fb08926ac76ea02d77823758f3d7b333cde AGENTS.md
 581f22ed0b141aabdd94b0cfd355c29fa9699335 DEVELOPING.md
-318109f1ca702b6c5e91571c5e7bc146251d1446 README.md
+62ea38278db7e9f689a340b86a1f2aa7252cb155 README.md
 c09a02e5db75ca8d5ccd829d75a3c118531c80dd eslint.config.js
 f82ab968250213243f22f82c457aa19f6a9394e9 flows/init.flow.yaml
 2af16562db63ea88845a08a4f425db65956d4ece flows/quick-update.flow.yaml
 72516a1fe601ef26aecd0ec6942fa7389cb7e444 flows/update.flow.yaml
 99a6fab454ca4ad2bb6dbf4692952f4fb7fde9a5 flows/verify-quick-updates.flow.yaml
-10e83fc58f80b9cbc1bb0b8d9eeef9fc6e351012 package.json
+0042cc9ee3df31c17a4cae873ff99ca6fcf67c51 package.json
 82f5c4871dd6bbc80a68f2c655620635ed125b02 prompts/document-architecture.md
 eeb68060e537ca789468a4b600ba49caf8d5222b prompts/fix-documentation.md
-277d5e76f1c208ac1be7a98d817a4bb542aa28ad prompts/plan-init.md
-908b21a0aaf5e9d31bade481703fbab758ad32f6 prompts/plan-update.md
+98d7cdce40495b48094cb20d07c70cf6dab8f061 prompts/plan-init.md
+087bad85aa971509c9e3aaf5c6bbb0c69dcd8c4c prompts/plan-update.md
 9e170fc128afa1efa8a743e6df009a5b4d997358 prompts/plan-verify-quick-updates.md
 64857e9a11fc9797d59fd89ed4ef75c9f9612d9a prompts/quick-update.md
 1404fa326f3dc5cb5f8fc507a17ea3dc9aabbe12 prompts/slice-doc.md
@@ -26,7 +26,7 @@ eeb68060e537ca789468a4b600ba49caf8d5222b prompts/fix-documentation.md
 3ab607b561aaf1fc3e7f543d1e1e0bdca131602b src/agent/cursor-agent.ts
 98ff9c6e71c8020d5d33c00ef34dead5ed431d1b src/agent/fake-agent.ts
 b9044d6e30e0aba32e8de77e28b1ff7616feeef8 src/agent/types.ts
-4b1979b4df4c0edbe8141d548a05c0ee71a5b9f0 src/cli.ts
+01c7a1a37baa0fda8fa5a58ddb3a493885df640b src/cli.ts
 bc8f6a4dafea8ab6f42522cf50d0ffa063bde507 src/cli/backend.ts
 5766d421fef2425b9edd23646e017cb62ea00a34 src/cli/config.ts
 2bf6d9539ed687bd4fe20563ed9d531e5bd84e2c src/engine/expression.ts

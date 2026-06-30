@@ -17,3 +17,8 @@ curl https://cursor.com/install -fsS | bash
 
 curl -fsSL https://claude.ai/install.sh | bash
 "$HOME/.local/bin/claude" --version
+
+# Install the published Saaga CLI globally so `saaga` is available alongside
+# the from-source development version run via `pnpm dev`.
+npm install -g @wonna/saaga
+saaga --version
