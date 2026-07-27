@@ -3,6 +3,7 @@ import type { Agent, AgentRunOpts, AgentRunResult } from "./types.js";
 export interface FakeAgentCall {
   prompt: string;
   cwd: string;
+  additionalDirs?: string[];
 }
 
 export interface FakeScenarioValue {
@@ -30,7 +31,11 @@ export class FakeAgent implements Agent {
   }
 
   async run(prompt: string, opts: AgentRunOpts): Promise<AgentRunResult> {
-    this.calls.push({ prompt, cwd: opts.cwd });
+    this.calls.push({
+      prompt,
+      cwd: opts.cwd,
+      additionalDirs: opts.additionalDirs,
+    });
 
     for (const [substring, scenario] of Object.entries(this.scenarios)) {
       if (prompt.includes(substring)) {

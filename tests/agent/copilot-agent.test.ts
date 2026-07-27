@@ -55,6 +55,59 @@ describe("CopilotAgent", () => {
     expect(result.exitCode).toBe(0);
   });
 
+  test("adds --add-dir for each entry in opts.additionalDirs", async () => {
+    mockExeca.mockReturnValue(Promise.resolve({ exitCode: 0 }) as any);
+
+    const cwd = await mkdtemp(join(tmpdir(), "copilot-agent-"));
+    const runDir = "/home/node/.saaga/runs/myapp-init-123";
+    const agent = new CopilotAgent({ model: "claude-sonnet-4.5" });
+    await agent.run("Document the architecture", {
+      cwd,
+      additionalDirs: [runDir],
+    });
+
+    expect(mockExeca).toHaveBeenCalledOnce();
+    const [, args] = mockExeca.mock.calls[0] as any[];
+    expect(args).toEqual([
+      "-p",
+      "Document the architecture",
+      "--allow-all-tools",
+      "--no-ask-user",
+      "--model",
+      "claude-sonnet-4.5",
+      "--no-auto-update",
+      "--add-dir",
+      runDir,
+    ]);
+  });
+
+  test("adds one --add-dir pair per entry when multiple additionalDirs are given", async () => {
+    mockExeca.mockReturnValue(Promise.resolve({ exitCode: 0 }) as any);
+
+    const cwd = await mkdtemp(join(tmpdir(), "copilot-agent-"));
+    const agent = new CopilotAgent({ model: "m" });
+    await agent.run("p", { cwd, additionalDirs: ["/run/a", "/run/b"] });
+
+    const [, args] = mockExeca.mock.calls[0] as any[];
+    expect(args.slice(-4)).toEqual([
+      "--add-dir",
+      "/run/a",
+      "--add-dir",
+      "/run/b",
+    ]);
+  });
+
+  test("omits --add-dir when additionalDirs is not provided", async () => {
+    mockExeca.mockReturnValue(Promise.resolve({ exitCode: 0 }) as any);
+
+    const cwd = await mkdtemp(join(tmpdir(), "copilot-agent-"));
+    const agent = new CopilotAgent({ model: "m" });
+    await agent.run("p", { cwd });
+
+    const [, args] = mockExeca.mock.calls[0] as any[];
+    expect(args).not.toContain("--add-dir");
+  });
+
   test("propagates non-zero exit code", async () => {
     mockExeca.mockReturnValue(Promise.resolve({ exitCode: 7 }) as any);
     const cwd = await mkdtemp(join(tmpdir(), "copilot-agent-"));
