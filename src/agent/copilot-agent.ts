@@ -21,6 +21,12 @@ export interface CopilotAgentOptions {
  * outputs. To match the bash behavior we rename `.gitignore` to
  * `.gitignore.bak` before invoking the CLI and restore it afterwards
  * (including on failure).
+ *
+ * Copilot restricts file access to `cwd`, its subdirectories, and the
+ * system temp directory regardless of `--allow-all-tools` (which only
+ * governs tool-approval prompts, not path access). `opts.additionalDirs`
+ * — e.g. the Saaga run directory — is granted access via `--add-dir` so
+ * the agent can read/write files outside `cwd`.
  */
 export class CopilotAgent implements Agent {
   readonly name = "copilot";
@@ -46,6 +52,9 @@ export class CopilotAgent implements Agent {
         this.model,
         "--no-auto-update",
       ];
+      for (const dir of opts.additionalDirs ?? []) {
+        args.push("--add-dir", dir);
+      }
       const proc: ResultPromise = execa("copilot", args, {
         cwd: opts.cwd,
         reject: false,

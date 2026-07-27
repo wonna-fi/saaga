@@ -228,7 +228,12 @@ async function runAgentStep(
 
   const prompt = await renderPromptFile(promptPath, renderedVars);
 
-  const result = await deps.agent.run(prompt, { cwd: deps.cwd });
+  const additionalDirs =
+    typeof scope.run_dir === "string" ? [scope.run_dir] : undefined;
+  const result = await deps.agent.run(prompt, {
+    cwd: deps.cwd,
+    additionalDirs,
+  });
   if (result.exitCode !== 0) {
     throw new AgentStepFailedError(step.prompt, result.exitCode);
   }
