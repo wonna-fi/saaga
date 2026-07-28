@@ -1,12 +1,13 @@
 import { stat } from "node:fs/promises";
 import { resolve } from "node:path";
-import { Writable } from "node:stream";
 import type { Agent } from "../agent/types.js";
-import { Logger } from "../logger.js";
+import { Logger, silentLogger } from "../logger.js";
+import { formatDuration } from "../output.js";
 import { PROMPTS_DIR } from "../paths.js";
 import type { ScriptRegistry } from "../scripts/registry.js";
 import { renderPromptFile } from "../templates.js";
 import { evaluatePredicate, interpolate, resolveValue } from "./expression.js";
+import { PhaseTracker } from "./phases.js";
 import { runForeachStep } from "./primitives/foreach.js";
 import { runIfStep } from "./primitives/if.js";
 import { runLoopStep } from "./primitives/loop.js";
@@ -17,24 +18,20 @@ import type {
   FlowDefinition,
   ForeachStep,
   LoopStep,
+  ScriptStep,
   Scope,
   Step,
 } from "./types.js";
 
 export interface RunFlowDeps {
-  /** Agent backend used for `agent` steps. */
   agent: Agent;
-  /** Working directory passed to `Agent.run` (the app being documented). */
   cwd: string;
-  /** Optional override for the built-in script registry (used by tests). */
   scripts?: ScriptRegistry;
-  /**
-   * Logger used to narrate flow progress (one line per step entry and
-   * exit, with timing). Defaults to a silent logger so library callers
-   * and tests don't get noise unless they ask for it; the CLI always
-   * supplies a real one writing to stderr.
-   */
   logger?: Logger;
+  /** Absolute path to the run log file for agent output capture. */
+  logFile?: string;
+  /** Mirror agent output to terminal (--verbose). */
+  verbose?: boolean;
 }
 
 export async function runFlow(
@@ -45,104 +42,146 @@ export async function runFlow(
   const logger = deps.logger ?? silentLogger();
   const effectiveDeps: RunFlowDeps = { ...deps, logger };
   const scope: Scope = { ...initialScope };
+  const tracker = new PhaseTracker(flow);
 
   const t0 = Date.now();
-  logger.info(`flow ${flow.name}: starting (${flow.steps.length} steps)`);
+  logger.detail(`flow ${flow.name}: starting (${flow.steps.length} steps)`);
   try {
     for (let i = 0; i < flow.steps.length; i++) {
-      await runStep(flow.steps[i], scope, effectiveDeps, {
-        index: i + 1,
-        total: flow.steps.length,
+      await runStep(flow.steps[i], scope, effectiveDeps, tracker, {
+        isTopLevel: true,
+        insideForeach: false,
       });
     }
-    logger.info(`flow ${flow.name}: done (${formatDuration(Date.now() - t0)})`);
+    const elapsed = Date.now() - t0;
+    const total = tracker.total(scope);
+    const totalStr = total != null ? `${total} phases` : "done";
+    logger.phaseImmediate(
+      `saaga ${flow.name}: ${totalStr} in ${formatDuration(elapsed)}`,
+      "DONE",
+    );
   } catch (err) {
-    logger.error(
-      `flow ${flow.name}: failed after ${formatDuration(Date.now() - t0)}`,
+    const elapsed = Date.now() - t0;
+    const total = tracker.total(scope);
+    const summary = total != null
+      ? `failed at phase ${tracker.formatCounter(scope)}`
+      : "failed";
+    logger.phaseImmediate(
+      `saaga ${flow.name}: ${summary} after ${formatDuration(elapsed)}`,
+      "FAIL",
     );
     throw err;
   }
 }
 
-interface StepPosition {
-  /** 1-indexed position within the parent step list. */
-  index: number;
-  /** Total number of sibling steps at the current depth. */
-  total: number;
+interface StepContext {
+  isTopLevel: boolean;
+  /** When inside a foreach, the phase counter has already been advanced. */
+  insideForeach: boolean;
+  /** When inside a loop, the current iteration (1-indexed). */
+  loopIteration?: number;
+  /** When inside a loop, the max iterations. */
+  loopMax?: number;
 }
 
 async function runStep(
   step: Step,
   scope: Scope,
   deps: RunFlowDeps,
-  pos?: StepPosition,
+  tracker: PhaseTracker,
+  ctx: StepContext,
 ): Promise<void> {
   const logger = deps.logger ?? silentLogger();
-  const childLogger = logger.child();
-  const childDeps: RunFlowDeps = { ...deps, logger: childLogger };
-
-  const prefix = pos ? `step ${pos.index}/${pos.total}` : "step";
   const t0 = Date.now();
 
   switch (step.type) {
     case "agent": {
-      logger.info(
-        `${prefix}: agent ${step.prompt}${describeAgentContext(step, scope)}`,
-      );
-      await runAgentStep(step, scope, deps);
-      logger.info(
-        `${prefix}: agent ${step.prompt} done (${formatDuration(Date.now() - t0)})`,
-      );
+      const label = resolveLabel(step, scope);
+      const iterSuffix = formatIterSuffix(ctx);
+      const shouldEmit = ctx.isTopLevel || ctx.insideForeach;
+      if (shouldEmit && !ctx.insideForeach) {
+        tracker.advance();
+      }
+      if (shouldEmit) {
+        const counter = tracker.formatCounter(scope);
+        const lineText = buildPhaseLine(counter, label, iterSuffix);
+        logger.phaseBegin(lineText);
+      }
+      logger.detail(`agent ${step.prompt}${describeAgentContext(step, scope)}`);
+      const logOffset = logger.logFileSize();
+      try {
+        await runAgentStep(step, scope, deps);
+      } catch (err) {
+        const elapsed = Date.now() - t0;
+        if (shouldEmit) logger.phaseEnd("FAIL", elapsed);
+        printFailureTail(logger, deps, logOffset);
+        throw err;
+      }
+      if (shouldEmit) logger.phaseEnd("DONE", Date.now() - t0);
       return;
     }
     case "script": {
-      logger.info(`${prefix}: script ${step.name}`);
-      await runScriptStep(step, scope, {
-        cwd: deps.cwd,
-        scripts: deps.scripts,
-      });
-      logger.info(
-        `${prefix}: script ${step.name} done (${formatDuration(Date.now() - t0)})`,
-      );
+      const label = resolveLabel(step, scope);
+      const iterSuffix = formatIterSuffix(ctx);
+      const shouldEmit = ctx.isTopLevel || ctx.insideForeach;
+      if (shouldEmit && !ctx.insideForeach) {
+        tracker.advance();
+      }
+      if (shouldEmit) {
+        const counter = tracker.formatCounter(scope);
+        const lineText = buildPhaseLine(counter, label, iterSuffix);
+        logger.phaseBegin(lineText);
+      }
+      logger.detail(`script ${step.name}`);
+      try {
+        await runScriptStep(step, scope, {
+          cwd: deps.cwd,
+          scripts: deps.scripts,
+        });
+      } catch (err) {
+        const elapsed = Date.now() - t0;
+        if (shouldEmit) logger.phaseEnd("FAIL", elapsed);
+        throw err;
+      }
+      if (shouldEmit) logger.phaseEnd("DONE", Date.now() - t0);
       return;
     }
     case "foreach": {
       const items = resolveValue(step.in, scope);
       const count = Array.isArray(items) ? items.length : 0;
-      logger.info(
-        `${prefix}: foreach ${step.var} in ${step.in} (${count} item${count === 1 ? "" : "s"})`,
-      );
-      await runForeachWithLogging(step, scope, childLogger, deps);
-      logger.info(
-        `${prefix}: foreach ${step.var} done (${formatDuration(Date.now() - t0)})`,
-      );
+      logger.detail(`foreach ${step.var} in ${step.in} (${count} item${count === 1 ? "" : "s"})`);
+      await runForeachWithPhases(step, scope, deps, tracker);
+      logger.detail(`foreach ${step.var} done (${formatDuration(Date.now() - t0)})`);
       return;
     }
     case "loop": {
-      logger.info(`${prefix}: loop (max=${step.max}, until=${step.until})`);
-      await runLoopWithLogging(step, scope, childLogger, childDeps);
-      logger.info(`${prefix}: loop done (${formatDuration(Date.now() - t0)})`);
+      logger.detail(`loop (max=${step.max}, until=${step.until})`);
+      await runLoopWithPhases(step, scope, deps, tracker, ctx);
+      logger.detail(`loop done (${formatDuration(Date.now() - t0)})`);
       return;
     }
     case "read-file": {
       const path = interpolate(step.path, scope);
-      logger.info(`${prefix}: read-file ${path} -> \${${step.set}}`);
+      logger.detail(`read-file ${path} -> \${${step.set}}`);
       await runReadFileStep(step, scope);
-      const bound = scope[step.set];
-      logger.info(
-        `${prefix}: read-file done (${formatDuration(Date.now() - t0)}, ${summarizeValue(bound)})`,
-      );
+      logger.detail(`read-file done (${formatDuration(Date.now() - t0)})`);
       return;
     }
     case "if": {
       const taken = evaluatePredicate(step.condition, scope);
-      logger.info(
-        `${prefix}: if ${step.condition} -> ${taken ? "true" : "false (skip)"}`,
-      );
+      tracker.recordIfOutcome(step, taken);
+      logger.detail(`if ${step.condition} -> ${taken ? "true" : "false (skip)"}`);
       if (taken) {
         await runIfStep(step, scope, (child, childScope) =>
-          runStep(child, childScope, childDeps, indexIn(step.then, child)),
+          runStep(child, childScope, deps, tracker, ctx),
         );
+      } else if (ctx.isTopLevel) {
+        tracker.advance();
+        const counter = tracker.formatCounter(scope);
+        const label = step.label ?? "conditional";
+        const skipReason = step.skip_label ? ` (${interpolate(step.skip_label, scope)})` : "";
+        const lineText = `${counter}: ${label}${skipReason}`;
+        logger.phaseImmediate(lineText, "SKIP");
       }
       return;
     }
@@ -151,67 +190,44 @@ async function runStep(
   }
 }
 
-/**
- * Logs iteration banners as items are consumed. Child step indices are
- * taken relative to `step.do`.
- */
-async function runForeachWithLogging(
+async function runForeachWithPhases(
   step: ForeachStep,
   scope: Scope,
-  iterationLogger: Logger,
   deps: RunFlowDeps,
+  tracker: PhaseTracker,
 ): Promise<void> {
-  const items = resolveValue(step.in, scope);
-  if (!Array.isArray(items)) {
-    throw new Error(
-      `'foreach.in' must resolve to an array, got: ${typeof items}`,
-    );
-  }
-  const total = items.length;
-  let iter = 0;
-  const bodyLogger = iterationLogger.child();
-  const bodyDeps: RunFlowDeps = { ...deps, logger: bodyLogger };
-
   await runForeachStep(
     step,
     scope,
     async (child, iterScope) => {
-      if (step.do.length > 0 && child === step.do[0]) {
-        iter++;
-        iterationLogger.info(
-          `iteration ${iter}/${total}${describeIterItem(step.var, iterScope)}`,
-        );
+      const isFirstInBody = step.do.length > 0 && child === step.do[0];
+      if (isFirstInBody) {
+        tracker.advance();
       }
-      await runStep(child, iterScope, bodyDeps, indexIn(step.do, child));
+      await runStep(child, iterScope, deps, tracker, {
+        isTopLevel: false,
+        insideForeach: true,
+      });
     },
   );
 }
 
-/**
- * Logs iteration banners for a `loop` body. Child step indices are taken
- * relative to `step.do`.
- */
-async function runLoopWithLogging(
+async function runLoopWithPhases(
   step: LoopStep,
   scope: Scope,
-  iterationLogger: Logger,
-  childDeps: RunFlowDeps,
+  deps: RunFlowDeps,
+  tracker: PhaseTracker,
+  parentCtx: StepContext,
 ): Promise<void> {
-  const bodyLogger = iterationLogger.child();
-  const bodyDeps: RunFlowDeps = { ...childDeps, logger: bodyLogger };
-
   await runLoopStep(step, scope, async (child, iterScope) => {
-    if (step.do.length > 0 && child === step.do[0]) {
-      iterationLogger.info(`iteration ${String(iterScope.iteration ?? "?")}`);
-    }
-    await runStep(child, iterScope, bodyDeps, indexIn(step.do, child));
+    const iteration = typeof iterScope.iteration === "number" ? iterScope.iteration : undefined;
+    await runStep(child, iterScope, deps, tracker, {
+      isTopLevel: false,
+      insideForeach: parentCtx.insideForeach,
+      loopIteration: iteration,
+      loopMax: step.max,
+    });
   });
-}
-
-function indexIn(steps: Step[], target: Step): StepPosition | undefined {
-  const idx = steps.indexOf(target);
-  if (idx < 0) return undefined;
-  return { index: idx + 1, total: steps.length };
 }
 
 async function runAgentStep(
@@ -233,6 +249,8 @@ async function runAgentStep(
   const result = await deps.agent.run(prompt, {
     cwd: deps.cwd,
     additionalDirs,
+    logFile: deps.logFile,
+    echo: deps.verbose,
   });
   if (result.exitCode !== 0) {
     throw new AgentStepFailedError(step.prompt, result.exitCode);
@@ -261,11 +279,29 @@ async function assertFileExists(
   }
 }
 
-/**
- * Surfaces the few `vars:` entries that are useful to see at a glance
- * when an `agent` step starts (phase number, iteration counter). Anything
- * else stays out of the log to avoid drowning useful signal.
- */
+function resolveLabel(step: AgentStep | ScriptStep, scope: Scope): string {
+  if (step.label) {
+    try {
+      return interpolate(step.label, scope);
+    } catch {
+      return step.label;
+    }
+  }
+  const name = step.type === "agent" ? step.prompt : step.name;
+  return name.replace(/-/g, " ");
+}
+
+function buildPhaseLine(counter: string, label: string, iterSuffix: string): string {
+  return `${counter}: ${label}${iterSuffix}`;
+}
+
+function formatIterSuffix(ctx: StepContext): string {
+  if (ctx.loopIteration != null && ctx.loopMax != null) {
+    return ` (iteration ${ctx.loopIteration}/${ctx.loopMax})`;
+  }
+  return "";
+}
+
 function describeAgentContext(step: AgentStep, scope: Scope): string {
   const vars = step.vars ?? {};
   const interesting = ["phase_number", "phase.number", "iteration"];
@@ -278,57 +314,17 @@ function describeAgentContext(step: AgentStep, scope: Scope): string {
   return parts.length > 0 ? ` (${parts.join(", ")})` : "";
 }
 
-function describeIterItem(varName: string, scope: Scope): string {
-  const value = scope[varName];
-  if (value && typeof value === "object" && !Array.isArray(value)) {
-    const obj = value as Record<string, unknown>;
-    const num = obj.number;
-    const title = obj.title;
-    const numPart = num !== undefined ? `${varName}.number=${String(num)}` : "";
-    const titlePart =
-      typeof title === "string"
-        ? `${varName}.title=${JSON.stringify(title)}`
-        : "";
-    const joined = [numPart, titlePart].filter((s) => s.length > 0).join(", ");
-    if (joined.length > 0) return ` (${joined})`;
+function printFailureTail(logger: Logger, deps: RunFlowDeps, fromByte: number): void {
+  if (!deps.logFile) return;
+  const tail = logger.tailLog(fromByte, 20);
+  if (tail) {
+    logger.error(`Agent output (last lines from ${deps.logFile}):`);
+    for (const line of tail.split("\n").slice(-20)) {
+      logger.error(`  ${line}`);
+    }
+  } else {
+    logger.error(`See full log: ${deps.logFile}`);
   }
-  if (typeof value === "string" || typeof value === "number") {
-    return ` (${varName}=${value})`;
-  }
-  return "";
-}
-
-function summarizeValue(value: unknown): string {
-  if (typeof value === "string") {
-    const oneLine = value.replace(/\n/g, "\\n");
-    const trimmed =
-      oneLine.length > 40 ? `${oneLine.slice(0, 37)}...` : oneLine;
-    return `${value.length} chars: "${trimmed}"`;
-  }
-  if (Array.isArray(value)) return `array of ${value.length}`;
-  if (value === null) return "null";
-  return typeof value;
-}
-
-function formatDuration(ms: number): string {
-  if (ms < 1000) return `${ms}ms`;
-  if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
-  const total = Math.floor(ms / 1000);
-  const m = Math.floor(total / 60);
-  const s = total % 60;
-  return `${m}m${s.toString().padStart(2, "0")}s`;
-}
-
-let _silentLogger: Logger | null = null;
-function silentLogger(): Logger {
-  if (_silentLogger) return _silentLogger;
-  const sink = new Writable({
-    write(_chunk, _enc, cb) {
-      cb();
-    },
-  });
-  _silentLogger = new Logger({ stream: sink });
-  return _silentLogger;
 }
 
 export class ExpectFileMissingError extends Error {

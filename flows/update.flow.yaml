@@ -2,15 +2,19 @@ name: update
 steps:
   - script:
       name: detect-changes
+      label: detecting changes
       app_dir: ${app_path}
       output_dir: ${run_dir}
       docs_dir: ${docs_dir}
       set: changes
 
   - if: '${changes.count} != 0'
+    label: updating documentation
+    skip_label: no changes detected
     then:
       - agent:
           prompt: plan-update
+          label: planning update
           vars:
             app: ${app}
             docs_dir: ${docs_dir}
@@ -20,6 +24,7 @@ steps:
 
       - script:
           name: parse-plan
+          label: parsing plan
           file: ${run_dir}/plans/${app}-update-${date}.plan.md
           set: phases
 
@@ -29,6 +34,7 @@ steps:
           do:
             - agent:
                 prompt: slice-doc
+                label: documenting "${phase.title}"
                 vars:
                   plan: ${run_dir}/plans/${app}-update-${date}.plan.md
                   phase_number: ${phase.number}
@@ -39,6 +45,7 @@ steps:
                 do:
                   - agent:
                       prompt: verify-domain-documentation
+                      label: verifying "${phase.title}"
                       vars:
                         plan: ${run_dir}/plans/${app}-update-${date}.plan.md
                         phase_number: ${phase.number}
@@ -56,6 +63,7 @@ steps:
                     then:
                       - agent:
                           prompt: fix-documentation
+                          label: fixing "${phase.title}"
                           vars:
                             plan: ${run_dir}/plans/${app}-update-${date}.plan.md
                             phase_number: ${phase.number}
@@ -63,5 +71,6 @@ steps:
 
       - script:
           name: generate-baseline
+          label: generating baseline
           app_dir: ${app_path}
           docs_dir: ${docs_dir}

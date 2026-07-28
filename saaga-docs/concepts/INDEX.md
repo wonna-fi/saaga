@@ -13,4 +13,5 @@
 | [Script Registry](./script-registry.md) | The `ScriptRegistry` map, `ScriptHandler` signature, `ScriptContext`, and how built-in scripts are registered and invoked |
 | [Baseline and Change Detection](./baseline-and-change-detection.md) | The `<docs_dir>/BASELINE` file format, `.saagaignore` filtering, and change classification system |
 | [Flow Definitions](./flow-definitions.md) | The four flow YAML files, their step sequences, and how they compose agent steps, scripts, and control flow |
+| [Output and Progress Display](./output-and-progress.md) | `OutputSink`, `PhaseTracker`, `Marker` type, `formatDuration()`, TTY spinner, column-aligned markers, log-file capture, and `--verbose` mode |
 | [Prompt Templates](./prompt-templates.md) | The eight prompt template files, their `{var}` placeholders, and their role in each workflow |

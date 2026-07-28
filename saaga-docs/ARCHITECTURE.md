@@ -55,6 +55,12 @@ flowchart TD
 
 Entry point. Defines five subcommands (`init`, `install-rules`, `update`, `quick-update`, `verify-quick-updates`) using `commander`. Four of these resolve the agent, create a run context, load the corresponding flow, and call the engine. The `install-rules` subcommand is standalone: it runs the rule installer directly without an agent backend.
 
+Global flags include `--backend`, `--model`, `--ci`, and `--verbose`. The `--verbose` flag enables detailed step output and live agent output on the terminal.
+
+`runFlowSubcommand()` creates a `logFile` path (`resolve(runCtx.runDir, "run.log")`) and passes both `logFile` and `verbose` (from the `--verbose` flag) to `RunFlowDeps`, which the engine uses for output routing.
+
+`createLogger()` accepts an optional `logFile` parameter and the `verbose` flag, forwarding them to the `Logger` constructor (which delegates to `OutputSink`).
+
 **Exports**: `runCli(argv, options): Promise<number>`, `CliOptions`
 
 **Dependencies**: `cli/config`, `cli/backend`, `engine/loader`, `engine/runner`, `run-context`, `logger`, `paths`, `scripts/install-rules`
@@ -94,23 +100,25 @@ interface Agent {
 }
 ```
 
-`AgentRunOpts` carries `cwd` and an optional `AbortSignal`. `AgentRunResult` carries `exitCode`.
+`AgentRunOpts` carries `cwd`, an optional `AbortSignal`, `additionalDirs?: string[]` (extra directories the agent must be able to access, e.g. the Saaga run directory), `logFile?: string` (absolute path to append the agent's stdout/stderr to), and `echo?: boolean` (also mirror output to the terminal under `--verbose`). `AgentRunResult` carries `exitCode`.
+
+All three real adapters use an internal `buildStdio(opts)` helper to configure child-process I/O routing. When `logFile` is set, stdout/stderr are redirected to the log file (appended). When `echo` is also true, output is tee'd to both the terminal and the log file. When neither is set, `stdio: "inherit"` is used as a fallback.
 
 #### CursorAgent (`src/agent/cursor-agent.ts`)
 
-Invokes `cursor-agent --print --force --model <model>`. In CI mode, adds `--output-format text`. Passes `stdio: "inherit"` to `execa`, so agent child-process stdout/stderr is visible in the parent terminal.
+Invokes `cursor-agent --print --force --model <model> --output-format text`. The `--output-format text` flag is unconditional (always passed). Uses `buildStdio(opts)` for log-file capture.
 
 #### CopilotAgent (`src/agent/copilot-agent.ts`)
 
-Invokes `copilot -p <prompt> --allow-all-tools --no-ask-user --model <model> --no-auto-update`. Temporarily renames `.gitignore` to `.gitignore.<random-hex>.bak` before invocation (Copilot's indexer respects `.gitignore`, which can hide files needed during documentation runs). The random suffix (8 hex characters from `randomBytes(4)`) prevents collisions between concurrent agent runs in the same directory. Passes `stdio: "inherit"` to `execa`, so agent child-process stdout/stderr is visible in the parent terminal.
+Invokes `copilot -p <prompt> --allow-all-tools --no-ask-user --model <model> --no-auto-update`. Passes `--add-dir <dir>` for each entry in `opts.additionalDirs`, granting the agent access to directories outside `cwd` (e.g. the Saaga run directory). Temporarily renames `.gitignore` to `.gitignore.<random-hex>.bak` before invocation (Copilot's indexer respects `.gitignore`, which can hide files needed during documentation runs). The random suffix (8 hex characters from `randomBytes(4)`) prevents collisions between concurrent agent runs in the same directory. Uses `buildStdio(opts)` for log-file capture.
 
 #### ClaudeAgent (`src/agent/claude-agent.ts`)
 
-Invokes `claude --print --dangerously-skip-permissions --model <model>`. The `ci` field is stored in the constructor but is not currently used in CLI argument construction (unlike `CursorAgent` which adds `--output-format text` in CI mode). Passes `stdio: "inherit"` to `execa`, so agent child-process stdout/stderr is visible in the parent terminal.
+Invokes `claude --print --dangerously-skip-permissions --model <model>`. The `ci` field is stored in the constructor but is not currently used in CLI argument construction. Uses `buildStdio(opts)` for log-file capture.
 
 #### FakeAgent (`src/agent/fake-agent.ts`)
 
-Test double. Returns canned results keyed by substring match against the prompt. Records all calls for assertion. Supports optional side-effect callbacks to simulate file writes.
+Test double. Returns canned results keyed by substring match against the prompt. Records all calls (including `additionalDirs`) for assertion. Supports optional side-effect callbacks to simulate file writes.
 
 ### Engine (`src/engine/`)
 
@@ -123,12 +131,14 @@ Defines the flow DSL type system:
 | Type | Fields |
 |------|--------|
 | `FlowDefinition` | `name`, `steps: Step[]` |
-| `AgentStep` | `prompt`, `vars?`, `expect_file?` |
-| `ScriptStep` | `name`, `args`, `set?` |
-| `ForeachStep` | `var`, `in`, `when?`, `do: Step[]` |
-| `LoopStep` | `max`, `until`, `do: Step[]` |
-| `IfStep` | `condition`, `then: Step[]` |
-| `ReadFileStep` | `path`, `set`, `trim?` |
+| `AgentStep` | `prompt`, `vars?`, `expect_file?`, `label?` |
+| `ScriptStep` | `name`, `args`, `set?`, `label?` |
+| `ForeachStep` | `var`, `in`, `when?`, `do: Step[]`, `label?` |
+| `LoopStep` | `max`, `until`, `do: Step[]`, `label?` |
+| `IfStep` | `condition`, `then: Step[]`, `label?`, `skip_label?` |
+| `ReadFileStep` | `path`, `set`, `trim?`, `label?` |
+
+All step types support an optional `label` field used for phase progress display (interpolated against scope via `${var}` expressions). `IfStep` additionally has `skip_label`, shown in the `[SKIP]` line when the condition is false.
 
 `Step` is the discriminated union of all step types. `Scope` is `Record<string, unknown>`.
 
@@ -138,13 +148,23 @@ Reads a `.flow.yaml` file from the `flows/` directory, parses YAML, and validate
 
 **Exports**: `loadFlow(name): Promise<FlowDefinition>`, `loadFlowFromFile(path)`, `parseFlowDefinition(raw)`
 
+#### PhaseTracker (`src/engine/phases.ts`)
+
+Tracks the flat phase index N and dynamically computes the total M for `Phase N/M` progress display. A "phase" is a user-visible unit of work: agent steps, script steps, foreach iterations (one per surviving item after `when` filtering), and skipped if-blocks (one `[SKIP]` line). `read-file` and `loop` steps are plumbing and produce no phase line.
+
+The tracker dynamically recomputes the total by resolving `foreach.in` arrays from scope and evaluating `when` predicates. If a source array has not yet been resolved, `total()` returns `null` and the counter displays `?` (e.g. `Phase 1/?`).
+
+**Exports**: `PhaseTracker` class
+
+Key methods: `advance()` (increments the 1-indexed phase counter), `recordIfOutcome(step, taken)` (records whether an `if` was taken or skipped), `total(scope)` (computes total phases given current scope, returns `null` if indeterminate), `formatCounter(scope)` (returns e.g. `"Phase 7/16"`).
+
 #### Runner (`src/engine/runner.ts`)
 
-Executes a `FlowDefinition` by iterating its steps. Dispatches each step by type to the appropriate primitive handler. For `agent` steps: renders the prompt template, invokes `Agent.run()`, and optionally asserts that an expected output file exists. Produces structured log output with timing and step positioning when a `Logger` is provided.
+Executes a `FlowDefinition` by iterating its steps. Creates a `PhaseTracker` at the start and emits phase progress lines via `Logger.phaseBegin()` / `phaseEnd()` / `phaseImmediate()` calls instead of verbose INFO-banner logging. Dispatches each step by type to the appropriate handler. For `agent` steps: renders the prompt template, invokes `Agent.run()` with `additionalDirs` (the run directory from scope) and `logFile`/`echo` from deps, and optionally asserts that an expected output file exists. On agent failure, prints a tail of the log file for diagnostics.
 
 **Exports**: `runFlow(flow, initialScope, deps)`, `RunFlowDeps`, `AgentStepFailedError`, `ExpectFileMissingError`
 
-`RunFlowDeps` bundles the `Agent`, working directory, optional script registry override, and an optional `logger?: Logger`. When `logger` is omitted, a silent logger (no-op stream) is used so library callers and tests don't get noise.
+`RunFlowDeps` bundles the `Agent`, working directory, optional script registry override, an optional `logger?: Logger`, `logFile?: string` (absolute path to the run log file for agent output capture), and `verbose?: boolean` (mirror agent output to terminal). When `logger` is omitted, a silent logger (no-op sink) is used so library callers and tests don't get noise.
 
 #### Expression (`src/engine/expression.ts`)
 
@@ -251,13 +271,46 @@ Works identically whether running from `src/` (via `tsx`) or `dist/` (compiled).
 
 ### Logger (`src/logger.ts`)
 
-Structured leveled logger (`info`, `warn`, `error`) with hierarchical indentation support for nested flow primitives. In CI mode, outputs plain `[LEVEL]` tags. In interactive mode, uses ANSI colors via `picocolors`. Every line is prefixed with `[LEVEL]` followed by indentation padding (controlled by the `indent` option).
+Facade over `OutputSink` that provides the runner-facing logging API. The `Logger` constructor creates an `OutputSink` internally; alternatively, `Logger.fromSink(sink, opts)` wraps an existing `OutputSink` (used by `child()` to share the same sink across nested scopes).
 
-**Exports**: `Logger` class, `LoggerOptions`
+**Exports**: `Logger` class, `LoggerOptions`, `silentLogger()` function
 
-`LoggerOptions` fields: `ci?: boolean` (plain text mode, default `false`), `stream?: NodeJS.WritableStream` (output target, default `process.stderr`), `indent?: number` (spaces prepended after the level tag, default `0`).
+`LoggerOptions` fields: `ci?: boolean` (plain text mode, default `false`), `stream?: NodeJS.WritableStream` (output target, default `process.stderr`), `indent?: number` (spaces prepended after the level tag, default `0`), `logFile?: string` (path to append all output to), `verbose?: boolean` (show detail lines and live agent output on terminal).
 
-`Logger.child(extraIndent = 2)` returns a new `Logger` that shares the same stream and CI setting but indents every line by `extraIndent` additional spaces. Used by the runner to nest log output inside `foreach` and `loop` iterations.
+Methods:
+- `info(message)`, `warn(message)`, `error(message)` — leveled log output (with indentation padding)
+- `phaseBegin(text)` — start a pending phase line (with spinner in TTY mode)
+- `phaseEnd(marker, durationMs)` — complete the pending line with `[DONE]`/`[SKIP]`/`[FAIL]` and duration
+- `phaseImmediate(text, marker, durationMs?)` — emit a phase line that is immediately complete (used for `[SKIP]` lines and the final summary)
+- `detail(message)` — always goes to the log file; appears on terminal only under `--verbose`
+- `logFileSize()` — returns the current size of the log file in bytes
+- `tailLog(fromByte, maxLines?)` — reads the last N lines from the log file starting at a byte offset
+- `child(extraIndent = 2)` — returns a new `Logger` wrapping the same `OutputSink` with additional indentation
+- `getSink()` — returns the underlying `OutputSink`
+- `dispose()` — stops the spinner timer
+
+`silentLogger()` returns a `Logger` backed by a no-op writable stream, used when no logger is provided to the runner.
+
+### Output (`src/output.ts`)
+
+Low-level terminal output engine. `OutputSink` manages the pending-line state machine, TTY spinner animation, column-aligned marker rendering, and log-file append. `Logger` wraps `OutputSink` and delegates all output through it.
+
+**Exports**: `OutputSink` class, `OutputSinkOptions` interface, `Marker` type, `formatDuration()`, `truncateLabel()`
+
+`Marker` is a string union: `"DONE" | "SKIP" | "FAIL"`. Rendered as `[DONE]`, `[SKIP]`, `[FAIL]` with ANSI color in TTY mode (green, dim, red via `picocolors`), plain text in CI mode.
+
+`OutputSinkOptions` fields: `ci?: boolean`, `stream?: NodeJS.WritableStream` (default `process.stderr`), `logFile?: string`, `verbose?: boolean`.
+
+`OutputSink` behavior:
+- **Phase lines**: `phaseBegin(text)` writes the line and starts a braille spinner in TTY mode (120ms frame interval). `phaseEnd(marker, durationMs)` clears the spinner and renders `[MARKER] duration` column-aligned at a computed marker column (default column 72, minimum 40, adapts to terminal width). `phaseImmediate(text, marker, durationMs?)` emits a complete line without pending state.
+- **Detail lines**: `detail(message)` always appends to the log file; appears on terminal only when `verbose` is true.
+- **Level lines**: `info()`, `warn()`, `error()` emit `[LEVEL]` tagged lines to both the stream and log file.
+- **Log introspection**: `logFileSize()` returns the current log file size. `tailLog(fromByte, maxLines)` reads the last N lines from the log file starting at a byte offset.
+- **Lifecycle**: `dispose()` stops the spinner timer.
+
+`formatDuration(ms)` formats milliseconds as human-readable durations: `<1s` → `"Nms"`, `<60s` → `"N.Ns"`, `≥60s` → `"NmNNs"`.
+
+`truncateLabel(prefix, label, suffix, maxWidth)` truncates the label portion of a phase line to fit within a maximum width while preserving the prefix (`Phase N/M: `) and suffix (`(iteration i/k)`), using an ellipsis character when truncation is needed.
 
 ### Flow Definitions (`flows/`)
 
@@ -290,6 +343,7 @@ Markdown files with `{var}` placeholders, rendered by the templates module befor
 ```mermaid
 flowchart BT
     paths[paths]
+    output[output]
     logger[logger]
     templates[templates]
     runctx[run-context]
@@ -304,6 +358,7 @@ flowchart BT
     expr[engine/expression]
     loader[engine/loader]
     prims[engine/primitives]
+    phases[engine/phases]
     runner[engine/runner]
     scripts[scripts/registry]
     parsep[scripts/parse-plan]
@@ -325,9 +380,13 @@ flowchart BT
     backend --> copilot
     backend --> claude
 
+    logger --> output
+
     loader --> etypes
     loader --> paths
     expr --> etypes
+    phases --> expr
+    phases --> etypes
     prims --> expr
     prims --> etypes
     runner --> prims
@@ -336,6 +395,8 @@ flowchart BT
     runner --> templates
     runner --> paths
     runner --> logger
+    runner --> output
+    runner --> phases
     runner --> scripts
 
     scripts --> parsep
@@ -363,4 +424,5 @@ flowchart BT
     style runner fill:#7B68EE,color:#fff
     style agtypes fill:#3CB371,color:#fff
     style scripts fill:#DAA520,color:#fff
+    style output fill:#E06C75,color:#fff
 ```

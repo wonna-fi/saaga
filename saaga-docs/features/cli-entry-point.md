@@ -32,6 +32,7 @@ Before working with this feature, understand these concepts:
 | `--backend <name>` | `-b` | Agent backend (`cursor`, `copilot`, or `claude`) |
 | `--model <name>` | `-m` | AI model override (defaults per-backend) |
 | `--ci` | — | CI mode: plain (non-color) log output |
+| `--verbose` | — | Show detailed step output and live agent output on terminal |
 | `--version` | `-v` | Print version and exit |
 | `--help` | `-h` | Print help and exit |
 
@@ -52,13 +53,16 @@ Before working with this feature, understand these concepts:
    - Must be a directory (otherwise: `Error: "Not a directory: <dir>"`)
 3. CLI loads config via `loadConfig(appPath)` (see [Project Configuration](../concepts/project-configuration.md))
 4. CLI extracts the app name as `basename(appPath)` and resolves the agent via the backend resolution chain, passing config (see [Backend Resolution](../concepts/backend-resolution.md))
-5. CLI creates a `Logger` (via internal `createLogger()`)
-6. CLI creates a run context: generates a unique run ID and creates the run directory on disk (see [Run Context and Isolation](../concepts/run-context.md))
-7. Logger logs startup info: `saaga <subcommand> <path> (backend=<name>)` with optional conditional segment `, model=<model>` only when `--model` is explicitly provided. Also logs run ID and run directory.
-8. CLI resolves the effective documentation directory via `resolveDocsDir(config)` (falls back to `DEFAULT_DOCS_DIR` = `"saaga-docs"`)
-9. CLI checks for a legacy `docs/` directory: if `config.docsDir` is not set, `docs/BASELINE` exists, and `<docsDir>/BASELINE` does not exist, it logs a warning suggesting the user set `docsDir: docs` in `.saaga/config.yaml` or migrate contents
-10. CLI loads the flow definition: `loadFlow(flowName)` reads `flows/<flowName>.flow.yaml`
-11. CLI executes the flow: `runFlow(flow, initialScope, deps)` with scope `{ app, app_path, docs_dir, run_id, run_dir, date }`, passing the logger in `RunFlowDeps`
+5. CLI creates the run context: generates a unique run ID and creates the run directory on disk (see [Run Context and Isolation](../concepts/run-context.md))
+6. CLI creates a log file path: `logFile = resolve(runCtx.runDir, "run.log")`
+7. CLI resolves `verbose` from `globals.verbose ?? false`
+8. CLI creates a `Logger` via internal `createLogger(globals, options, logFile)` — passes `ci`, `stream`, `logFile`, and `verbose` to `LoggerOptions`
+9. Logger logs startup info: `saaga <subcommand> <path> (backend=<name>)` with optional conditional segment `, model=<model>` only when `--model` is explicitly provided. Also logs run ID and run directory.
+10. CLI resolves the effective documentation directory via `resolveDocsDir(config)` (falls back to `DEFAULT_DOCS_DIR` = `"saaga-docs"`)
+11. CLI checks for a legacy `docs/` directory: if `config.docsDir` is not set, `docs/BASELINE` exists, and `<docsDir>/BASELINE` does not exist, it logs a warning suggesting the user set `docsDir: docs` in `.saaga/config.yaml` or migrate contents
+12. CLI loads the flow definition: `loadFlow(flowName)` reads `flows/<flowName>.flow.yaml`
+13. CLI executes the flow: `runFlow(flow, initialScope, deps)` with scope `{ app, app_path, docs_dir, run_id, run_dir, date }` and deps `{ agent, cwd: appPath, logger, logFile, verbose }`
+14. CLI calls `logger.dispose()` after the flow completes to clean up spinner intervals
 
 ### User Flow: quick-update Subcommand
 
@@ -114,7 +118,7 @@ The program uses Commander's `exitOverride()` to prevent Commander from calling 
 | `src/engine/loader.ts` | `loadFlow()` | Load and parse a flow YAML file |
 | `src/engine/runner.ts` | `runFlow()` | Execute a flow definition with scope and deps |
 | `src/engine/runner.ts` | `AgentStepFailedError` (class) | Error for non-zero agent exit codes |
-| `src/logger.ts` | `Logger` (class) | Structured leveled logger used for CLI startup info and flow progress output |
+| `src/logger.ts` | `Logger` (class) | Facade over `OutputSink`: provides `info()`, `warn()`, `error()`, `phaseBegin()`, `phaseEnd()`, `phaseImmediate()`, `detail()`, `dispose()` for CLI and flow progress output |
 
 ### Internal Implementation
 
@@ -128,7 +132,7 @@ The program uses Commander's `exitOverride()` to prevent Commander from calling 
 | `src/cli.ts` | `resolveRuleTargets()` | Resolves effective rule targets from CLI flag → `config.ruleTargets` → default `"agentsmd"`, then validates via `parseRuleTargets()` (not exported) |
 | `src/cli.ts` | `resolveDocsDir()` | Resolves effective docs directory from `config.docsDir` → `DEFAULT_DOCS_DIR` (`"saaga-docs"`) (not exported) |
 | `src/cli.ts` | `isFile()` | Checks whether a path exists as a file (used for legacy `docs/BASELINE` migration warning) (not exported) |
-| `src/cli.ts` | `createLogger()` | Creates a `Logger` with `ci` from global flags and `stream` from CLI options (defaults to `process.stderr`) (not exported) |
+| `src/cli.ts` | `createLogger()` | Creates a `Logger` with `ci` from global flags, `stream` from CLI options (defaults to `process.stderr`), `logFile`, and `verbose` from global flags (not exported) |
 
 ## Integration Points
 

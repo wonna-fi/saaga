@@ -47,6 +47,7 @@ The `Step` type is a union discriminated on the `type` field:
 | `prompt` | `string` | Yes | Name of the prompt template file (without `.md` extension) |
 | `vars` | `Record<string, string>` | No | Variables to pass to the template, values may contain `${expr}` expressions |
 | `expect_file` | `string` | No | Path (may contain `${expr}`) that must exist after the agent finishes |
+| `label` | `string` | No | Human-readable label for progress display; interpolated against scope (e.g. `documenting "${phase.title}"`) |
 
 ### ScriptStep Fields
 
@@ -55,6 +56,7 @@ The `Step` type is a union discriminated on the `type` field:
 | `name` | `string` | Yes | Registered name of the built-in script to invoke |
 | `args` | `Record<string, string>` | Yes | Arguments passed to the script handler (all non-reserved keys become args) |
 | `set` | `string` | No | Scope variable name to store the script's return value |
+| `label` | `string` | No | Human-readable label for progress display; interpolated against scope |
 
 ### ForeachStep Fields
 
@@ -64,6 +66,7 @@ The `Step` type is a union discriminated on the `type` field:
 | `in` | `string` | Yes | Expression (e.g. `${phases}`) that must resolve to an array |
 | `when` | `string` | No | Predicate to filter items; iterations where it evaluates false are skipped |
 | `do` | `Step[]` | Yes | Child steps to execute for each (non-filtered) item |
+| `label` | `string` | No | Human-readable label for progress display; interpolated against scope |
 
 ### LoopStep Fields
 
@@ -72,6 +75,7 @@ The `Step` type is a union discriminated on the `type` field:
 | `max` | `number` | Yes | Maximum iterations (positive integer); hard cap preventing infinite loops |
 | `until` | `string` | Yes | Predicate evaluated after each iteration; loop exits when true |
 | `do` | `Step[]` | Yes | Child steps to execute each iteration |
+| `label` | `string` | No | Human-readable label for progress display; interpolated against scope |
 
 ### IfStep Fields
 
@@ -79,6 +83,8 @@ The `Step` type is a union discriminated on the `type` field:
 |-------|------|----------|---------|
 | `condition` | `string` | Yes | Predicate expression; body executes only when true |
 | `then` | `Step[]` | Yes | Child steps to execute when condition is true |
+| `label` | `string` | No | Human-readable label for progress display (used in the `[SKIP]` line when the condition is false) |
+| `skip_label` | `string` | No | Reason shown in parentheses on the `[SKIP]` line when the condition is false; interpolated against scope (e.g. `no changes detected`) |
 
 ### ReadFileStep Fields
 
@@ -87,6 +93,9 @@ The `Step` type is a union discriminated on the `type` field:
 | `path` | `string` | Yes | File path to read (supports `${expr}` interpolation) |
 | `set` | `string` | Yes | Scope variable name to store the file contents |
 | `trim` | `boolean` | No | When `true`, trims whitespace from the file contents |
+| `label` | `string` | No | Human-readable label for progress display; interpolated against scope |
+
+> **Note:** The `label` field is present on all step types and is used by the [Output and Progress Display](./output-and-progress.md) system for the `Phase N/M: label` progress lines. Labels support `${expr}` interpolation against the flow scope. When no label is provided, the runner derives one from the step name (replacing hyphens with spaces). The `skip_label` field is unique to `IfStep` and provides an explanation appended to the `[SKIP]` phase line.
 
 ### Scope
 
@@ -135,3 +144,4 @@ The YAML syntax maps to the TypeScript types via the loader:
 - [Scope and Expressions](./scope-and-expressions.md)
 - [Templates and Prompt Rendering](./templates-and-prompt-rendering.md)
 - [Agent Interface](./agent-interface.md)
+- [Output and Progress Display](./output-and-progress.md)

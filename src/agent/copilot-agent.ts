@@ -10,23 +10,15 @@ export interface CopilotAgentOptions {
 }
 
 /**
- * Adapter for the GitHub Copilot CLI. Mirrors the bash `entrypoint.sh`
- * Copilot path:
- *
- *   copilot -p <prompt> --allow-all-tools --no-ask-user \
- *           --model <model> --no-auto-update
+ * Adapter for the GitHub Copilot CLI.
  *
  * Copilot's glob indexer respects `.gitignore`, which interferes with
  * documentation runs that need to read files like `dist/` or build
- * outputs. To match the bash behavior we rename `.gitignore` to
- * `.gitignore.bak` before invoking the CLI and restore it afterwards
- * (including on failure).
+ * outputs. We rename `.gitignore` to `.gitignore.<hex>.bak` before
+ * invoking the CLI and restore it afterwards (including on failure).
  *
  * Copilot restricts file access to `cwd`, its subdirectories, and the
- * system temp directory regardless of `--allow-all-tools` (which only
- * governs tool-approval prompts, not path access). `opts.additionalDirs`
- * — e.g. the Saaga run directory — is granted access via `--add-dir` so
- * the agent can read/write files outside `cwd`.
+ * system temp directory. `opts.additionalDirs` is granted via `--add-dir`.
  */
 export class CopilotAgent implements Agent {
   readonly name = "copilot";
@@ -55,11 +47,14 @@ export class CopilotAgent implements Agent {
       for (const dir of opts.additionalDirs ?? []) {
         args.push("--add-dir", dir);
       }
+
+      const stdio = buildStdio(opts);
+
       const proc: ResultPromise = execa("copilot", args, {
         cwd: opts.cwd,
         reject: false,
         signal: opts.signal,
-        stdio: "inherit",
+        ...stdio,
       });
       const result = await proc;
       return { exitCode: result.exitCode ?? 1 };
@@ -69,6 +64,23 @@ export class CopilotAgent implements Agent {
       }
     }
   }
+}
+
+function buildStdio(opts: AgentRunOpts): Record<string, unknown> {
+  if (!opts.logFile) {
+    return { stdio: "inherit" };
+  }
+  const fileSink = { file: opts.logFile, append: true };
+  if (opts.echo) {
+    return {
+      stdout: ["inherit", fileSink],
+      stderr: ["inherit", fileSink],
+    };
+  }
+  return {
+    stdout: fileSink,
+    stderr: fileSink,
+  };
 }
 
 async function tryRename(from: string, to: string): Promise<boolean> {

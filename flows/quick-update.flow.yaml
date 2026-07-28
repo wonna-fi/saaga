@@ -2,15 +2,19 @@ name: quick-update
 steps:
   - script:
       name: detect-changes
+      label: detecting changes
       app_dir: ${app_path}
       output_dir: ${run_dir}
       docs_dir: ${docs_dir}
       set: changes
 
   - if: '${changes.count} != 0'
+    label: quick updating documentation
+    skip_label: no changes detected
     then:
       - agent:
           prompt: quick-update
+          label: updating documentation
           vars:
             app: ${app}
             docs_dir: ${docs_dir}
@@ -27,11 +31,13 @@ steps:
         then:
           - script:
               name: archive-quick-update
+              label: archiving update
               changes_path: ${changes.changes_path}
               dest_dir: ${app_path}/${docs_dir}/metadata/quick_updates/${run_id}
               summary_path: ${app_path}/${docs_dir}/metadata/quick_updates/${run_id}/summary.md
 
       - script:
           name: generate-baseline
+          label: generating baseline
           app_dir: ${app_path}
           docs_dir: ${docs_dir}

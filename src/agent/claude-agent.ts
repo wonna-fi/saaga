@@ -26,13 +26,15 @@ export class ClaudeAgent implements Agent {
 
     args.push(prompt);
 
+    const stdio = buildStdio(opts);
+
     let proc: ResultPromise;
     try {
       proc = execa("claude", args, {
         cwd: opts.cwd,
         reject: false,
         signal: opts.signal,
-        stdio: "inherit",
+        ...stdio,
       });
     } catch {
       return { exitCode: 1 };
@@ -41,4 +43,21 @@ export class ClaudeAgent implements Agent {
     const result = await proc;
     return { exitCode: result.exitCode ?? 1 };
   }
+}
+
+function buildStdio(opts: AgentRunOpts): Record<string, unknown> {
+  if (!opts.logFile) {
+    return { stdio: "inherit" };
+  }
+  const fileSink = { file: opts.logFile, append: true };
+  if (opts.echo) {
+    return {
+      stdout: ["inherit", fileSink],
+      stderr: ["inherit", fileSink],
+    };
+  }
+  return {
+    stdout: fileSink,
+    stderr: fileSink,
+  };
 }

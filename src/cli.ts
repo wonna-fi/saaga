@@ -45,6 +45,7 @@ interface GlobalCliFlags {
   backend?: string;
   model?: string;
   ci?: boolean;
+  verbose?: boolean;
 }
 
 interface RuleTargetFlags {
@@ -107,6 +108,10 @@ export async function runCli(
     .option(
       "--ci",
       "CI mode: plain (non-color) log output",
+    )
+    .option(
+      "--verbose",
+      "Show detailed step output and live agent output on terminal",
     )
     .exitOverride();
 
@@ -299,7 +304,6 @@ async function runFlowSubcommand(input: RunFlowSubcommandInput): Promise<void> {
     useQuickModel: input.useQuickModel,
     config,
   });
-  const logger = createLogger(globals, options);
 
   const env = options.env ?? process.env;
   const runCtx = await createRunContext({
@@ -309,13 +313,16 @@ async function runFlowSubcommand(input: RunFlowSubcommandInput): Promise<void> {
     env,
   });
 
+  const logFile = resolve(runCtx.runDir, "run.log");
+  const verbose = globals.verbose ?? false;
+  const logger = createLogger(globals, options, logFile);
+
   logger.info(
     `saaga ${subcommand} ${appPath} (backend=${agent.name}${
       globals.model ? `, model=${globals.model}` : ""
     })`,
   );
-  logger.info(`run id: ${runCtx.runId}`);
-  logger.info(`run dir: ${runCtx.runDir}`);
+  logger.info(`run ${runCtx.runId} -> ${runCtx.runDir}`);
 
   const docsDir = resolveDocsDir(config);
 
@@ -335,23 +342,29 @@ async function runFlowSubcommand(input: RunFlowSubcommandInput): Promise<void> {
   }
 
   const flow = await loadFlow(flowName);
-  await runFlow(
-    flow,
-    {
-      app: appName,
-      app_path: appPath,
-      docs_dir: docsDir,
-      run_id: runCtx.runId,
-      run_dir: runCtx.runDir,
-      date: runCtx.date,
-      ...extraScope,
-    },
-    {
-      agent,
-      cwd: appPath,
-      logger,
-    },
-  );
+  try {
+    await runFlow(
+      flow,
+      {
+        app: appName,
+        app_path: appPath,
+        docs_dir: docsDir,
+        run_id: runCtx.runId,
+        run_dir: runCtx.runDir,
+        date: runCtx.date,
+        ...extraScope,
+      },
+      {
+        agent,
+        cwd: appPath,
+        logger,
+        logFile,
+        verbose,
+      },
+    );
+  } finally {
+    logger.dispose();
+  }
 }
 
 interface RunInstallRulesSubcommandInput {
@@ -410,10 +423,13 @@ async function runInstallRulesSubcommand(
 function createLogger(
   globals: GlobalCliFlags,
   options: CliOptions,
+  logFile?: string,
 ): Logger {
   return new Logger({
     ci: globals.ci ?? false,
     stream: options.stderr ?? process.stderr,
+    logFile,
+    verbose: globals.verbose ?? false,
   });
 }
 
@@ -431,8 +447,6 @@ function isMainModule(): boolean {
   if (!argv1) return false;
   const modulePath = fileURLToPath(import.meta.url);
   try {
-    // Resolve symlinks so global bin installs (where argv[1] is a symlink
-    // into the npm bin dir) still match the real module path.
     return realpathSync(argv1) === modulePath;
   } catch {
     return argv1 === modulePath;

@@ -47,10 +47,13 @@ function parseStep(raw: unknown): Step {
   const obj = raw as Record<string, unknown>;
   const keys = Object.keys(obj);
 
-  // The `if` primitive is the only step that uses a two-key form
-  // (`if:` for the predicate plus `then:` for the body).
-  if (keys.length === 2 && "if" in obj && "then" in obj) {
-    return parseIfStep(obj);
+  // The `if` primitive uses a multi-key form: `if:` + `then:` plus
+  // optional `label:` and `skip_label:`.
+  if ("if" in obj && "then" in obj) {
+    const extraKeys = keys.filter(k => k !== "if" && k !== "then" && k !== "label" && k !== "skip_label");
+    if (extraKeys.length === 0) {
+      return parseIfStep(obj);
+    }
   }
 
   if (keys.length !== 1) {
@@ -90,12 +93,17 @@ function parseLoopStep(body: unknown): LoopStep {
   if (!Array.isArray(obj.do)) {
     throw new Error("'loop.do' must be an array of steps");
   }
-  return {
+  const step: LoopStep = {
     type: "loop",
     max: obj.max,
     until: obj.until,
     do: obj.do.map(parseStep),
   };
+  if (obj.label !== undefined) {
+    if (typeof obj.label !== "string") throw new Error("'loop.label' must be a string");
+    step.label = obj.label;
+  }
+  return step;
 }
 
 function parseReadFileStep(body: unknown): ReadFileStep {
@@ -120,6 +128,10 @@ function parseReadFileStep(body: unknown): ReadFileStep {
     }
     step.trim = obj.trim;
   }
+  if (obj.label !== undefined) {
+    if (typeof obj.label !== "string") throw new Error("'read-file.label' must be a string");
+    step.label = obj.label;
+  }
   return step;
 }
 
@@ -132,11 +144,20 @@ function parseIfStep(obj: Record<string, unknown>): IfStep {
   if (!Array.isArray(thenSteps)) {
     throw new Error("'then' must be an array of steps");
   }
-  return {
+  const step: IfStep = {
     type: "if",
     condition,
     then: thenSteps.map(parseStep),
   };
+  if (obj.label !== undefined) {
+    if (typeof obj.label !== "string") throw new Error("'if.label' must be a string");
+    step.label = obj.label;
+  }
+  if (obj.skip_label !== undefined) {
+    if (typeof obj.skip_label !== "string") throw new Error("'if.skip_label' must be a string");
+    step.skip_label = obj.skip_label;
+  }
+  return step;
 }
 
 function parseForeachStep(body: unknown): ForeachStep {
@@ -168,6 +189,10 @@ function parseForeachStep(body: unknown): ForeachStep {
     }
     step.when = obj.when;
   }
+  if (obj.label !== undefined) {
+    if (typeof obj.label !== "string") throw new Error("'foreach.label' must be a string");
+    step.label = obj.label;
+  }
   return step;
 }
 
@@ -182,7 +207,7 @@ function parseScriptStep(body: unknown): ScriptStep {
   }
   const args: Record<string, string> = {};
   for (const [k, v] of Object.entries(obj)) {
-    if (k === "name" || k === "set") continue;
+    if (k === "name" || k === "set" || k === "label") continue;
     args[k] = v == null ? "" : String(v);
   }
   const step: ScriptStep = { type: "script", name, args };
@@ -191,6 +216,10 @@ function parseScriptStep(body: unknown): ScriptStep {
       throw new Error("'script.set' must be a string");
     }
     step.set = obj.set;
+  }
+  if (obj.label !== undefined) {
+    if (typeof obj.label !== "string") throw new Error("'script.label' must be a string");
+    step.label = obj.label;
   }
   return step;
 }
@@ -220,6 +249,10 @@ function parseAgentStep(body: unknown): AgentStep {
       throw new Error("'agent.expect_file' must be a string");
     }
     step.expect_file = obj.expect_file;
+  }
+  if (obj.label !== undefined) {
+    if (typeof obj.label !== "string") throw new Error("'agent.label' must be a string");
+    step.label = obj.label;
   }
   return step;
 }

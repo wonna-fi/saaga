@@ -12,6 +12,7 @@ Before working with this feature, understand these concepts:
 - [Scope and Expressions](../concepts/scope-and-expressions.md)
 - [Agent Interface](../concepts/agent-interface.md)
 - [Templates and Prompt Rendering](../concepts/templates-and-prompt-rendering.md)
+- [Output and Progress Display](../concepts/output-and-progress.md)
 
 ## Functional Specification
 
@@ -19,30 +20,31 @@ Before working with this feature, understand these concepts:
 
 1. `runFlow()` receives a `FlowDefinition`, initial scope, and dependencies (`RunFlowDeps`)
 2. Resolves a logger from `deps.logger` (falls back to a silent logger that writes to a no-op stream)
-3. Logs flow start: `flow <name>: starting (<N> steps)`
-4. Creates a shallow copy of the initial scope
-5. Iterates through `flow.steps` sequentially
-6. For each step, dispatches to the appropriate handler based on `step.type`; each step logs entry/exit with timing and positional info (`step N/M`)
-7. Logs flow completion with elapsed time: `flow <name>: done (<duration>)`. On failure, logs `flow <name>: failed after <duration>` before re-throwing
+3. Creates a `PhaseTracker` for the flow to track progress as `Phase N/M`
+4. Logs flow start as a detail line: `flow <name>: starting (<N> steps)`
+5. Creates a shallow copy of the initial scope
+6. Iterates through `flow.steps` sequentially
+7. For each step, dispatches to the appropriate handler based on `step.type`; top-level agent and script steps emit phase-progress lines (`Phase N/M: label [DONE] duration`) instead of verbose `[INFO]` banners
+8. On successful completion, emits a final summary phase line: `saaga <name>: <total> phases in <duration> [DONE]`. On failure, emits `saaga <name>: failed at phase Phase N/M after <duration> [FAIL]` before re-throwing
 
 ### Step Dispatch Table
 
 | Step Type | Handler | Behavior |
 |-----------|---------|----------|
-| `agent` | `runAgentStep()` (internal) | Resolves prompt template, interpolates vars, renders prompt, calls `Agent.run()`, asserts `expect_file`. Logs entry with prompt name and context vars, logs exit with timing. |
-| `script` | `runScriptStep()` | Looks up script in registry, interpolates args, executes handler, optionally stores result in scope. Logs entry with script name, logs exit with timing. |
-| `foreach` | `runForeachStep()` via `runForeachWithLogging()` | Resolves array from scope, logs item count, iterates with optional `when:` filter, dispatches child steps. Each iteration logs a banner with item details. Uses a child logger (indented) for the iteration body. |
-| `loop` | `runLoopStep()` via `runLoopWithLogging()` | Repeats body up to `max` times, sets `${iteration}`, exits early when `until:` is true. Each iteration logs a banner. Uses a child logger (indented) for the iteration body. |
-| `if` | `runIfStep()` | Evaluates condition predicate in the runner, logs the predicate result (`true` or `false (skip)`), executes `then:` body only if true. |
-| `read-file` | `runReadFileStep()` | Reads file at interpolated path, stores contents in scope variable. Logs entry with path and target variable, logs exit with timing and value summary. |
+| `agent` | `runAgentStep()` (internal) | Resolves label via `resolveLabel()`, advances the phase tracker (if top-level or first in foreach), emits `phaseBegin()` with `Phase N/M: label`, renders prompt, calls `Agent.run()` with `additionalDirs` (from `scope.run_dir`), `logFile`, and `echo`. Emits `phaseEnd("DONE")` on success or `phaseEnd("FAIL")` on failure (with log tail). Asserts `expect_file`. |
+| `script` | `runScriptStep()` | Resolves label, advances phase tracker, emits `phaseBegin()` / `phaseEnd()`. Looks up script in registry, interpolates args, executes handler, optionally stores result in scope. |
+| `foreach` | `runForeachStep()` via `runForeachWithPhases()` | Resolves array from scope, logs item count as a detail line. Advances the phase tracker once per iteration (on the first child step). Child steps run with `insideForeach: true` context. |
+| `loop` | `runLoopStep()` via `runLoopWithPhases()` | Repeats body up to `max` times, sets `${iteration}`, exits early when `until:` is true. Child steps inherit the parent's foreach context and include iteration suffixes (e.g. `(iteration 2/3)`) in phase lines. |
+| `if` | `runIfStep()` | Evaluates condition predicate, records the outcome in `PhaseTracker`. If taken, executes `then:` body. If skipped at top level, advances the phase tracker and emits `phaseImmediate()` with `[SKIP]` marker, using the step's `label` and `skip_label` for the display text. |
+| `read-file` | `runReadFileStep()` | Reads file at interpolated path, stores contents in scope variable. Logs detail lines only (no phase line — read-file is plumbing). |
 
 ### Agent Step Execution Detail
 
 1. Resolves prompt file path: `<PROMPTS_DIR>/<step.prompt>.md`
 2. Interpolates each `vars` value using `interpolate(raw, scope)` — resolves `${expr}` references
 3. Renders the prompt template file: `renderPromptFile(path, renderedVars)` — substitutes `{key}` placeholders
-4. Calls `deps.agent.run(prompt, { cwd: deps.cwd })`
-5. If exit code is non-zero, throws `AgentStepFailedError`
+4. Constructs `additionalDirs` from `scope.run_dir` (if it is a string); calls `deps.agent.run(prompt, { cwd: deps.cwd, additionalDirs, logFile: deps.logFile, echo: deps.verbose })`
+5. If exit code is non-zero, throws `AgentStepFailedError`; before re-throwing, calls `printFailureTail()` to show the last lines from the log file
 6. If `expect_file` is defined, interpolates the path and asserts the file exists — throws `ExpectFileMissingError` if missing
 
 ### Edge Cases
@@ -72,6 +74,8 @@ interface RunFlowDeps {
   cwd: string;              // Working directory for agent invocations
   scripts?: ScriptRegistry;  // Override script registry (for tests)
   logger?: Logger;           // Structured logger for flow progress output (defaults to silent)
+  logFile?: string;          // Absolute path to the run log file for agent output capture
+  verbose?: boolean;         // Mirror agent output to terminal (--verbose)
 }
 ```
 
@@ -80,9 +84,12 @@ interface RunFlowDeps {
 | Module | Function/Method | Purpose |
 |--------|-----------------|---------|
 | `src/engine/runner.ts` | `runFlow()` | Main entry point: executes a flow definition with given scope and dependencies |
-| `src/engine/runner.ts` | `RunFlowDeps` (interface) | Configuration for the execution environment |
+| `src/engine/runner.ts` | `RunFlowDeps` (interface) | Configuration for the execution environment: `agent`, `cwd`, optional `scripts`, `logger`, `logFile`, `verbose` |
 | `src/engine/runner.ts` | `ExpectFileMissingError` (class) | Thrown when `expect_file` assertion fails |
 | `src/engine/runner.ts` | `AgentStepFailedError` (class) | Thrown when an agent step exits with non-zero code |
+| `src/engine/phases.ts` | `PhaseTracker` (class) | Tracks the flat phase index and dynamically computes the total for `Phase N/M` progress display |
+| `src/output.ts` | `OutputSink` (class) | Core output backend: pending-line state, TTY spinner, column-aligned markers, log-file append |
+| `src/output.ts` | `formatDuration()` | Formats elapsed milliseconds as `Nms`, `N.Ns`, or `NmSSs` |
 | `src/engine/expression.ts` | `interpolate()` | Resolves `${var}` expressions in step vars, paths, and args |
 | `src/engine/expression.ts` | `resolveValue()` | Resolves values preserving type (used by foreach for arrays) |
 | `src/engine/expression.ts` | `evaluatePredicate()` | Evaluates conditions for loop/foreach/if |
@@ -91,30 +98,30 @@ interface RunFlowDeps {
 | `src/engine/primitives/if.ts` | `runIfStep()` | Handles conditional execution |
 | `src/engine/primitives/read-file.ts` | `runReadFileStep()` | Handles file reading into scope |
 | `src/engine/primitives/script.ts` | `runScriptStep()` | Handles script lookup, arg interpolation, and result storage |
-| `src/logger.ts` | `Logger` (class) | Structured leveled logger with `info()`, `warn()`, `error()`, and `child(extraIndent?)` for nested indentation |
-| `src/logger.ts` | `LoggerOptions` (interface) | Configuration: `ci?`, `stream?`, `indent?` |
+| `src/logger.ts` | `Logger` (class) | Facade over `OutputSink` with `info()`, `warn()`, `error()`, `phaseBegin()`, `phaseEnd()`, `phaseImmediate()`, `detail()`, `logFileSize()`, `tailLog()`, `child()`, `getSink()`, `dispose()` |
+| `src/logger.ts` | `LoggerOptions` (interface) | Configuration: `ci?`, `stream?`, `indent?`, `logFile?`, `verbose?` |
+| `src/logger.ts` | `silentLogger()` | Returns a singleton `Logger` writing to a no-op stream (default when no logger provided) |
 
 ### Internal Implementation
 
-> Functions below are internal to `src/engine/runner.ts` and should not be called directly. They are documented for understanding the logging and control-flow delegation logic.
+> Functions below are internal to `src/engine/runner.ts` and should not be called directly. They are documented for understanding the phase-tracking and control-flow delegation logic.
 >
-> - `runStep()` — dispatches a single step by type, logs entry/exit with timing and position
-> - `runForeachWithLogging()` — wraps `runForeachStep()` with per-iteration logging banners and nested child loggers
-> - `runLoopWithLogging()` — wraps `runLoopStep()` with per-iteration logging banners and nested child loggers
-> - `runAgentStep()` — resolves the prompt template, renders it, invokes the agent, and asserts `expect_file`
-> - `indexIn()` — returns the 1-indexed `StepPosition` of a step within a sibling list
-> - `describeAgentContext()` — extracts interesting vars (`phase_number`, `iteration`) for agent step log lines
-> - `describeIterItem()` — summarizes the current iteration item (`.number`, `.title`, or scalar value) for foreach log lines
-> - `summarizeValue()` — produces a compact string summary of a scope value (string length, array count, etc.)
-> - `formatDuration()` — formats elapsed milliseconds as `Nms`, `N.Ns`, or `NmSSs`
-> - `silentLogger()` — returns a singleton `Logger` that writes to a no-op `Writable` stream (used as the default when `deps.logger` is not provided)
+> - `runStep()` — dispatches a single step by type, manages phase tracking and phase-line emission based on `StepContext`
+> - `runForeachWithPhases()` — wraps `runForeachStep()` with phase-tracker advancement (once per iteration, on the first child step)
+> - `runLoopWithPhases()` — wraps `runLoopStep()` with loop iteration context (iteration number and max) for phase-line suffixes
+> - `runAgentStep()` — resolves the prompt template, renders it, constructs `additionalDirs` from `scope.run_dir`, invokes the agent with `logFile`/`echo`, and asserts `expect_file`
+> - `resolveLabel()` — resolves the step's `label` field via interpolation, falling back to the step name with hyphens replaced by spaces
+> - `buildPhaseLine()` — constructs the phase line string from counter, label, and iteration suffix
+> - `formatIterSuffix()` — produces the `(iteration N/M)` suffix for steps inside a loop, or empty string otherwise
+> - `describeAgentContext()` — extracts interesting vars (`phase_number`, `iteration`) for detail log lines
+> - `printFailureTail()` — reads the last 20 lines from the log file (from a byte offset) and emits them as error lines after an agent step failure
 > - `assertFileExists()` — asserts a path exists and is a file
 
 ## Integration Points
 
-- **Depends on**: Agent backend (via `RunFlowDeps.agent`), template rendering (`renderPromptFile`), script registry (`defaultScriptRegistry`), expression engine (`interpolate`, `resolveValue`, `evaluatePredicate`), `Logger` (via `RunFlowDeps.logger`, optional)
+- **Depends on**: Agent backend (via `RunFlowDeps.agent`), template rendering (`renderPromptFile`), script registry (`defaultScriptRegistry`), expression engine (`interpolate`, `resolveValue`, `evaluatePredicate`), `Logger` (via `RunFlowDeps.logger`, optional), `PhaseTracker` (`src/engine/phases.ts`), `OutputSink` (`src/output.ts`), `formatDuration()` (`src/output.ts`)
 - **Used by**: CLI subcommands (`init`, `update`, `quick-update`, `verify-quick-updates`) which load a flow and call `runFlow()`
-- **External systems**: Filesystem (via `readFile` in `read-file.ts`)
+- **External systems**: Filesystem (via `readFile` in `read-file.ts`), log file (`run.log` in the run directory)
 
 ## Extension Guide
 

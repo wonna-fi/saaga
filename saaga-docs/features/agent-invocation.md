@@ -19,42 +19,42 @@ Before working with this feature, understand these concepts:
 1. User runs a CLI subcommand (e.g., `saaga init <dir> --backend cursor`)
 2. The CLI resolves which backend to use via the precedence chain:
    - `--backend` flag (highest priority)
-   - `SAAGA_BACKEND` env var (fallback)
+   - `.saaga/config.yaml` `backend` field (fallback)
    - Error if neither is set
 3. The CLI resolves the AI model via:
    - `--model` flag (highest priority)
-   - `AGENT_MODEL` env var (fallback)
+   - `.saaga/config.yaml` `model` field (fallback)
    - Per-backend default: `cursor` → `claude-4.6-opus-high-thinking`, `copilot` → `claude-sonnet-4.5`, `claude` → `opus`
-4. A concrete `Agent` instance is constructed (`CursorAgent`, `CopilotAgent`, or `ClaudeAgent`)
+4. A concrete `Agent` instance is constructed (`CursorAgent`, `CopilotAgent`, or `ClaudeAgent`). `CursorAgent` always passes `--output-format text` (unconditionally). `CopilotAgent` passes `--add-dir` for each path in `additionalDirs`. All adapters use `buildStdio()` for log-file capture and optional terminal echo
 5. The flow engine iterates through steps; for each `agent` step:
    a. The prompt template path is resolved: `<PROMPTS_DIR>/<step.prompt>.md`
    b. Step `vars` are interpolated against the flow scope (`${var}` expressions)
    c. The prompt file is rendered with `renderPromptFile()` (`{var}` placeholders)
-   d. `Agent.run(prompt, { cwd })` is called
-   e. If `exitCode !== 0`, the runner throws `AgentStepFailedError`
+   d. `Agent.run(prompt, { cwd, additionalDirs, logFile, echo })` is called — `additionalDirs` is constructed from `scope.run_dir` (granting agent access to the run directory), `logFile` and `echo` are forwarded from `RunFlowDeps`
+   e. If `exitCode !== 0`, the runner throws `AgentStepFailedError` (after printing the last lines from the log file)
    f. If `expect_file` is declared, the runner verifies the file exists on disk
 
 ### Precedence Chain (Backend Resolution)
 
 ```
---backend flag  →  SAAGA_BACKEND env var  →  BackendError
-     ↓                     ↓                         ↓
- validate against      validate against         "Backend must be specified
- ALLOWED_BACKENDS      ALLOWED_BACKENDS          via --backend flag or
-                                                 SAAGA_BACKEND env var"
+--backend flag  →  .saaga/config.yaml  →  BackendError
+     ↓                     ↓                       ↓
+ validate against      validate against       "Backend must be specified
+ ALLOWED_BACKENDS      ALLOWED_BACKENDS        via --backend flag or
+                                               .saaga/config.yaml"
 ```
 
 ### Precedence Chain (Model Resolution)
 
 ```
---model flag  →  AGENT_MODEL env var  →  defaultModelFor(backend)
+--model flag  →  config.model (.saaga/config.yaml)  →  defaultModelFor(backend)
 ```
 
 ### Edge Cases
 
 | Scenario | Behavior |
 |----------|----------|
-| Neither `--backend` nor `SAAGA_BACKEND` set | Throws `BackendError: "Backend must be specified via --backend flag or SAAGA_BACKEND env var"` |
+| Neither `--backend` flag nor `.saaga/config.yaml` backend configured | Throws `BackendError: "Backend must be specified via --backend flag or .saaga/config.yaml"` |
 | Invalid backend name | Throws `BackendError: "Invalid backend: <name> (must be 'cursor', 'copilot', or 'claude')"` |
 | Agent exits with non-zero code | Throws `AgentStepFailedError: "Agent step '<prompt>' exited with code <N>"` |
 | `expect_file` declared but file missing after agent run | Throws `ExpectFileMissingError: "Agent step '<prompt>' did not produce expect_file: <path>"` |
@@ -78,8 +78,8 @@ The internal `runAgentStep()` function handles each agent step:
 1. Resolve prompt path: `resolve(PROMPTS_DIR, step.prompt + ".md")`
 2. Interpolate `step.vars` values through `interpolate()` (flow expression engine)
 3. Call `renderPromptFile(promptPath, renderedVars)` to produce the final prompt string
-4. Call `deps.agent.run(prompt, { cwd: deps.cwd })` to invoke the agent
-5. Check `result.exitCode !== 0` → throw `AgentStepFailedError`
+4. Construct `additionalDirs` from `scope.run_dir` (if it is a string); call `deps.agent.run(prompt, { cwd: deps.cwd, additionalDirs, logFile: deps.logFile, echo: deps.verbose })`
+5. Check `result.exitCode !== 0` → throw `AgentStepFailedError` (after printing the last lines from the log file via `printFailureTail()`)
 6. If `step.expect_file` is set, interpolate the path and verify the file exists
 
 ### Services/Functions
@@ -87,7 +87,7 @@ The internal `runAgentStep()` function handles each agent step:
 | Module | Function/Method | Purpose |
 |--------|-----------------|---------|
 | `src/cli.ts` | `runCli()` | CLI entry point — parses args, dispatches to subcommands |
-| `src/cli/backend.ts` | `resolveBackend()` | Resolve backend name from flag → env → error |
+| `src/cli/backend.ts` | `resolveBackend()` | Resolve backend name from flag → config → error |
 | `src/cli/backend.ts` | `defaultModelFor()` | Return the default model string for a backend |
 | `src/cli/backend.ts` | `createAgent()` | Construct a `CursorAgent`, `CopilotAgent`, or `ClaudeAgent` |
 | `src/cli/backend.ts` | `BackendError` (class) | Error for backend resolution failures |
