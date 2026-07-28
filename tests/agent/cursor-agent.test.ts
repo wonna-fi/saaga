@@ -33,6 +33,8 @@ describe("CursorAgent", () => {
       "--force",
       "--model",
       "claude-4.6-opus-high-thinking",
+      "--output-format",
+      "text",
       "Document the architecture",
     ]);
     expect(opts.cwd).toBe("/tmp/myapp");
@@ -41,27 +43,17 @@ describe("CursorAgent", () => {
     expect(result.exitCode).toBe(0);
   });
 
-  test("includes --output-format text when ci is true", async () => {
+  test("always includes --output-format text regardless of ci flag", async () => {
     mockExeca.mockReturnValue(
       Promise.resolve({ exitCode: 0 }) as any,
     );
 
-    const agent = new CursorAgent({
-      model: "claude-4.6-opus-high-thinking",
-      ci: true,
-    });
+    const agent = new CursorAgent({ model: "m" });
     await agent.run("verify docs", { cwd: "/app" });
 
     const [, args] = mockExeca.mock.calls[0] as any[];
-    expect(args).toEqual([
-      "--print",
-      "--force",
-      "--model",
-      "claude-4.6-opus-high-thinking",
-      "--output-format",
-      "text",
-      "verify docs",
-    ]);
+    expect(args).toContain("--output-format");
+    expect(args).toContain("text");
   });
 
   test("propagates non-zero exit code", async () => {
@@ -97,5 +89,44 @@ describe("CursorAgent", () => {
 
     const [, , opts] = mockExeca.mock.calls[0] as any[];
     expect(opts.cwd).toBe("/specific/dir");
+  });
+
+  test("uses file target when logFile is provided", async () => {
+    mockExeca.mockReturnValue(
+      Promise.resolve({ exitCode: 0 }) as any,
+    );
+
+    const agent = new CursorAgent({ model: "m" });
+    await agent.run("p", { cwd: "/app", logFile: "/tmp/run.log" });
+
+    const [, , opts] = mockExeca.mock.calls[0] as any[];
+    expect(opts.stdout).toEqual({ file: "/tmp/run.log", append: true });
+    expect(opts.stderr).toEqual({ file: "/tmp/run.log", append: true });
+    expect(opts.stdio).toBeUndefined();
+  });
+
+  test("uses both inherit and file when logFile + echo", async () => {
+    mockExeca.mockReturnValue(
+      Promise.resolve({ exitCode: 0 }) as any,
+    );
+
+    const agent = new CursorAgent({ model: "m" });
+    await agent.run("p", { cwd: "/app", logFile: "/tmp/run.log", echo: true });
+
+    const [, , opts] = mockExeca.mock.calls[0] as any[];
+    expect(opts.stdout).toEqual(["inherit", { file: "/tmp/run.log", append: true }]);
+    expect(opts.stderr).toEqual(["inherit", { file: "/tmp/run.log", append: true }]);
+  });
+
+  test("uses stdio inherit when no logFile", async () => {
+    mockExeca.mockReturnValue(
+      Promise.resolve({ exitCode: 0 }) as any,
+    );
+
+    const agent = new CursorAgent({ model: "m" });
+    await agent.run("p", { cwd: "/app" });
+
+    const [, , opts] = mockExeca.mock.calls[0] as any[];
+    expect(opts.stdio).toBe("inherit");
   });
 });

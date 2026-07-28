@@ -2,12 +2,14 @@ name: init
 steps:
   - agent:
       prompt: document-architecture
+      label: documenting architecture
       vars:
         app: ${app}
         docs_dir: ${docs_dir}
 
   - agent:
       prompt: plan-init
+      label: planning documentation
       vars:
         app: ${app}
         docs_dir: ${docs_dir}
@@ -16,17 +18,20 @@ steps:
 
   - script:
       name: parse-plan
+      label: parsing plan
       file: ${run_dir}/plans/${app}-init.plan.md
       set: phases
 
   - agent:
       prompt: slice-doc
+      label: documenting overview
       vars:
         plan: ${run_dir}/plans/${app}-init.plan.md
         phase_number: 0
 
   - script:
       name: install-rules
+      label: installing rules
       app_dir: ${app_path}
       app: ${app}
       rule_targets: ${rule_targets}
@@ -39,6 +44,7 @@ steps:
       do:
         - agent:
             prompt: slice-doc
+            label: documenting "${phase.title}"
             vars:
               plan: ${run_dir}/plans/${app}-init.plan.md
               phase_number: ${phase.number}
@@ -49,6 +55,7 @@ steps:
             do:
               - agent:
                   prompt: verify-domain-documentation
+                  label: verifying "${phase.title}"
                   vars:
                     plan: ${run_dir}/plans/${app}-init.plan.md
                     phase_number: ${phase.number}
@@ -66,6 +73,7 @@ steps:
                 then:
                   - agent:
                       prompt: fix-documentation
+                      label: fixing "${phase.title}"
                       vars:
                         plan: ${run_dir}/plans/${app}-init.plan.md
                         phase_number: ${phase.number}
@@ -73,5 +81,6 @@ steps:
 
   - script:
       name: generate-baseline
+      label: generating baseline
       app_dir: ${app_path}
       docs_dir: ${docs_dir}

@@ -17,13 +17,18 @@ export class CursorAgent implements Agent {
   }
 
   async run(prompt: string, opts: AgentRunOpts): Promise<AgentRunResult> {
-    const args = ["--print", "--force", "--model", this.model];
-
-    if (this.ci) {
-      args.push("--output-format", "text");
-    }
+    const args = [
+      "--print",
+      "--force",
+      "--model",
+      this.model,
+      "--output-format",
+      "text",
+    ];
 
     args.push(prompt);
+
+    const stdio = buildStdio(opts);
 
     let proc: ResultPromise;
     try {
@@ -31,7 +36,7 @@ export class CursorAgent implements Agent {
         cwd: opts.cwd,
         reject: false,
         signal: opts.signal,
-        stdio: "inherit",
+        ...stdio,
       });
     } catch {
       return { exitCode: 1 };
@@ -40,4 +45,21 @@ export class CursorAgent implements Agent {
     const result = await proc;
     return { exitCode: result.exitCode ?? 1 };
   }
+}
+
+function buildStdio(opts: AgentRunOpts): Record<string, unknown> {
+  if (!opts.logFile) {
+    return { stdio: "inherit" };
+  }
+  const fileSink = { file: opts.logFile, append: true };
+  if (opts.echo) {
+    return {
+      stdout: ["inherit", fileSink],
+      stderr: ["inherit", fileSink],
+    };
+  }
+  return {
+    stdout: fileSink,
+    stderr: fileSink,
+  };
 }

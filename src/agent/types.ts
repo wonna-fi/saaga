@@ -9,6 +9,10 @@ export interface AgentRunOpts {
    * don't restrict paths may ignore this field.
    */
   additionalDirs?: string[];
+  /** Absolute path to append the agent's stdout/stderr to. */
+  logFile?: string;
+  /** Also mirror output to the terminal (--verbose). */
+  echo?: boolean;
 }
 
 export interface AgentRunResult {

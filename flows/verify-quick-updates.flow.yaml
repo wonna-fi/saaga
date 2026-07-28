@@ -2,14 +2,18 @@ name: verify-quick-updates
 steps:
   - script:
       name: collect-quick-updates
+      label: collecting quick updates
       metadata_dir: ${app_path}/${docs_dir}/metadata/quick_updates
       output_dir: ${run_dir}
       set: quick_updates
 
   - if: '${quick_updates.count} != 0'
+    label: verifying quick updates
+    skip_label: no quick updates to verify
     then:
       - agent:
           prompt: plan-verify-quick-updates
+          label: planning verification
           vars:
             app: ${app}
             docs_dir: ${docs_dir}
@@ -20,6 +24,7 @@ steps:
 
       - script:
           name: parse-plan
+          label: parsing plan
           file: ${run_dir}/plans/${app}-verify-quick-updates-${date}.plan.md
           require_phases: true
           set: phases
@@ -30,6 +35,7 @@ steps:
           do:
             - agent:
                 prompt: slice-doc
+                label: documenting "${phase.title}"
                 vars:
                   plan: ${run_dir}/plans/${app}-verify-quick-updates-${date}.plan.md
                   phase_number: ${phase.number}
@@ -40,6 +46,7 @@ steps:
                 do:
                   - agent:
                       prompt: verify-domain-documentation
+                      label: verifying "${phase.title}"
                       vars:
                         plan: ${run_dir}/plans/${app}-verify-quick-updates-${date}.plan.md
                         phase_number: ${phase.number}
@@ -57,6 +64,7 @@ steps:
                     then:
                       - agent:
                           prompt: fix-documentation
+                          label: fixing "${phase.title}"
                           vars:
                             plan: ${run_dir}/plans/${app}-verify-quick-updates-${date}.plan.md
                             phase_number: ${phase.number}
@@ -64,4 +72,5 @@ steps:
 
       - script:
           name: remove-quick-updates
+          label: cleaning up artifacts
           manifest: ${quick_updates.manifest_path}

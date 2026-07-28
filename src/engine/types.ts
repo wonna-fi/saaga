@@ -5,6 +5,7 @@ export interface AgentStep {
   prompt: string;
   vars?: Record<string, string>;
   expect_file?: string;
+  label?: string;
 }
 
 export interface ScriptStep {
@@ -12,6 +13,7 @@ export interface ScriptStep {
   name: string;
   args: Record<string, string>;
   set?: string;
+  label?: string;
 }
 
 export interface ForeachStep {
@@ -20,6 +22,7 @@ export interface ForeachStep {
   in: string;
   when?: string;
   do: Step[];
+  label?: string;
 }
 
 export interface LoopStep {
@@ -27,12 +30,15 @@ export interface LoopStep {
   max: number;
   until: string;
   do: Step[];
+  label?: string;
 }
 
 export interface IfStep {
   type: "if";
   condition: string;
   then: Step[];
+  label?: string;
+  skip_label?: string;
 }
 
 export interface ReadFileStep {
@@ -40,6 +46,7 @@ export interface ReadFileStep {
   path: string;
   set: string;
   trim?: boolean;
+  label?: string;
 }
 
 export type Step =
