@@ -1,2 +1,2 @@
 backend: cursor
-ruletargets: [agentsmd]
+ruleTargets: [agentsmd]
