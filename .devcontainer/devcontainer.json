@@ -17,8 +17,7 @@
   ],
   "containerEnv": {
     "CURSOR_API_KEY": "${localEnv:CURSOR_API_KEY}",
-    "AGENT_CURSOR_API_KEY": "${localEnv:AGENT_CURSOR_API_KEY}",
-    "AGENT_COPILOT_GITHUB_TOKEN": "${localEnv:AGENT_COPILOT_GITHUB_TOKEN}",
+    "COPILOT_GITHUB_TOKEN": "${localEnv:COPILOT_GITHUB_TOKEN}",
     "ANTHROPIC_API_KEY": "${localEnv:ANTHROPIC_API_KEY}"
   },
   "customizations": {
