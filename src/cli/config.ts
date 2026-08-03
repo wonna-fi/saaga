@@ -19,6 +19,7 @@ export interface SaagaConfig {
   quickModel?: string;
   ruleTargets?: string;
   docsDir?: string;
+  autoApprove?: boolean;
 }
 
 /**
@@ -99,6 +100,15 @@ export async function loadConfig(projectDir: string): Promise<SaagaConfig> {
       );
     }
     config.docsDir = obj.docsDir;
+  }
+
+  if (obj.autoApprove !== undefined) {
+    if (typeof obj.autoApprove !== "boolean") {
+      throw new ConfigError(
+        `${CONFIG_DIR}/${CONFIG_FILE}: 'autoApprove' must be a boolean`,
+      );
+    }
+    config.autoApprove = obj.autoApprove;
   }
 
   return config;

@@ -19,6 +19,12 @@ const DEFAULT_QUICK_MODELS: Record<Backend, string> = {
   claude: "sonnet",
 };
 
+const BACKEND_CLI_COMMANDS: Record<Backend, string> = {
+  cursor: "cursor-agent",
+  copilot: "copilot",
+  claude: "claude",
+};
+
 export class BackendError extends Error {
   constructor(message: string) {
     super(message);
@@ -61,6 +67,11 @@ export function defaultModelFor(backend: Backend): string {
 
 export function defaultQuickModelFor(backend: Backend): string {
   return DEFAULT_QUICK_MODELS[backend];
+}
+
+/** The CLI binary Saaga executes for a backend. */
+export function backendCliCommand(backend: Backend): string {
+  return BACKEND_CLI_COMMANDS[backend];
 }
 
 export interface CreateAgentOptions {

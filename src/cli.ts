@@ -7,6 +7,7 @@ import { Command } from "commander";
 import type { Agent } from "./agent/types.js";
 import {
   type Backend,
+  backendCliCommand,
   createAgent,
   defaultModelFor,
   defaultQuickModelFor,
@@ -17,6 +18,11 @@ import {
   type SaagaConfig,
   loadConfig,
 } from "./cli/config.js";
+import {
+  ConfirmationDeclinedError,
+  buildCostSummary,
+  confirmAgentCosts,
+} from "./cli/confirm.js";
 import { loadFlow } from "./engine/loader.js";
 import { AgentStepFailedError, runFlow } from "./engine/runner.js";
 import { Logger } from "./logger.js";
@@ -39,6 +45,8 @@ export interface CliOptions {
   stdout?: NodeJS.WritableStream;
   /** Override stderr (used by tests). */
   stderr?: NodeJS.WritableStream;
+  /** Override stdin (used by tests to answer the cost confirmation). */
+  stdin?: NodeJS.ReadableStream;
 }
 
 interface GlobalCliFlags {
@@ -46,6 +54,7 @@ interface GlobalCliFlags {
   model?: string;
   ci?: boolean;
   verbose?: boolean;
+  yes?: boolean;
 }
 
 interface RuleTargetFlags {
@@ -112,6 +121,10 @@ export async function runCli(
     .option(
       "--verbose",
       "Show detailed step output and live agent output on terminal",
+    )
+    .option(
+      "-y, --yes",
+      "Skip the cost confirmation prompt for agent-backed commands",
     )
     .exitOverride();
 
@@ -222,6 +235,10 @@ export async function runCli(
     if (err instanceof AgentStepFailedError) {
       return err.exitCode;
     }
+    if (err instanceof ConfirmationDeclinedError) {
+      (options.stderr ?? process.stderr).write(`${err.message}\n`);
+      return err.exitCode;
+    }
     if (isCommanderInfoExit(err)) {
       return 0;
     }
@@ -241,13 +258,24 @@ interface ResolveAgentOpts {
   config?: SaagaConfig;
 }
 
+/**
+ * A resolved agent plus the resolution details needed for the cost notice.
+ * `backend` and `model` are absent when the agent was injected via
+ * `CliOptions.agent`, since no resolution happened.
+ */
+interface ResolvedAgent {
+  agent: Agent;
+  backend?: Backend;
+  model?: string;
+}
+
 function resolveAgent(
   globals: GlobalCliFlags,
   options: CliOptions,
   opts: ResolveAgentOpts = {},
-): Agent {
+): ResolvedAgent {
   if (options.agent) {
-    return options.agent;
+    return { agent: options.agent };
   }
   const config = opts.config ?? {};
   const backend: Backend = resolveBackend({
@@ -264,7 +292,11 @@ function resolveAgent(
     model = config.model ?? defaultModelFor(backend);
   }
 
-  return createAgent({ backend, model, ci: globals.ci });
+  return {
+    agent: createAgent({ backend, model, ci: globals.ci }),
+    backend,
+    model,
+  };
 }
 
 interface RunFlowSubcommandInput {
@@ -300,9 +332,27 @@ async function runFlowSubcommand(input: RunFlowSubcommandInput): Promise<void> {
 
   const config = await loadConfig(appPath);
   const appName = basename(appPath);
-  const agent = resolveAgent(globals, options, {
+  const resolved = resolveAgent(globals, options, {
     useQuickModel: input.useQuickModel,
     config,
+  });
+  const agent = resolved.agent;
+
+  const costNotice = {
+    subcommand,
+    appPath,
+    backendCli: resolved.backend
+      ? backendCliCommand(resolved.backend)
+      : agent.name,
+    backend: resolved.backend,
+    model: resolved.model,
+  };
+  await confirmAgentCosts({
+    ...costNotice,
+    autoApprove: globals.yes ?? config.autoApprove ?? false,
+    ci: globals.ci ?? false,
+    stdin: options.stdin ?? process.stdin,
+    stream: options.stderr ?? process.stderr,
   });
 
   const env = options.env ?? process.env;
@@ -323,6 +373,7 @@ async function runFlowSubcommand(input: RunFlowSubcommandInput): Promise<void> {
     })`,
   );
   logger.info(`run ${runCtx.runId} -> ${runCtx.runDir}`);
+  logger.detail(buildCostSummary(costNotice));
 
   const docsDir = resolveDocsDir(config);
 
