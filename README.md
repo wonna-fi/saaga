@@ -145,6 +145,7 @@ saaga install-rules [dir]       Install always-on documentation rules
 | `--backend <name>` | `-b` | Agent backend: `cursor`, `copilot`, or `claude` |
 | `--model <name>` | `-m` | Override the per-backend default model |
 | `--ci` | | Plain (non-color) log output, suitable for CI pipelines |
+| `--yes` | `-y` | Skip the cost confirmation prompt (see [Runtime and cost](#runtime-and-cost)) |
 | `--version` | `-v` | Print the version and exit |
 
 ### Subcommand-specific flags
@@ -181,6 +182,33 @@ guidance below as relative expectations, not fixed numbers.
 > initial spend down, point `--model` at a cheaper model or scope what
 > gets documented with [`.saagaignore`](#excluding-files-saagaignore).
 
+### Cost confirmation prompt
+
+Every agent-backed command (`init`, `update`, `quick-update`,
+`verify-quick-updates`) prints a cost notice before it starts, naming the
+backend CLI it is about to run and reminding you that the resulting agent
+usage is billed to your own account with that provider. On an interactive
+terminal it then asks for confirmation:
+
+```text
+Cost notice: 'saaga init' will run the 'cursor-agent' CLI (backend cursor, model
+claude-4.6-opus-high-thinking) as an autonomous coding agent over /path/to/app.
+Agent sessions consume tokens that are billed to your own cursor-agent account,
+at whatever rate your plan with that provider applies. Saaga does not include or
+cover any of that usage.
+init is the heaviest command: it drives several agent phases across the whole
+codebase, so expect a long run and a large one-time token spend.
+Skip this prompt with --yes, or set 'autoApprove: true' in .saaga/config.yaml.
+Continue? [y/N]
+```
+
+Declining exits with code 1 without starting a run. Pass `--yes` (or set
+`autoApprove: true` in `.saaga/config.yaml`) to approve up front. When
+stdin is not a terminal — pipelines, `--ci`, scripted runs — the notice
+is printed and the command continues without waiting for input.
+
+`install-rules` never prompts: it uses no agent and costs nothing.
+
 ## Configuration
 
 Create `.saaga/config.yaml` in your project directory to set persistent
@@ -193,6 +221,7 @@ model: opus                # model for standard subcommands
 quickModel: sonnet         # model for quick-update subcommand
 ruleTargets: [agentsmd]    # agentsmd | cursor | claude | copilot | none
 docsDir: saaga-docs        # name of the generated docs folder (default: saaga-docs)
+autoApprove: false         # true skips the cost confirmation prompt (same as --yes)
 ```
 
 Resolution order: **CLI flag -> `.saaga/config.yaml` -> built-in default**.

@@ -132,6 +132,31 @@ describe("loadConfig", () => {
     await expect(loadConfig(dir)).rejects.toThrow(/'docsDir' must be a string/);
   });
 
+  test("parses autoApprove config option", async () => {
+    const dir = await tmpDir();
+    await mkdir(join(dir, ".saaga"), { recursive: true });
+    await writeFile(
+      join(dir, ".saaga", "config.yaml"),
+      "autoApprove: true\n",
+      "utf8",
+    );
+    const config = await loadConfig(dir);
+    expect(config).toEqual({ autoApprove: true });
+  });
+
+  test("throws ConfigError when autoApprove is not a boolean", async () => {
+    const dir = await tmpDir();
+    await mkdir(join(dir, ".saaga"), { recursive: true });
+    await writeFile(
+      join(dir, ".saaga", "config.yaml"),
+      "autoApprove: sure\n",
+      "utf8",
+    );
+    await expect(loadConfig(dir)).rejects.toThrow(
+      /'autoApprove' must be a boolean/,
+    );
+  });
+
   test("ignores unknown keys (forward-compat)", async () => {
     const dir = await tmpDir();
     await mkdir(join(dir, ".saaga"), { recursive: true });

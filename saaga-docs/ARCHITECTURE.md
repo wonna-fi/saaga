@@ -55,15 +55,24 @@ flowchart TD
 
 Entry point. Defines five subcommands (`init`, `install-rules`, `update`, `quick-update`, `verify-quick-updates`) using `commander`. Four of these resolve the agent, create a run context, load the corresponding flow, and call the engine. The `install-rules` subcommand is standalone: it runs the rule installer directly without an agent backend.
 
-Global flags include `--backend`, `--model`, `--ci`, and `--verbose`. The `--verbose` flag enables detailed step output and live agent output on the terminal.
+Global flags include `--backend`, `--model`, `--ci`, `--verbose`, and `--yes` (`-y`). The `--verbose` flag enables detailed step output and live agent output on the terminal. The `--yes` flag skips the cost confirmation prompt for agent-backed commands.
 
-`runFlowSubcommand()` creates a `logFile` path (`resolve(runCtx.runDir, "run.log")`) and passes both `logFile` and `verbose` (from the `--verbose` flag) to `RunFlowDeps`, which the engine uses for output routing.
+`runFlowSubcommand()` calls `confirmAgentCosts()` before creating the run context. The cost notice uses `backendCliCommand()` to determine the CLI binary name, or falls back to the agent's `name` when the agent was injected directly. After confirmation, it creates a `logFile` path (`resolve(runCtx.runDir, "run.log")`) and passes both `logFile` and `verbose` (from the `--verbose` flag) to `RunFlowDeps`, which the engine uses for output routing. It also logs `buildCostSummary()` as a detail line to the run log.
 
 `createLogger()` accepts an optional `logFile` parameter and the `verbose` flag, forwarding them to the `Logger` constructor (which delegates to `OutputSink`).
 
 **Exports**: `runCli(argv, options): Promise<number>`, `CliOptions`
 
-**Dependencies**: `cli/config`, `cli/backend`, `engine/loader`, `engine/runner`, `run-context`, `logger`, `paths`, `scripts/install-rules`
+`CliOptions` fields: `agent?: Agent` (injected agent for tests), `cwd?: string`, `env?: NodeJS.ProcessEnv`, `stdout?: NodeJS.WritableStream`, `stderr?: NodeJS.WritableStream`, `stdin?: NodeJS.ReadableStream` (used by cost confirmation prompt in tests).
+
+Error handling catches `AgentStepFailedError` (returns exit code), `ConfirmationDeclinedError` (writes message to stderr, returns exit code 1), and Commander info exits (version/help, returns 0).
+
+> **Internal implementation:**
+>
+> - `resolveAgent()` returns a `ResolvedAgent` containing the `Agent` plus optional `backend` and `model` fields (absent when the agent was injected via `CliOptions.agent`). These resolution details are passed to `confirmAgentCosts()` for the cost notice.
+> - `isInteractive()` is not in this module — it lives in `cli/confirm.ts`.
+
+**Dependencies**: `cli/config`, `cli/backend`, `cli/confirm`, `engine/loader`, `engine/runner`, `run-context`, `logger`, `paths`, `scripts/install-rules`
 
 ### Config (`src/cli/config.ts`)
 
@@ -71,7 +80,7 @@ Loads and validates project-level configuration from `.saaga/config.yaml`. Retur
 
 **Exports**: `loadConfig(projectDir): Promise<SaagaConfig>`, `SaagaConfig` interface, `ConfigError` class, `CONFIG_DIR` (constant: `".saaga"`), `CONFIG_FILE` (constant: `"config.yaml"`), `DEFAULT_DOCS_DIR` (constant: `"saaga-docs"`)
 
-**`SaagaConfig` fields**: `backend?: string`, `model?: string`, `quickModel?: string`, `ruleTargets?: string`, `docsDir?: string`
+**`SaagaConfig` fields**: `backend?: string`, `model?: string`, `quickModel?: string`, `ruleTargets?: string`, `docsDir?: string`, `autoApprove?: boolean`
 
 **Dependencies**: `yaml` (npm package)
 
@@ -79,13 +88,38 @@ Loads and validates project-level configuration from `.saaga/config.yaml`. Retur
 
 Resolves which agent backend to use and constructs the concrete `Agent` instance.
 
-**Exports**: `resolveBackend(input): Backend`, `defaultModelFor(backend): string`, `defaultQuickModelFor(backend): string`, `createAgent(opts): Agent`, `Backend` type, `BackendError`, `ResolveBackendInput`, `CreateAgentOptions`
+**Exports**: `resolveBackend(input): Backend`, `defaultModelFor(backend): string`, `defaultQuickModelFor(backend): string`, `backendCliCommand(backend): string`, `createAgent(opts): Agent`, `Backend` type, `BackendError`, `ResolveBackendInput`, `CreateAgentOptions`
+
+`backendCliCommand()` returns the CLI binary name that Saaga executes for a given backend (e.g. `"cursor-agent"` for cursor, `"copilot"` for copilot, `"claude"` for claude). Used by the CLI to populate the cost notice.
+
+> **Internal constant:** `BACKEND_CLI_COMMANDS` — a `Record<Backend, string>` mapping each backend to its CLI command name.
 
 **Resolution precedence**: `--backend` flag → `.saaga/config.yaml` `backend` field → error.
 
 `ResolveBackendInput` carries `flag?: string` (from CLI `--backend`) and `config?: string` (from `.saaga/config.yaml` `backend` field).
 
 **Dependencies**: `agent/copilot-agent`, `agent/cursor-agent`, `agent/claude-agent`, `agent/types`
+
+### Confirm (`src/cli/confirm.ts`)
+
+Handles the cost confirmation prompt shown before agent-backed subcommands start. Displays a cost disclaimer naming the backend CLI and model, reminds the user that agent usage is billed to their own account, and on interactive terminals asks for `y/N` confirmation. Non-interactive invocations (piped stdin, `--ci`) print the notice and continue without blocking. The prompt can be skipped entirely via `--yes` flag or `autoApprove: true` in config.
+
+**Exports**: `confirmAgentCosts(input): Promise<void>`, `buildCostNotice(input): string`, `buildCostSummary(input): string`, `ConfirmationDeclinedError` class, `CostNoticeInput` interface, `CostConfirmationInput` interface
+
+`CostNoticeInput` fields: `subcommand: string`, `appPath: string`, `backendCli: string`, `backend?: string`, `model?: string`
+
+`CostConfirmationInput` extends `CostNoticeInput` with: `autoApprove: boolean`, `ci: boolean`, `stdin?: NodeJS.ReadableStream`, `stream: NodeJS.WritableStream`
+
+`ConfirmationDeclinedError` carries `exitCode = 1` and a default message of `"aborted: cost confirmation declined"`.
+
+> **Internal implementation:**
+>
+> - `COST_HINTS` — a `Record<string, string>` mapping each agent-backed subcommand (`init`, `update`, `quick-update`, `verify-quick-updates`) to a human-readable cost expectation sentence appended to the notice.
+> - `isInteractive(input)` — returns `false` when `ci` is true, `stdin` is absent, or `stdin.isTTY` is not true.
+> - `ask(input)` — opens a `readline` interface and races the user's answer against an EOF/close event. Only `"y"` or `"yes"` (case-insensitive) is accepted.
+> - `describeResolution(input)` — formats the `(backend X, model Y)` suffix for the notice text.
+
+**Dependencies**: `node:readline/promises` (Node.js built-in)
 
 ### Agent (`src/agent/`)
 
@@ -353,6 +387,7 @@ flowchart BT
     claude[agent/claude-agent]
     fake[agent/fake-agent]
     backend[cli/backend]
+    confirm[cli/confirm]
     config[cli/config]
     etypes[engine/types]
     expr[engine/expression]
@@ -412,6 +447,7 @@ flowchart BT
     instrules --> templates
 
     cli --> backend
+    cli --> confirm
     cli --> config
     cli --> loader
     cli --> runner

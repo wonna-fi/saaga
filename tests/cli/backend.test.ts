@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
   BackendError,
+  backendCliCommand,
   defaultModelFor,
   defaultQuickModelFor,
   resolveBackend,
@@ -71,5 +72,13 @@ describe("defaultQuickModelFor", () => {
   });
   test("returns claude quick default", () => {
     expect(defaultQuickModelFor("claude")).toBe("sonnet");
+  });
+});
+
+describe("backendCliCommand", () => {
+  test("returns the CLI binary each backend executes", () => {
+    expect(backendCliCommand("cursor")).toBe("cursor-agent");
+    expect(backendCliCommand("copilot")).toBe("copilot");
+    expect(backendCliCommand("claude")).toBe("claude");
   });
 });

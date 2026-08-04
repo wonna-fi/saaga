@@ -26,6 +26,7 @@ Project configuration is the mechanism by which a Saaga-managed project declares
 | `SaagaConfig` | `quickModel` | Optional AI model override for the `quick-update` subcommand; used instead of `defaultQuickModelFor(backend)` |
 | `SaagaConfig` | `ruleTargets` | Optional rule targets string; accepts a comma-separated string or a YAML list of strings; used as fallback when `--rule-targets` flag is absent |
 | `SaagaConfig` | `docsDir` | Optional documentation directory name; overrides the default `"saaga-docs"` directory where BASELINE and metadata are stored |
+| `SaagaConfig` | `autoApprove` | Optional boolean; when `true`, skips the interactive cost confirmation prompt before agent-backed commands (see [Cost Confirmation](./cost-confirmation.md)) |
 
 ### Config File Example
 
@@ -34,6 +35,7 @@ backend: cursor
 model: claude-4.6-opus-high-thinking
 quickModel: claude-4.6-sonnet-medium-thinking
 ruleTargets: agentsmd,cursor
+autoApprove: true
 ```
 
 The `ruleTargets` field also accepts a YAML list:
@@ -56,7 +58,7 @@ docsDir: docs
 |---------|--------|---------|
 | `src/cli/config.ts` | `loadConfig()` | Load and validate `.saaga/config.yaml`; returns `SaagaConfig` (empty object when file is absent) |
 | `src/cli/config.ts` | `ConfigError` (class) | Error class thrown for malformed YAML or invalid field types |
-| `src/cli/config.ts` | `SaagaConfig` (interface) | Shape of the parsed config: `backend?`, `model?`, `quickModel?`, `ruleTargets?`, `docsDir?` |
+| `src/cli/config.ts` | `SaagaConfig` (interface) | Shape of the parsed config: `backend?`, `model?`, `quickModel?`, `ruleTargets?`, `docsDir?`, `autoApprove?` |
 | `src/cli/config.ts` | `CONFIG_DIR` (constant) | String `".saaga"` — directory containing the config file |
 | `src/cli/config.ts` | `CONFIG_FILE` (constant) | String `"config.yaml"` — config file name |
 | `src/cli/config.ts` | `DEFAULT_DOCS_DIR` (constant) | String `"saaga-docs"` — default documentation directory name |
@@ -79,6 +81,7 @@ docsDir: docs
 6. **Invalid `ruleTargets` type** (e.g., array containing non-strings): throws `ConfigError: ".saaga/config.yaml: 'ruleTargets' array items must be strings"`
 7. **Invalid `ruleTargets` type** (e.g., a number): throws `ConfigError: ".saaga/config.yaml: 'ruleTargets' must be a string or array of strings"`
 8. **Invalid `docsDir` type** (e.g., `docsDir: 123`): throws `ConfigError: ".saaga/config.yaml: 'docsDir' must be a string"`
+9. **Invalid `autoApprove` type** (e.g., `autoApprove: "yes"`): throws `ConfigError: ".saaga/config.yaml: 'autoApprove' must be a boolean"`
 
 ## Resolution Chains
 
@@ -91,6 +94,7 @@ Config values participate in every resolution chain as the second-priority sourc
 | Model (quick-update) | `--model` flag → `config.quickModel` → `defaultQuickModelFor(backend)` |
 | Rule targets | `--rule-targets` flag → `config.ruleTargets` → `"agentsmd"` |
 | Docs dir | `config.docsDir` → `DEFAULT_DOCS_DIR` (`"saaga-docs"`) |
+| Auto-approve | `--yes` flag → `config.autoApprove` → `false` |
 
 ## Error Handling
 
@@ -104,6 +108,7 @@ Config values participate in every resolution chain as the second-priority sourc
 | `ruleTargets` is not a string or array | `ConfigError: ".saaga/config.yaml: 'ruleTargets' must be a string or array of strings"` |
 | `ruleTargets` array contains non-string | `ConfigError: ".saaga/config.yaml: 'ruleTargets' array items must be strings"` |
 | `docsDir` is not a string | `ConfigError: ".saaga/config.yaml: 'docsDir' must be a string"` |
+| `autoApprove` is not a boolean | `ConfigError: ".saaga/config.yaml: 'autoApprove' must be a boolean"` |
 
 ## Reference Implementations
 
@@ -114,3 +119,4 @@ Config values participate in every resolution chain as the second-priority sourc
 ## Related Concepts
 
 - [Backend Resolution](./backend-resolution.md) — uses `config.backend`, `config.model`, and `config.quickModel` in the resolution chain
+- [Cost Confirmation](./cost-confirmation.md) — uses `config.autoApprove` to skip the interactive cost prompt

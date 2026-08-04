@@ -11,6 +11,7 @@ Before working with this feature, understand these concepts:
 - [Backend Resolution](../concepts/backend-resolution.md) — how the agent backend is selected and the model resolved
 - [Run Context and Isolation](../concepts/run-context.md) — how run IDs and directories are generated
 - [Agent Interface](../concepts/agent-interface.md) — the `Agent` contract that backends implement
+- [Cost Confirmation](../concepts/cost-confirmation.md) — the interactive cost disclaimer shown before agent-backed commands
 - [Flow DSL](../concepts/flow-dsl.md) — the step types and scope model used by flows
 
 ## Functional Specification
@@ -33,6 +34,7 @@ Before working with this feature, understand these concepts:
 | `--model <name>` | `-m` | AI model override (defaults per-backend) |
 | `--ci` | — | CI mode: plain (non-color) log output |
 | `--verbose` | — | Show detailed step output and live agent output on terminal |
+| `--yes` | `-y` | Skip the cost confirmation prompt for agent-backed commands |
 | `--version` | `-v` | Print version and exit |
 | `--help` | `-h` | Print help and exit |
 
@@ -53,20 +55,21 @@ Before working with this feature, understand these concepts:
    - Must be a directory (otherwise: `Error: "Not a directory: <dir>"`)
 3. CLI loads config via `loadConfig(appPath)` (see [Project Configuration](../concepts/project-configuration.md))
 4. CLI extracts the app name as `basename(appPath)` and resolves the agent via the backend resolution chain, passing config (see [Backend Resolution](../concepts/backend-resolution.md))
-5. CLI creates the run context: generates a unique run ID and creates the run directory on disk (see [Run Context and Isolation](../concepts/run-context.md))
-6. CLI creates a log file path: `logFile = resolve(runCtx.runDir, "run.log")`
-7. CLI resolves `verbose` from `globals.verbose ?? false`
-8. CLI creates a `Logger` via internal `createLogger(globals, options, logFile)` — passes `ci`, `stream`, `logFile`, and `verbose` to `LoggerOptions`
-9. Logger logs startup info: `saaga <subcommand> <path> (backend=<name>)` with optional conditional segment `, model=<model>` only when `--model` is explicitly provided. Also logs run ID and run directory.
-10. CLI resolves the effective documentation directory via `resolveDocsDir(config)` (falls back to `DEFAULT_DOCS_DIR` = `"saaga-docs"`)
-11. CLI checks for a legacy `docs/` directory: if `config.docsDir` is not set, `docs/BASELINE` exists, and `<docsDir>/BASELINE` does not exist, it logs a warning suggesting the user set `docsDir: docs` in `.saaga/config.yaml` or migrate contents
-12. CLI loads the flow definition: `loadFlow(flowName)` reads `flows/<flowName>.flow.yaml`
-13. CLI executes the flow: `runFlow(flow, initialScope, deps)` with scope `{ app, app_path, docs_dir, run_id, run_dir, date }` and deps `{ agent, cwd: appPath, logger, logFile, verbose }`
-14. CLI calls `logger.dispose()` after the flow completes to clean up spinner intervals
+5. CLI calls `confirmAgentCosts()` with the resolved backend/model info, the `--yes` flag, `config.autoApprove`, `--ci` mode, and stdin/stderr streams. If the user declines, throws `ConfirmationDeclinedError` (see [Cost Confirmation](../concepts/cost-confirmation.md))
+6. CLI creates the run context: generates a unique run ID and creates the run directory on disk (see [Run Context and Isolation](../concepts/run-context.md))
+7. CLI creates a log file path: `logFile = resolve(runCtx.runDir, "run.log")`
+8. CLI resolves `verbose` from `globals.verbose ?? false`
+9. CLI creates a `Logger` via internal `createLogger(globals, options, logFile)` — passes `ci`, `stream`, `logFile`, and `verbose` to `LoggerOptions`
+10. Logger logs startup info: `saaga <subcommand> <path> (backend=<name>)` with optional conditional segment `, model=<model>` only when `--model` is explicitly provided. Also logs run ID and run directory. Logs `buildCostSummary()` as a detail line.
+11. CLI resolves the effective documentation directory via `resolveDocsDir(config)` (falls back to `DEFAULT_DOCS_DIR` = `"saaga-docs"`)
+12. CLI checks for a legacy `docs/` directory: if `config.docsDir` is not set, `docs/BASELINE` exists, and `<docsDir>/BASELINE` does not exist, it logs a warning suggesting the user set `docsDir: docs` in `.saaga/config.yaml` or migrate contents
+13. CLI loads the flow definition: `loadFlow(flowName)` reads `flows/<flowName>.flow.yaml`
+14. CLI executes the flow: `runFlow(flow, initialScope, deps)` with scope `{ app, app_path, docs_dir, run_id, run_dir, date }` and deps `{ agent, cwd: appPath, logger, logFile, verbose }`
+15. CLI calls `logger.dispose()` after the flow completes to clean up spinner intervals
 
 ### User Flow: quick-update Subcommand
 
-The `quick-update` subcommand follows the same flow as standard subcommands (steps 1–11 above) with one difference: the agent is resolved using `config.quickModel` (from `.saaga/config.yaml`) or `defaultQuickModelFor(backend)` instead of the standard model. The `--model` flag overrides both.
+The `quick-update` subcommand follows the same flow as standard subcommands (steps 1–12 above) with one difference: the agent is resolved using `config.quickModel` (from `.saaga/config.yaml`) or `defaultQuickModelFor(backend)` instead of the standard model. The `--model` flag overrides both.
 
 ### Edge Cases
 
@@ -80,6 +83,9 @@ The `quick-update` subcommand follows the same flow as standard subcommands (ste
 | `--help` flag | Prints help text listing all subcommands/flags and exits with code 0 |
 | `CliOptions.agent` provided (test mode) | Skips backend resolution entirely |
 | Invalid `--rule-targets` value | Throws `Error: install-rules: invalid rule target '<val>' (allowed: agentsmd, cursor, claude, copilot, none)` before any agent steps run |
+| User declines cost confirmation | `ConfirmationDeclinedError`: exits with code 1, prints `"aborted: cost confirmation declined"` to stderr |
+| Non-interactive terminal (piped stdin, `--ci`) | Cost notice printed, continues without waiting for confirmation |
+| `--yes` flag or `autoApprove: true` | Cost notice printed with `"Confirmation auto-approved."`, continues without prompting |
 
 ## Technical Implementation
 
@@ -96,6 +102,7 @@ The version is read from `package.json` at `PACKAGE_ROOT`. If the file cannot be
 The program uses Commander's `exitOverride()` to prevent Commander from calling `process.exit()` directly. Instead:
 
 - `AgentStepFailedError` is caught and its `exitCode` is returned
+- `ConfirmationDeclinedError` is caught, its message is written to stderr, and its `exitCode` (1) is returned
 - Commander info exits (version/help display) are detected by their error codes (`commander.version`, `commander.helpDisplayed`) and return 0
 - All other errors propagate to the caller
 
@@ -104,16 +111,23 @@ The program uses Commander's `exitOverride()` to prevent Commander from calling 
 | Module | Function/Method | Purpose |
 |--------|-----------------|---------|
 | `src/cli.ts` | `runCli()` | CLI entry point — parses args, dispatches to subcommand handlers, returns exit code |
-| `src/cli.ts` | `CliOptions` (interface) | Options for `runCli()`: optional `agent`, `cwd`, `env`, `stdout`, `stderr` overrides |
+| `src/cli.ts` | `CliOptions` (interface) | Options for `runCli()`: optional `agent`, `cwd`, `env`, `stdout`, `stderr`, `stdin` overrides |
 | `src/cli/config.ts` | `loadConfig()` | Load project config from `.saaga/config.yaml`; returns `SaagaConfig` |
-| `src/cli/config.ts` | `SaagaConfig` (interface) | Shape of the parsed config: `backend?`, `model?`, `quickModel?`, `ruleTargets?`, `docsDir?` |
+| `src/cli/config.ts` | `SaagaConfig` (interface) | Shape of the parsed config: `backend?`, `model?`, `quickModel?`, `ruleTargets?`, `docsDir?`, `autoApprove?` |
 | `src/cli/config.ts` | `DEFAULT_DOCS_DIR` (constant) | Default documentation directory name: `"saaga-docs"` |
 | `src/cli/config.ts` | `ConfigError` (class) | Error for malformed config YAML or invalid field types |
 | `src/cli/backend.ts` | `resolveBackend()` | Resolve backend name from flag → config → error |
 | `src/cli/backend.ts` | `defaultModelFor()` | Return the default model for a backend (standard subcommands) |
 | `src/cli/backend.ts` | `defaultQuickModelFor()` | Return the default quick model for a backend (`quick-update` subcommand) |
 | `src/cli/backend.ts` | `createAgent()` | Construct a `CursorAgent`, `CopilotAgent`, or `ClaudeAgent` |
+| `src/cli/backend.ts` | `backendCliCommand()` | Return the CLI binary name for a given backend |
 | `src/cli/backend.ts` | `BackendError` (class) | Error for backend resolution failures |
+| `src/cli/confirm.ts` | `confirmAgentCosts()` | Show cost disclaimer, prompt for confirmation, throw `ConfirmationDeclinedError` on decline |
+| `src/cli/confirm.ts` | `buildCostNotice()` | Build the multi-line cost notice string |
+| `src/cli/confirm.ts` | `buildCostSummary()` | Build a one-line cost summary string for log output |
+| `src/cli/confirm.ts` | `ConfirmationDeclinedError` (class) | Error thrown when the user declines cost confirmation |
+| `src/cli/confirm.ts` | `CostNoticeInput` (interface) | Input shape for `buildCostNotice()` and `buildCostSummary()` |
+| `src/cli/confirm.ts` | `CostConfirmationInput` (interface) | Extended input shape for `confirmAgentCosts()` |
 | `src/run-context.ts` | `createRunContext()` | Generate run ID and create run directory |
 | `src/engine/loader.ts` | `loadFlow()` | Load and parse a flow YAML file |
 | `src/engine/runner.ts` | `runFlow()` | Execute a flow definition with scope and deps |
@@ -126,7 +140,8 @@ The program uses Commander's `exitOverride()` to prevent Commander from calling 
 |--------|----------|---------|
 | `src/cli.ts` | `readPackageVersion()` | Read version from `package.json` (not exported) |
 | `src/cli.ts` | `isCommanderInfoExit()` | Detect Commander version/help exit codes (not exported) |
-| `src/cli.ts` | `resolveAgent()` | Orchestrate backend resolution → model selection (standard or quick) → agent construction (not exported) |
+| `src/cli.ts` | `resolveAgent()` | Orchestrate backend resolution → model selection (standard or quick) → agent construction; returns `ResolvedAgent` (with optional `backend` and `model` fields) (not exported) |
+| `src/cli/confirm.ts` | `isInteractive()` | Determines if the terminal supports interactive prompt by checking `--ci`, stdin existence, and `isTTY` (not exported) |
 | `src/cli.ts` | `runFlowSubcommand()` | Shared handler for `init`, `update`, `quick-update`, `verify-quick-updates`: validates dir, creates run context, executes flow (not exported) |
 | `src/cli.ts` | `runInstallRulesSubcommand()` | Handler for `install-rules`: validates dir, calls `installRules()` directly without backend/run context (not exported) |
 | `src/cli.ts` | `resolveRuleTargets()` | Resolves effective rule targets from CLI flag → `config.ruleTargets` → default `"agentsmd"`, then validates via `parseRuleTargets()` (not exported) |
