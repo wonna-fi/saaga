@@ -1,9 +1,9 @@
-# Generated: 2026-07-28T09:33:15.343Z
+# Generated: 2026-08-04T07:28:29.050Z
 207ce2b0b21e99567a5b41e1c60c8426b10f29a2 .npmrc
-e6e049282066cc6a04ad49b176dd513469ede8c9 .saaga/config.yaml
+c2366abff15f6cf68ebcf74fc0640f0a8d1885cd .saaga/config.yaml
 57f11fb08926ac76ea02d77823758f3d7b333cde AGENTS.md
 581f22ed0b141aabdd94b0cfd355c29fa9699335 DEVELOPING.md
-62ea38278db7e9f689a340b86a1f2aa7252cb155 README.md
+2285694bf770e4ce5c4dbb47c5b70b23aa4204ea README.md
 c09a02e5db75ca8d5ccd829d75a3c118531c80dd eslint.config.js
 e64bc475e2baf51beedc4f8e1d62e0238543568f flows/init.flow.yaml
 ccf4fdef53058d3190a9c2ff7ffcbfdcaafa1118 flows/quick-update.flow.yaml
@@ -26,9 +26,10 @@ eeb68060e537ca789468a4b600ba49caf8d5222b prompts/fix-documentation.md
 edff2170be44fac898f572e2befdaa7ab8280522 src/agent/cursor-agent.ts
 48429c0f341c5b55989eab51fdc1d12c15edae19 src/agent/fake-agent.ts
 104b35d1c71f2ee4416c885fc73be1d43cf5d886 src/agent/types.ts
-85f50be4348db7275887be651c726699e914a050 src/cli.ts
-bc8f6a4dafea8ab6f42522cf50d0ffa063bde507 src/cli/backend.ts
-5766d421fef2425b9edd23646e017cb62ea00a34 src/cli/config.ts
+2ec8cdf581762aeb9f606bfbb6f0d0c24a89d63b src/cli.ts
+254416104923b28c321824d1e6fc2b7d3ddec3e1 src/cli/backend.ts
+a0016d4450578e29fd487ceba4ac17d0339209d0 src/cli/config.ts
+e057a0ab092231332969a0c7afaf8afa5e5374b3 src/cli/confirm.ts
 2bf6d9539ed687bd4fe20563ed9d531e5bd84e2c src/engine/expression.ts
 e778fc0ccd01af6c5299effd9170c175f1148a89 src/engine/loader.ts
 111d1fdc154a5f8bb9143d8c08afb26f3492db4d src/engine/phases.ts
@@ -57,10 +58,11 @@ e743e1dc72219e2844646110f2e5b6f3a6c30161 src/templates.ts
 83a61b76737d173ecdd000ecf649695c47f5be44 tests/agent/copilot-agent.test.ts
 5a8f5f7b3e51c6b4ef729cb57c02e5ac20e1d4c2 tests/agent/cursor-agent.test.ts
 66962ce481c7a15301efbbe0de9f835220c77fc0 tests/agent/fake-agent.test.ts
-6b2337c457eff1aae80112815d654a45e93e970e tests/cli/backend.test.ts
+5b3c8a309b09895ac2d22ac9f17729d5b89c2486 tests/cli/backend.test.ts
 15a77846bbf151c5c0c170a43459042c54fd4f10 tests/cli/config-integration.test.ts
-a32c7f3b77807e2e04221133158feac61bcb6020 tests/cli/config.test.ts
-9f9b9bb4d87196ac64fb7e9c6f95654a3572402e tests/cli/help-version.test.ts
+0d9ec19bc7f601dbf6b459dd1c9e37c404df9932 tests/cli/config.test.ts
+f780569781ef9f9872c1be31b7f7831eef3ce22d tests/cli/cost-confirmation.test.ts
+44b73b98c78f82e43c44e2846df6fabe42ff720d tests/cli/help-version.test.ts
 cd20aba491c7748a67774b98d3f38dd77be9a77d tests/cli/init.test.ts
 cbc1a69730e1c706eb75e6bc3e15739fdb99d245 tests/cli/install-rules.test.ts
 044e196d25a88a9a87d9c4f11626ead495b83011 tests/cli/quick-update.test.ts

@@ -63,6 +63,7 @@ For the `quick-update` subcommand (uses a cheaper/faster model by default):
 | `ALLOWED_BACKENDS` | Readonly array `["cursor", "copilot", "claude"]` used for validation |
 | `DEFAULT_MODELS` | Maps each backend to its default model: `cursor` → `"claude-4.6-opus-high-thinking"`, `copilot` → `"claude-sonnet-4.5"`, `claude` → `"opus"` |
 | `DEFAULT_QUICK_MODELS` | Maps each backend to its default quick model: `cursor` → `"claude-4.6-sonnet-medium-thinking"`, `copilot` → `"claude-sonnet-4.5"`, `claude` → `"sonnet"` |
+| `BACKEND_CLI_COMMANDS` | Maps each backend to its CLI binary name: `cursor` → `"cursor-agent"`, `copilot` → `"copilot"`, `claude` → `"claude"` |
 
 ## Key Services/Functions (PUBLIC/EXPORTED only)
 
@@ -72,6 +73,7 @@ For the `quick-update` subcommand (uses a cheaper/faster model by default):
 | `src/cli/backend.ts` | `defaultModelFor()` | Return the default AI model string for a given backend (standard subcommands) |
 | `src/cli/backend.ts` | `defaultQuickModelFor()` | Return the default quick AI model string for a given backend (`quick-update` subcommand) |
 | `src/cli/backend.ts` | `createAgent()` | Construct a `CursorAgent`, `CopilotAgent`, or `ClaudeAgent` for the resolved backend |
+| `src/cli/backend.ts` | `backendCliCommand()` | Return the CLI binary name for a given backend (e.g. `"cursor"` → `"cursor-agent"`); used by the cost confirmation notice |
 | `src/cli/backend.ts` | `BackendError` (class) | Error class thrown for backend resolution failures |
 | `src/cli/backend.ts` | `Backend` (type) | String union type: `"cursor" \| "copilot" \| "claude"` |
 | `src/cli/backend.ts` | `ResolveBackendInput` (interface) | Input shape for `resolveBackend()` |
@@ -97,4 +99,5 @@ For the `quick-update` subcommand (uses a cheaper/faster model by default):
 
 - [Project Configuration](./project-configuration.md) — how `.saaga/config.yaml` provides fallback values for backend, model, and quick model
 - [Agent Interface](./agent-interface.md) — the `Agent` contract that backends implement
+- [Cost Confirmation](./cost-confirmation.md) — uses `backendCliCommand()` to display the CLI binary name in the cost notice
 - [Run Context and Isolation](./run-context.md) — how the resolved agent is paired with a run directory

@@ -1,2 +1,3 @@
 backend: cursor
 ruleTargets: [agentsmd]
+autoApprove: true
