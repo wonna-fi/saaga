@@ -1,6 +1,7 @@
 import { archiveQuickUpdate } from "./archive-quick-update.js";
 import { collectQuickUpdates } from "./collect-quick-updates.js";
 import { detectChanges } from "./detect-changes.js";
+import { ensureGitignore } from "./ensure-gitignore.js";
 import { generateBaseline } from "./generate-baseline.js";
 import { installRules } from "./install-rules.js";
 import { parsePlan } from "./parse-plan.js";
@@ -31,4 +32,5 @@ export const defaultScriptRegistry: ScriptRegistry = {
   "collect-quick-updates": collectQuickUpdates as unknown as ScriptHandler,
   "remove-quick-updates": removeQuickUpdates as unknown as ScriptHandler,
   "install-rules": installRules as unknown as ScriptHandler,
+  "ensure-gitignore": ensureGitignore as unknown as ScriptHandler,
 };

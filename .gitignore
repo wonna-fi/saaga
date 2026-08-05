@@ -241,3 +241,4 @@ $RECYCLE.BIN/
 *.d.ts.map
 .cursor/plans/
 .pnpm-store/
+.saaga-runs/

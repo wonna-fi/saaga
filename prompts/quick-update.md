@@ -134,3 +134,5 @@ Write exactly `UPDATED` to `{status_path}`. Nothing else in this file.
 - When in doubt about a change's documentation impact, err on the side of documenting it (flag uncertainty in the summary).
 - Do NOT regenerate `{docs_dir}/BASELINE` — that is handled by the tool after this session.
 - Do NOT use any IDE-specific tools (like CreatePlan). Write files directly.
+- Do NOT modify repository source code or create git commits.
+- Read-only git history is available when the project is a git repository. You may use `git log`, `git show`, `git diff`, `git blame`, and similar read-only commands to understand changes, recover intent, and verify documentation claims. Do not run any git commands that modify the repository.

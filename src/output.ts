@@ -1,7 +1,7 @@
 import { appendFileSync, closeSync, fstatSync, openSync, readSync, statSync } from "node:fs";
 import pc from "picocolors";
 
-export type Marker = "DONE" | "SKIP" | "FAIL";
+export type Marker = "DONE" | "SKIP" | "FAIL" | "PASS";
 
 export interface OutputSinkOptions {
   ci?: boolean;
@@ -196,7 +196,8 @@ export class OutputSink {
     }
     switch (marker) {
       case "DONE":
-        return pc.green("[DONE]");
+      case "PASS":
+        return pc.green(`[${marker}]`);
       case "SKIP":
         return pc.dim("[SKIP]");
       case "FAIL":

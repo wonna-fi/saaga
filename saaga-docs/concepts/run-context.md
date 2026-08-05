@@ -2,14 +2,13 @@
 
 ## Business Definition
 
-A run context provides a unique identifier and a dedicated directory for each Saaga invocation. This ensures that artifacts produced by different runs (plans, review files, status outputs) are isolated from one another. The run ID encodes the application name, subcommand, timestamp, and a random hex suffix to guarantee uniqueness.
+A run context provides a unique identifier and a dedicated directory for each Saaga invocation. This ensures that artifacts produced by different runs (plans, review files, status outputs) are isolated from one another. The run ID encodes the application name, subcommand, timestamp, and a random hex suffix to guarantee uniqueness. Run directories are stored inside the application being documented (under `.saaga-runs/`), keeping all run artifacts co-located with the project.
 
 ## Configuration
 
 | Source | Description |
 |--------|-------------|
-| `SAAGA_DIR` env var | Overrides the base directory for run storage (default: `$HOME/.saaga`) |
-| `HOME` env var | Fallback for determining the base directory when `SAAGA_DIR` is not set |
+| `appPath` parameter | Required absolute path to the application directory; the run directory is created at `<appPath>/.saaga-runs/<run-id>/` |
 
 **How to access:**
 
@@ -17,13 +16,13 @@ A run context provides a unique identifier and a dedicated directory for each Sa
 
 ### Run Directory Resolution
 
+The run directory is deterministically resolved from the application path:
+
 ```
-SAAGA_DIR env var  →  $HOME/.saaga  →  Error
-        ↓                       ↓                 ↓
-  use as base dir      resolve ~/.saaga   "Cannot determine run directory:
-                                               HOME is not set and
-                                               SAAGA_DIR is not provided"
+<appPath>/.saaga-runs/<run-id>/
 ```
+
+No environment variables are consulted. The `appPath` field is required — if not provided, `createRunContext()` cannot construct a run directory.
 
 ### Run ID Format
 
@@ -38,10 +37,13 @@ The 8-hex-char suffix is generated from `crypto.randomBytes(4)`, ensuring unique
 ### Run Directory Layout
 
 ```
-$SAAGA_DIR/           (or $HOME/.saaga/)
-  runs/
-    <run-id>/             ← created by createRunContext()
-      plans/              ← created by flow steps (e.g., plan-init agent step)
+<appPath>/
+  .saaga-runs/                    ← gitignored by ensure-gitignore script
+    <run-id>/                     ← created by createRunContext()
+      plans/                      ← created by flow steps (e.g., plan-init agent step)
+      run.log                     ← agent output log
+      permissions.json            ← permission profile snapshot
+      permission-audit.log        ← denial audit (when --audit-permissions is used)
 ```
 
 ## Data Storage
@@ -50,11 +52,10 @@ $SAAGA_DIR/           (or $HOME/.saaga/)
 |------|----------------|---------|
 | `CreateRunContextInput` | `app` | Application display name (used as the run-id prefix) |
 | `CreateRunContextInput` | `subcommand` | Subcommand label embedded in the run-id (e.g., `init`, `update`, `slice-1`) |
-| `CreateRunContextInput` | `appPath` | Optional absolute path to the application directory; surfaced as `${app_path}` in flow scope |
-| `CreateRunContextInput` | `env` | Process env for reading `HOME` and `SAAGA_DIR` (defaults to `process.env`) |
+| `CreateRunContextInput` | `appPath` | Required absolute path to the application directory; the base for `.saaga-runs/` |
 | `CreateRunContextInput` | `now` | Optional `Date` override for the timestamp portion (used by tests) |
 | `RunContext` | `app` | Application display name |
-| `RunContext` | `appPath` | Optional absolute application directory path |
+| `RunContext` | `appPath` | Absolute application directory path |
 | `RunContext` | `subcommand` | Subcommand label |
 | `RunContext` | `runId` | Generated unique run identifier |
 | `RunContext` | `runDir` | Absolute path to the created run directory |
@@ -73,16 +74,10 @@ $SAAGA_DIR/           (or $HOME/.saaga/)
 - `formatTimestamp()` in `src/run-context.ts` — formats a `Date` as `YYYYMMDD-HHMMSS` (not exported)
 - `formatDate()` in `src/run-context.ts` — formats a `Date` as `YYYYMMDD` for the `date` field (not exported)
 
-## Error Handling
-
-| Scenario | Error |
-|----------|-------|
-| Neither `HOME` nor `SAAGA_DIR` is set | `Error: "Cannot determine run directory: HOME is not set and SAAGA_DIR is not provided"` |
-
 ## Reference Implementations
 
 - `src/run-context.ts` — the canonical module for run ID generation and directory creation
-- `tests/run-context.test.ts` — tests for ID format, directory placement, `SAAGA_DIR` override, directory creation, uniqueness, and returned context fields
+- `tests/run-context.test.ts` — tests for ID format, directory placement, directory creation, uniqueness, and returned context fields
 
 ## Related Concepts
 

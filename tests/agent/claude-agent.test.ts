@@ -1,6 +1,6 @@
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 vi.mock("execa", () => {
@@ -10,8 +10,16 @@ vi.mock("execa", () => {
 
 import { execa } from "execa";
 import { ClaudeAgent } from "../../src/agent/claude-agent.js";
+import type { AgentPermissions } from "../../src/agent/permissions.js";
 
 const mockExeca = vi.mocked(execa);
+
+/** Every rule that scopes a path, leaving out tool-level rules like `Bash`. */
+function pathRules(settings: any): string[] {
+  return [...settings.permissions.allow, ...settings.permissions.deny].filter(
+    (rule: string) => rule.includes("("),
+  );
+}
 
 describe("ClaudeAgent", () => {
   beforeEach(() => {
@@ -21,7 +29,7 @@ describe("ClaudeAgent", () => {
     mockExeca.mockReset();
   });
 
-  test("spawns claude with correct flags and propagates exit code", async () => {
+  test("spawns claude with correct flags and propagates exit code (unrestricted)", async () => {
     mockExeca.mockReturnValue(Promise.resolve({ exitCode: 0 }) as any);
 
     const cwd = await mkdtemp(join(tmpdir(), "claude-agent-"));
@@ -40,9 +48,151 @@ describe("ClaudeAgent", () => {
     ]);
     expect(opts.cwd).toBe(cwd);
     expect(opts.reject).toBe(false);
-    expect(opts.stdio).toBe("inherit");
+    expect(opts.stdin).toBe("ignore");
+    expect(opts.stdout).toBe("inherit");
+    expect(opts.stderr).toBe("inherit");
 
     expect(result.exitCode).toBe(0);
+  });
+
+  test("uses --permission-mode dontAsk and --settings JSON when permissions present", async () => {
+    mockExeca.mockReturnValue(Promise.resolve({ exitCode: 0 }) as any);
+
+    const cwd = await mkdtemp(join(tmpdir(), "claude-agent-"));
+    const runDir = join(cwd, ".saaga-runs", "test-run");
+    const permissions: AgentPermissions = {
+      readRoots: [cwd],
+      writeRoots: [resolve(cwd, "saaga-docs"), runDir],
+      denyPaths: [resolve(cwd, "AGENTS.md")],
+      shell: "read-only-git",
+    };
+
+    const agent = new ClaudeAgent({ model: "opus" });
+    await agent.run("p", {
+      cwd,
+      permissions,
+      additionalDirs: [runDir],
+    });
+
+    const [bin, args] = mockExeca.mock.calls[0] as any[];
+    expect(bin).toBe("claude");
+    expect(args).toContain("--permission-mode");
+    expect(args).toContain("dontAsk");
+    expect(args).not.toContain("--dangerously-skip-permissions");
+
+    const settingsIdx = args.indexOf("--settings");
+    expect(settingsIdx).toBeGreaterThan(-1);
+    const settings = JSON.parse(args[settingsIdx + 1]);
+    expect(settings.permissions.allow).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("Edit(//"),
+      ]),
+    );
+    expect(settings.permissions.deny).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("Edit(//"),
+      ]),
+    );
+    // runDir is inside cwd, so additionalDirectories should be empty
+    expect(settings.permissions.additionalDirectories).toEqual([]);
+  });
+
+  test("derives additionalDirectories from the profile, not from opts.additionalDirs", async () => {
+    mockExeca.mockReturnValue(Promise.resolve({ exitCode: 0 }) as any);
+
+    const cwd = await mkdtemp(join(tmpdir(), "claude-agent-"));
+    const runDir = join(cwd, ".saaga-runs", "test-run");
+    const extraDir = "/srv/shared-lib";
+    const permissions: AgentPermissions = {
+      readRoots: [cwd, extraDir],
+      writeRoots: [resolve(cwd, "saaga-docs"), runDir, extraDir],
+      denyPaths: [],
+      shell: "read-only-git",
+    };
+
+    const agent = new ClaudeAgent({ model: "opus" });
+    await agent.run("p", { cwd, permissions, additionalDirs: [runDir] });
+
+    const [, args] = mockExeca.mock.calls[0] as any[];
+    const settings = JSON.parse(args[args.indexOf("--settings") + 1]);
+    const dirs = settings.permissions.additionalDirectories as string[];
+
+    // Only non-cwd roots need to be reachable via additionalDirectories
+    expect(dirs).toContain(extraDir);
+    // runDir is inside cwd, so it doesn't need to be listed
+    expect(dirs).not.toContain(runDir);
+    // A child of cwd doesn't need to be listed separately
+    expect(dirs).not.toContain(resolve(cwd, "saaga-docs"));
+  });
+
+  test("claude settings use Edit not Write for rules", async () => {
+    mockExeca.mockReturnValue(Promise.resolve({ exitCode: 0 }) as any);
+
+    const cwd = await mkdtemp(join(tmpdir(), "claude-agent-"));
+    const permissions: AgentPermissions = {
+      readRoots: [cwd],
+      writeRoots: [resolve(cwd, "docs")],
+      denyPaths: [resolve(cwd, "AGENTS.md")],
+      shell: "read-only-git",
+    };
+
+    const agent = new ClaudeAgent({ model: "opus" });
+    await agent.run("p", { cwd, permissions });
+
+    const [, args] = mockExeca.mock.calls[0] as any[];
+    const settingsIdx = args.indexOf("--settings");
+    const settings = JSON.parse(args[settingsIdx + 1]);
+
+    for (const rule of pathRules(settings)) {
+      expect(rule).toMatch(/^Edit\(/);
+      expect(rule).not.toMatch(/^Write\(/);
+    }
+  });
+
+  test("denies Bash outright, since a narrower git allow cannot survive it", async () => {
+    mockExeca.mockReturnValue(Promise.resolve({ exitCode: 0 }) as any);
+
+    const cwd = await mkdtemp(join(tmpdir(), "claude-agent-"));
+    const permissions: AgentPermissions = {
+      readRoots: [cwd],
+      writeRoots: [resolve(cwd, "docs")],
+      denyPaths: [],
+      shell: "read-only-git",
+    };
+
+    const agent = new ClaudeAgent({ model: "opus" });
+    await agent.run("p", { cwd, permissions });
+
+    const [, args] = mockExeca.mock.calls[0] as any[];
+    const settings = JSON.parse(args[args.indexOf("--settings") + 1]);
+
+    expect(settings.permissions.deny).toContain("Bash");
+    for (const rule of settings.permissions.allow) {
+      expect(rule).not.toMatch(/^Bash/);
+    }
+  });
+
+  test("claude settings use double-slash for absolute paths", async () => {
+    mockExeca.mockReturnValue(Promise.resolve({ exitCode: 0 }) as any);
+
+    const cwd = await mkdtemp(join(tmpdir(), "claude-agent-"));
+    const permissions: AgentPermissions = {
+      readRoots: [cwd],
+      writeRoots: ["/absolute/path/docs"],
+      denyPaths: ["/absolute/path/AGENTS.md"],
+      shell: "read-only-git",
+    };
+
+    const agent = new ClaudeAgent({ model: "opus" });
+    await agent.run("p", { cwd, permissions });
+
+    const [, args] = mockExeca.mock.calls[0] as any[];
+    const settingsIdx = args.indexOf("--settings");
+    const settings = JSON.parse(args[settingsIdx + 1]);
+
+    for (const rule of pathRules(settings)) {
+      expect(rule).toMatch(/Edit\(\/\//);
+    }
   });
 
   test("propagates non-zero exit code", async () => {
@@ -71,7 +221,7 @@ describe("ClaudeAgent", () => {
     await agent.run("p", { cwd, signal: controller.signal });
 
     const [, , opts] = mockExeca.mock.calls[0] as any[];
-    expect(opts.signal).toBe(controller.signal);
+    expect(opts.cancelSignal).toBe(controller.signal);
   });
 });
 

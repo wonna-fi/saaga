@@ -26,7 +26,7 @@ The output and progress system controls how Saaga communicates execution progres
 | `OutputSinkOptions` | `stream` | Writable stream for output (defaults to `process.stderr`) |
 | `OutputSinkOptions` | `logFile` | Absolute path to append all output to |
 | `OutputSinkOptions` | `verbose` | When `true`, shows detail lines on terminal and emits phase text before markers |
-| `Marker` | — | String literal union: `"DONE"`, `"SKIP"`, or `"FAIL"` |
+| `Marker` | — | String literal union: `"DONE"`, `"SKIP"`, `"FAIL"`, or `"PASS"` |
 | `LoggerOptions` | `ci` | Passed through to `OutputSink` |
 | `LoggerOptions` | `stream` | Passed through to `OutputSink` |
 | `LoggerOptions` | `indent` | Spaces prepended to log lines for nested context (default `0`) |
@@ -39,7 +39,7 @@ The output and progress system controls how Saaga communicates execution progres
 |--------|-----------------|---------|
 | `src/output.ts` | `OutputSink` (class) | Core output backend: manages pending-line state, TTY spinner, column-aligned markers, and log-file append |
 | `src/output.ts` | `OutputSinkOptions` (interface) | Configuration for `OutputSink`: `ci?`, `stream?`, `logFile?`, `verbose?` |
-| `src/output.ts` | `Marker` (type) | String literal union: `"DONE" \| "SKIP" \| "FAIL"` |
+| `src/output.ts` | `Marker` (type) | String literal union: `"DONE" \| "SKIP" \| "FAIL" \| "PASS"` |
 | `src/output.ts` | `formatDuration()` | Formats elapsed milliseconds: `<1s` → `Nms`, `<60s` → `N.Ns`, `≥60s` → `NmSSs` |
 | `src/output.ts` | `truncateLabel()` | Truncates a phase label to fit within the marker column, preserving prefix and suffix |
 | `src/logger.ts` | `Logger` (class) | Facade over `OutputSink` with `phaseBegin()`, `phaseEnd()`, `phaseImmediate()`, `detail()`, `info()`, `warn()`, `error()`, `logFileSize()`, `tailLog()`, `getSink()`, `child()`, `dispose()` |
@@ -61,7 +61,7 @@ Phase N/M: label                                        [DONE] 1.2s
 Components:
 - **Counter** (`Phase N/M`): `N` is the current phase (1-indexed), `M` is the dynamically computed total (or `?` if not yet determinable)
 - **Label**: human-readable description from the step's `label` field (or derived from step name); interpolated against scope
-- **Marker**: `[DONE]`, `[SKIP]`, or `[FAIL]` — column-aligned to `markerCol` (default column 72, adapts to terminal width, minimum column 40)
+- **Marker**: `[DONE]`, `[SKIP]`, `[FAIL]`, or `[PASS]` — column-aligned to `markerCol` (default column 72, adapts to terminal width, minimum column 40)
 - **Duration**: formatted elapsed time appended after the marker
 
 ### Markers
@@ -69,6 +69,7 @@ Components:
 | Marker | Meaning | Color (TTY) |
 |--------|---------|-------------|
 | `[DONE]` | Phase completed successfully | Green |
+| `[PASS]` | Phase passed verification (semantically equivalent to DONE) | Green |
 | `[SKIP]` | Phase was skipped (e.g. `if` condition was false) | Dim |
 | `[FAIL]` | Phase failed with an error | Red |
 

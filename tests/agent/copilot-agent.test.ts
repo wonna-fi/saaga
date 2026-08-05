@@ -1,6 +1,6 @@
 import { mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 vi.mock("execa", () => {
@@ -10,6 +10,7 @@ vi.mock("execa", () => {
 
 import { execa } from "execa";
 import { CopilotAgent } from "../../src/agent/copilot-agent.js";
+import type { AgentPermissions } from "../../src/agent/permissions.js";
 
 const mockExeca = vi.mocked(execa);
 
@@ -55,15 +56,15 @@ describe("CopilotAgent", () => {
     expect(result.exitCode).toBe(0);
   });
 
-  test("adds --add-dir for each entry in opts.additionalDirs", async () => {
+  test("adds --add-dir for each entry in opts.additionalDirs outside cwd", async () => {
     mockExeca.mockReturnValue(Promise.resolve({ exitCode: 0 }) as any);
 
     const cwd = await mkdtemp(join(tmpdir(), "copilot-agent-"));
-    const runDir = "/home/node/.saaga/runs/myapp-init-123";
+    const externalDir = "/srv/shared";
     const agent = new CopilotAgent({ model: "claude-sonnet-4.5" });
     await agent.run("Document the architecture", {
       cwd,
-      additionalDirs: [runDir],
+      additionalDirs: [externalDir],
     });
 
     expect(mockExeca).toHaveBeenCalledOnce();
@@ -77,7 +78,7 @@ describe("CopilotAgent", () => {
       "claude-sonnet-4.5",
       "--no-auto-update",
       "--add-dir",
-      runDir,
+      externalDir,
     ]);
   });
 
@@ -143,7 +144,7 @@ describe("CopilotAgent", () => {
     expect(restored).toBe(originalGitignore);
   });
 
-  test("restores .gitignore even when run() throws", async () => {
+  test("restores .gitignore and returns exitCode 1 on spawn failure", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "copilot-agent-"));
     const giPath = join(cwd, ".gitignore");
     const originalGitignore = "build/\n";
@@ -154,7 +155,8 @@ describe("CopilotAgent", () => {
     });
 
     const agent = new CopilotAgent({ model: "m" });
-    await expect(agent.run("p", { cwd })).rejects.toThrow(/spawn failed/);
+    const result = await agent.run("p", { cwd });
+    expect(result.exitCode).toBe(1);
 
     expect(await pathExists(giPath)).toBe(true);
     expect(await pathExists(join(cwd, ".gitignore.bak"))).toBe(false);
@@ -192,6 +194,140 @@ describe("CopilotAgent", () => {
     expect(await readFile(giPath, "utf8")).toBe(originalGitignore);
     // User's pre-existing .gitignore.bak is untouched
     expect(await readFile(giBakPath, "utf8")).toBe(userBackupContent);
+  });
+  test("restricts the tool set to file tools, withholding bash", async () => {
+    mockExeca.mockReturnValue(Promise.resolve({ exitCode: 0 }) as any);
+
+    const cwd = await mkdtemp(join(tmpdir(), "copilot-agent-"));
+    const runDir = join(cwd, ".saaga-runs", "test-run");
+    const permissions: AgentPermissions = {
+      readRoots: [cwd],
+      writeRoots: [resolve(cwd, "saaga-docs"), runDir],
+      denyPaths: [resolve(cwd, "AGENTS.md")],
+      shell: "read-only-git",
+    };
+
+    const agent = new CopilotAgent({ model: "m" });
+    await agent.run("p", { cwd, permissions, additionalDirs: [runDir] });
+
+    const [, args] = mockExeca.mock.calls[0] as any[];
+    const start = args.indexOf("--available-tools");
+    expect(start).toBeGreaterThan(-1);
+    const tools = args.slice(start + 1, args.indexOf("--allow-all-tools"));
+    expect(tools).toEqual(["view", "create", "edit", "glob", "grep"]);
+    expect(tools).not.toContain("bash");
+  });
+
+  test("keeps the workspace path boundary intact", async () => {
+    mockExeca.mockReturnValue(Promise.resolve({ exitCode: 0 }) as any);
+
+    const cwd = await mkdtemp(join(tmpdir(), "copilot-agent-"));
+    const runDir = join(cwd, ".saaga-runs", "test-run");
+    const permissions: AgentPermissions = {
+      readRoots: [cwd],
+      writeRoots: [resolve(cwd, "saaga-docs"), runDir],
+      denyPaths: [],
+      shell: "read-only-git",
+    };
+
+    const agent = new CopilotAgent({ model: "m" });
+    await agent.run("p", { cwd, permissions, additionalDirs: [runDir] });
+
+    const [, args] = mockExeca.mock.calls[0] as any[];
+    expect(args).not.toContain("--allow-all-paths");
+    expect(args).toContain("--disallow-temp-dir");
+  });
+
+  test("uses no deny rules, which are inert alongside --allow-all-tools", async () => {
+    mockExeca.mockReturnValue(Promise.resolve({ exitCode: 0 }) as any);
+
+    const cwd = await mkdtemp(join(tmpdir(), "copilot-agent-"));
+    const permissions: AgentPermissions = {
+      readRoots: [cwd],
+      writeRoots: [resolve(cwd, "docs")],
+      denyPaths: [resolve(cwd, "AGENTS.md")],
+      shell: "read-only-git",
+    };
+
+    const agent = new CopilotAgent({ model: "m" });
+    await agent.run("p", { cwd, permissions });
+
+    const [, args] = mockExeca.mock.calls[0] as any[];
+    expect(args).not.toContain("--deny-tool");
+    expect(args).not.toContain("--allow-tool");
+  });
+
+  test("grants --add-dir for roots outside the cwd only", async () => {
+    mockExeca.mockReturnValue(Promise.resolve({ exitCode: 0 }) as any);
+
+    const cwd = await mkdtemp(join(tmpdir(), "copilot-agent-"));
+    const docsPath = resolve(cwd, "saaga-docs");
+    const runDir = join(cwd, ".saaga-runs", "test-run");
+    const allowDir = "/srv/shared";
+    const permissions: AgentPermissions = {
+      readRoots: [cwd, allowDir],
+      writeRoots: [docsPath, runDir, allowDir],
+      denyPaths: [],
+      shell: "read-only-git",
+    };
+
+    const agent = new CopilotAgent({ model: "m" });
+    await agent.run("p", { cwd, permissions, additionalDirs: [runDir] });
+
+    const [, args] = mockExeca.mock.calls[0] as any[];
+    const addDirs: string[] = [];
+    for (let i = 0; i < args.length; i++) {
+      if (args[i] === "--add-dir") addDirs.push(args[i + 1]);
+    }
+    expect(addDirs).toEqual(expect.arrayContaining([allowDir]));
+    expect(addDirs).not.toContain(cwd);
+    expect(addDirs).not.toContain(docsPath);
+    // runDir is inside cwd, so copilot grants it via additionalDirs passthrough
+    // but not from permission roots (which are filtered by isInside)
+  });
+
+  test("unrestricted path is byte-identical to legacy argv", async () => {
+    mockExeca.mockReturnValue(Promise.resolve({ exitCode: 0 }) as any);
+
+    const cwd = await mkdtemp(join(tmpdir(), "copilot-agent-"));
+    const agent = new CopilotAgent({ model: "claude-sonnet-4.5" });
+    await agent.run("Document the architecture", { cwd });
+
+    const [bin, args] = mockExeca.mock.calls[0] as any[];
+    expect(bin).toBe("copilot");
+    expect(args).toEqual([
+      "-p",
+      "Document the architecture",
+      "--allow-all-tools",
+      "--no-ask-user",
+      "--model",
+      "claude-sonnet-4.5",
+      "--no-auto-update",
+    ]);
+  });
+
+  test("preserves --add-dir in restricted mode for external dirs", async () => {
+    mockExeca.mockReturnValue(Promise.resolve({ exitCode: 0 }) as any);
+
+    const cwd = await mkdtemp(join(tmpdir(), "copilot-agent-"));
+    const externalDir = "/srv/shared";
+    const runDir = join(cwd, ".saaga-runs", "test-run");
+    const permissions: AgentPermissions = {
+      readRoots: [cwd, externalDir],
+      writeRoots: [resolve(cwd, "docs"), runDir, externalDir],
+      denyPaths: [],
+      shell: "read-only-git",
+    };
+
+    const agent = new CopilotAgent({ model: "m" });
+    await agent.run("p", { cwd, permissions, additionalDirs: [runDir] });
+
+    const [, args] = mockExeca.mock.calls[0] as any[];
+    const addDirs: string[] = [];
+    for (let i = 0; i < args.length; i++) {
+      if (args[i] === "--add-dir") addDirs.push(args[i + 1]);
+    }
+    expect(addDirs).toContain(externalDir);
   });
 });
 

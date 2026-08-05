@@ -2,17 +2,33 @@ export interface AgentRunOpts {
   cwd: string;
   signal?: AbortSignal;
   /**
-   * Extra directories the agent must be able to read/write in addition to
-   * `cwd` (e.g. the Saaga run directory, which lives outside the app
-   * directory being documented). Backends that sandbox filesystem access
-   * to `cwd` should grant access to these paths explicitly; backends that
-   * don't restrict paths may ignore this field.
+   * The run directory for this agent session. The cursor backend uses this
+   * to place its cli-config.json under `<runDir>/.cursor-cli/`.
+   *
+   * Historically named `additionalDirs` because the run directory lived
+   * outside the workspace. Now that it lives at `<cwd>/.saaga-runs/`, the
+   * path is always under `cwd` and backends no longer need to grant
+   * separate filesystem access for it.
    */
   additionalDirs?: string[];
+  /**
+   * Permission profile for the agent run. Absent means unrestricted —
+   * the backend uses its legacy flags (--force, --allow-all-tools, etc.).
+   * When present, the backend translates this into its native permission
+   * mechanism.
+   */
+  permissions?: import("./permissions.js").AgentPermissions;
   /** Absolute path to append the agent's stdout/stderr to. */
   logFile?: string;
   /** Also mirror output to the terminal (--verbose). */
   echo?: boolean;
+  /**
+   * When set, the backend asks its CLI for newline-delimited JSON instead of
+   * prose and forwards parsed events here. The log file receives that JSON,
+   * so this is opt-in: it trades a readable transcript for machine-checkable
+   * permission decisions.
+   */
+  onEvent?: import("./events.js").AgentEventSink;
 }
 
 export interface AgentRunResult {

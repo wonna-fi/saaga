@@ -57,9 +57,7 @@ const NOTICE_INPUT = {
 async function tmpUnchangedApp(name: string, configYaml?: string) {
   const root = await mkdtemp(join(tmpdir(), "saaga-confirm-"));
   const app = join(root, name);
-  const home = join(root, "home");
   await mkdir(app);
-  await mkdir(home);
   await writeFile(join(app, "src.ts"), "alpha", "utf8");
   if (configYaml !== undefined) {
     await mkdir(join(app, ".saaga"));
@@ -69,12 +67,12 @@ async function tmpUnchangedApp(name: string, configYaml?: string) {
     { app_dir: app, docs_dir: DEFAULT_DOCS_DIR },
     { cwd: app },
   );
-  return { root, app, home };
+  return { root, app };
 }
 
-async function runDirCount(home: string): Promise<number> {
+async function runDirCount(app: string): Promise<number> {
   try {
-    return (await readdir(join(home, ".saaga", "runs"))).length;
+    return (await readdir(join(app, ".saaga-runs"))).length;
   } catch {
     return 0;
   }
@@ -235,13 +233,12 @@ describe("confirmAgentCosts", () => {
 
 describe("saaga cost confirmation (end to end)", () => {
   test("declining aborts with exit code 1 before any work happens", async () => {
-    const { app, home } = await tmpUnchangedApp("declined");
+    const { app } = await tmpUnchangedApp("declined");
     const fake = new FakeAgent({});
     const err = new StringWritable();
 
     const exitCode = await runCli(["quick-update", app], {
       agent: fake,
-      env: { HOME: home },
       stderr: err,
       stdin: ttyStdin("n\n"),
     });
@@ -250,34 +247,32 @@ describe("saaga cost confirmation (end to end)", () => {
     expect(err.text).toContain("Cost notice:");
     expect(err.text).toContain("aborted: cost confirmation declined");
     expect(fake.calls).toHaveLength(0);
-    expect(await runDirCount(home)).toBe(0);
+    expect(await runDirCount(app)).toBe(0);
   });
 
   test("accepting proceeds with the run", async () => {
-    const { app, home } = await tmpUnchangedApp("accepted");
+    const { app } = await tmpUnchangedApp("accepted");
     const fake = new FakeAgent({});
     const err = new StringWritable();
 
     const exitCode = await runCli(["quick-update", app], {
       agent: fake,
-      env: { HOME: home },
       stderr: err,
       stdin: ttyStdin("y\n"),
     });
 
     expect(exitCode).toBe(0);
     expect(err.text).toContain("Continue? [y/N]");
-    expect(await runDirCount(home)).toBe(1);
+    expect(await runDirCount(app)).toBe(1);
   });
 
   test("--yes runs without consulting stdin", async () => {
-    const { app, home } = await tmpUnchangedApp("flagged");
+    const { app } = await tmpUnchangedApp("flagged");
     const fake = new FakeAgent({});
     const err = new StringWritable();
 
     const exitCode = await runCli(["quick-update", app, "--yes"], {
       agent: fake,
-      env: { HOME: home },
       stderr: err,
       stdin: ttyStdin("n\n"),
     });
@@ -288,7 +283,7 @@ describe("saaga cost confirmation (end to end)", () => {
   });
 
   test("autoApprove in .saaga/config.yaml runs without consulting stdin", async () => {
-    const { app, home } = await tmpUnchangedApp(
+    const { app } = await tmpUnchangedApp(
       "configured",
       "autoApprove: true\n",
     );
@@ -297,7 +292,6 @@ describe("saaga cost confirmation (end to end)", () => {
 
     const exitCode = await runCli(["quick-update", app], {
       agent: fake,
-      env: { HOME: home },
       stderr: err,
       stdin: ttyStdin("n\n"),
     });
@@ -308,11 +302,10 @@ describe("saaga cost confirmation (end to end)", () => {
   });
 
   test("install-rules never asks: it runs no agent", async () => {
-    const { app, home } = await tmpUnchangedApp("norules");
+    const { app } = await tmpUnchangedApp("norules");
     const err = new StringWritable();
 
     const exitCode = await runCli(["install-rules", app], {
-      env: { HOME: home },
       stderr: err,
       stdin: ttyStdin("n\n"),
     });

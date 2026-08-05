@@ -13,13 +13,11 @@ import { generateBaseline } from "../../src/scripts/generate-baseline.js";
 async function tmpUpdateEnv(name: string) {
   const root = await mkdtemp(join(tmpdir(), "saaga-update-"));
   const app = join(root, name);
-  const home = join(root, "home");
   await mkdir(app);
-  await mkdir(home);
   await writeFile(join(app, "src.ts"), "alpha", "utf8");
   await writeFile(join(app, "README.md"), "readme", "utf8");
   await generateBaseline({ app_dir: app, docs_dir: DEFAULT_DOCS_DIR }, { cwd: app });
-  return { root, app, home };
+  return { root, app };
 }
 
 function planUpdateScenario(planContent: string): FakeScenarioValue {
@@ -66,7 +64,7 @@ phases:
 
 describe("saaga update", () => {
   test("zero changes: detect-changes runs, but no plan-update is invoked", async () => {
-    const { app, home } = await tmpUpdateEnv("noop");
+    const { app } = await tmpUpdateEnv("noop");
 
     const fake = new FakeAgent({
       "Update Domain Documentation": planUpdateScenario(ONE_PHASE_UPDATE_PLAN),
@@ -74,14 +72,13 @@ describe("saaga update", () => {
 
     const exitCode = await runCli(["update", app], {
       agent: fake,
-      env: { HOME: home },
     });
     expect(exitCode).toBe(0);
     expect(fake.calls).toHaveLength(0);
   });
 
   test("changes detected: plan-update runs and receives the changes report path", async () => {
-    const { app, home } = await tmpUpdateEnv("change1");
+    const { app } = await tmpUpdateEnv("change1");
     await writeFile(join(app, "src.ts"), "alpha-modified", "utf8");
 
     const fake = new FakeAgent({
@@ -97,7 +94,6 @@ Non doc-worthy.
 
     const exitCode = await runCli(["update", app], {
       agent: fake,
-      env: { HOME: home },
     });
     expect(exitCode).toBe(0);
     expect(fake.calls).toHaveLength(1);
@@ -111,7 +107,7 @@ Non doc-worthy.
   });
 
   test("phases execute with verify/fix loop and end with regen-baseline", async () => {
-    const { app, home } = await tmpUpdateEnv("multiphase");
+    const { app } = await tmpUpdateEnv("multiphase");
     await writeFile(join(app, "src.ts"), "alpha-modified", "utf8");
 
     const fake = new FakeAgent({
@@ -131,7 +127,6 @@ phases:
 
     const exitCode = await runCli(["update", app], {
       agent: fake,
-      env: { HOME: home },
     });
     expect(exitCode).toBe(0);
     // plan-update + (slice + verify) * 2 = 5
@@ -149,7 +144,7 @@ phases:
   });
 
   test("verify FAIL triggers fix-documentation, then re-verify", async () => {
-    const { app, home } = await tmpUpdateEnv("fixloop");
+    const { app } = await tmpUpdateEnv("fixloop");
     await writeFile(join(app, "src.ts"), "alpha-modified", "utf8");
 
     const fake = new FakeAgent({
@@ -163,7 +158,6 @@ phases:
 
     const exitCode = await runCli(["update", app], {
       agent: fake,
-      env: { HOME: home },
     });
     expect(exitCode).toBe(0);
 

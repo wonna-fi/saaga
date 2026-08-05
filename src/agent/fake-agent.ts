@@ -1,9 +1,12 @@
+import type { AgentPermissions } from "./permissions.js";
 import type { Agent, AgentRunOpts, AgentRunResult } from "./types.js";
 
 export interface FakeAgentCall {
   prompt: string;
   cwd: string;
   additionalDirs?: string[];
+  permissions?: AgentPermissions;
+  onEvent?: AgentRunOpts["onEvent"];
 }
 
 export interface FakeScenarioValue {
@@ -35,6 +38,8 @@ export class FakeAgent implements Agent {
       prompt,
       cwd: opts.cwd,
       additionalDirs: opts.additionalDirs,
+      permissions: opts.permissions,
+      onEvent: opts.onEvent,
     });
 
     for (const [substring, scenario] of Object.entries(this.scenarios)) {

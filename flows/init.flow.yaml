@@ -1,11 +1,18 @@
 name: init
 steps:
+  - script:
+      name: ensure-gitignore
+      label: ensuring .saaga-runs is gitignored
+      app_dir: ${app_path}
+      pattern: .saaga-runs/
+
   - agent:
       prompt: document-architecture
       label: documenting architecture
       vars:
         app: ${app}
         docs_dir: ${docs_dir}
+        scratch_path: ${run_dir}/app-structure.md
 
   - agent:
       prompt: plan-init

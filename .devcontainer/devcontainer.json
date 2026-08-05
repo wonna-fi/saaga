@@ -12,8 +12,7 @@
   },
   "postCreateCommand": "bash .devcontainer/install-agents.sh",
   "mounts": [
-    "source=${localEnv:HOME}/.cursor,target=/home/node/.cursor,type=bind,consistency=cached",
-    "source=${localEnv:HOME}/.saaga,target=/home/node/.saaga,type=bind,consistency=cached"
+    "source=${localEnv:HOME}/.cursor,target=/home/node/.cursor,type=bind,consistency=cached"
   ],
   "containerEnv": {
     "CURSOR_API_KEY": "${localEnv:CURSOR_API_KEY}",

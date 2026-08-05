@@ -1,5 +1,7 @@
-import { stat } from "node:fs/promises";
-import { resolve } from "node:path";
+import { mkdir, stat } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
+import type { PermissionAuditor } from "../agent/audit.js";
+import type { AgentPermissions } from "../agent/permissions.js";
 import type { Agent } from "../agent/types.js";
 import { Logger, silentLogger } from "../logger.js";
 import { formatDuration } from "../output.js";
@@ -32,6 +34,15 @@ export interface RunFlowDeps {
   logFile?: string;
   /** Mirror agent output to terminal (--verbose). */
   verbose?: boolean;
+  /** Permission profile for agent steps. Absent means unrestricted. */
+  permissions?: AgentPermissions;
+  /**
+   * Collects and classifies permission denials across the run.
+   *
+   * Its presence switches agent steps to structured output, so the run log
+   * receives JSON rather than prose.
+   */
+  auditor?: PermissionAuditor;
 }
 
 export async function runFlow(
@@ -244,13 +255,31 @@ async function runAgentStep(
 
   const prompt = await renderPromptFile(promptPath, renderedVars);
 
+  const runDir = typeof scope.run_dir === "string" ? scope.run_dir : undefined;
+  if (runDir) {
+    const dirsToEnsure = new Set<string>();
+    for (const val of Object.values(renderedVars)) {
+      if (val.startsWith(runDir)) dirsToEnsure.add(dirname(val));
+    }
+    if (step.expect_file) {
+      const ef = interpolate(step.expect_file, scope);
+      if (ef.startsWith(runDir)) dirsToEnsure.add(dirname(ef));
+    }
+    for (const dir of dirsToEnsure) {
+      await mkdir(dir, { recursive: true });
+    }
+  }
+
   const additionalDirs =
     typeof scope.run_dir === "string" ? [scope.run_dir] : undefined;
+  const auditor = deps.auditor;
   const result = await deps.agent.run(prompt, {
     cwd: deps.cwd,
     additionalDirs,
+    permissions: deps.permissions,
     logFile: deps.logFile,
     echo: deps.verbose,
+    onEvent: auditor ? (event) => auditor.record(event) : undefined,
   });
   if (result.exitCode !== 0) {
     throw new AgentStepFailedError(step.prompt, result.exitCode);

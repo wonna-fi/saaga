@@ -2,7 +2,7 @@
 
 ## Business Definition
 
-Flow definitions are the YAML-based workflow files that define the step sequences for each Saaga command. Each flow file describes what the command does end-to-end — which agent prompts to invoke, which scripts to run, and how to control iteration and branching. The four flows (`init`, `update`, `quick-update`, `verify-quick-updates`) map 1:1 to CLI subcommands that execute flows.
+Flow definitions are the YAML-based workflow files that define the step sequences for each Saaga command. Each flow file describes what the command does end-to-end — which agent prompts to invoke, which scripts to run, and how to control iteration and branching. The four flows (`init`, `update`, `quick-update`, `verify-quick-updates`) map 1:1 to the CLI subcommands that execute flows. The `doctor` and `install-rules` subcommands do not use flows.
 
 ## Configuration
 
@@ -36,13 +36,14 @@ Flow definitions are the YAML-based workflow files that define the step sequence
 
 The most complex flow. Every agent and script step has a `label:` field for the phase-progress display (control-flow steps like `foreach` and `loop`, and plumbing steps like `read-file`, do not have labels). Step sequence:
 
-1. `agent` — generate architecture docs (`document-architecture`); label: `documenting architecture`; passes `docs_dir`
-2. `agent` — create a documentation plan (`plan-init`); label: `planning documentation`; passes `docs_dir`, with `expect_file` assertion
-3. `script` — `parse-plan` extracts phases from the plan's YAML frontmatter; label: `parsing plan`
-4. `agent` — document phase 0 (`slice-doc`); label: `documenting overview`
-5. `script` — `install-rules` installs rule stubs; label: `installing rules`; uses `${app_path}`, `${app}`, `${rule_targets}`, and `${docs_dir}` from scope
-6. `foreach` — iterate non-zero phases: document each with `slice-doc` (label: `documenting "${phase.title}"`), then enter a `loop` (max 3) of verify (label: `verifying "${phase.title}"`) → read-status → conditionally fix (label: `fixing "${phase.title}"`); `verify-domain-documentation` passes `docs_dir`
-7. `script` — `generate-baseline` creates the content manifest; label: `generating baseline`; passes `docs_dir`
+1. `script` — `ensure-gitignore` ensures `.saaga-runs/` is in the project's `.gitignore`; label: `ensuring .saaga-runs is gitignored`
+2. `agent` — generate architecture docs (`document-architecture`); label: `documenting architecture`; passes `docs_dir`
+3. `agent` — create a documentation plan (`plan-init`); label: `planning documentation`; passes `docs_dir`, with `expect_file` assertion
+4. `script` — `parse-plan` extracts phases from the plan's YAML frontmatter; label: `parsing plan`
+5. `agent` — document phase 0 (`slice-doc`); label: `documenting overview`
+6. `script` — `install-rules` installs rule stubs; label: `installing rules`; uses `${app_path}`, `${app}`, `${rule_targets}`, and `${docs_dir}` from scope
+7. `foreach` — iterate non-zero phases: document each with `slice-doc` (label: `documenting "${phase.title}"`), then enter a `loop` (max 3) of verify (label: `verifying "${phase.title}"`) → read-status → conditionally fix (label: `fixing "${phase.title}"`); `verify-domain-documentation` passes `docs_dir`
+8. `script` — `generate-baseline` creates the content manifest; label: `generating baseline`; passes `docs_dir`
 
 ### update.flow.yaml
 
