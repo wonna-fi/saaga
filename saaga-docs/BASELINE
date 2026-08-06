@@ -1,4 +1,4 @@
-# Generated: 2026-08-06T06:46:46.973Z
+# Generated: 2026-08-06T06:52:54.360Z
 eb5f87a2e9609984545f103fad86945898ed6be8 .github/workflows/backend-drift.yml
 d7e08a188b70e03d7663a8cc06b48d27a812ca95 .github/workflows/ci.yml
 207ce2b0b21e99567a5b41e1c60c8426b10f29a2 .npmrc
@@ -29,7 +29,7 @@ d18773b21b8bcad0975310d4068652283b5ced4c src/agent/copilot-agent.ts
 7a3cf79a1e9f67218b5887ef01d3b1fe470ee63a src/agent/cursor-agent.ts
 b3afa9ecc2c35472879a1f3688f58e8bfbd3ddd8 src/agent/events.ts
 4b16c29e97b6d7bb409adff0c787251f1076b8af src/agent/fake-agent.ts
-a59d1350f6d859106aa0808fab65517b1e34b892 src/agent/permissions.ts
+2de8439a7b1bd7d57304fc09259552b9beac81b0 src/agent/permissions.ts
 8749ca269ac640cf403c917fe0178bb6dbd121ba src/agent/spawn.ts
 7cc46464fa980a3fa71880275c57d68aaadab950 src/agent/stdio.ts
 67efaeabbdb4a1b61c28940267eabb1991caf267 src/agent/types.ts
@@ -73,7 +73,7 @@ cdaac2dc3f8cf8250ea337597594971fa0a1fda5 tests/agent/copilot-agent.test.ts
 4572ec36a447ef32a9a7c2d62cb531fd4c626a5c tests/agent/cursor-agent.test.ts
 0fffdaa10e1ac3f99363f51be22b874af3bcdcc9 tests/agent/events.test.ts
 66962ce481c7a15301efbbe0de9f835220c77fc0 tests/agent/fake-agent.test.ts
-331a48cd346c6556616553972679a6f9c2251b04 tests/agent/permissions.test.ts
+3a66d2be2fcb3de57ad2830255afeb26d673fc41 tests/agent/permissions.test.ts
 5b3c8a309b09895ac2d22ac9f17729d5b89c2486 tests/cli/backend.test.ts
 762a720f377643a28ff3c977ccb7a80c64376df5 tests/cli/config-integration.test.ts
 0d9ec19bc7f601dbf6b459dd1c9e37c404df9932 tests/cli/config.test.ts
