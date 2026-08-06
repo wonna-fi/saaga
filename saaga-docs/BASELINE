@@ -1,11 +1,11 @@
-# Generated: 2026-08-06T10:59:03.024Z
+# Generated: 2026-08-06T19:52:49.552Z
 eb5f87a2e9609984545f103fad86945898ed6be8 .github/workflows/backend-drift.yml
 d7e08a188b70e03d7663a8cc06b48d27a812ca95 .github/workflows/ci.yml
 207ce2b0b21e99567a5b41e1c60c8426b10f29a2 .npmrc
 c2366abff15f6cf68ebcf74fc0640f0a8d1885cd .saaga/config.yaml
 57f11fb08926ac76ea02d77823758f3d7b333cde AGENTS.md
 581f22ed0b141aabdd94b0cfd355c29fa9699335 DEVELOPING.md
-bef9e0a7335c2bef978a87222585bf8301e2d501 README.md
+9544c5ef1346e0656ab9b652faab9935b289a3fa README.md
 c09a02e5db75ca8d5ccd829d75a3c118531c80dd eslint.config.js
 ce9b2880bb9fe486a39e354f6d006d15a7374968 flows/init.flow.yaml
 63b2a9b82800094af4e37900cb7c146037282bab flows/quick-update.flow.yaml
@@ -24,12 +24,12 @@ ab2d73ce1b10e61dd56fb25b77eb63b4f79f4242 prompts/quick-update.md
 25bc8dab42c0e0266024a1e4bbb6bdee0238be44 rules/cursor-rule.mdc
 9285368586c3850b7e78367ba667762f63ab44f7 rules/rule-stub.md
 bfd78047749346152652b8d7638391220daaff6d src/agent/audit.ts
-4eb310b229673cbd0c793d82f4cf6bdba7ffbf8f src/agent/claude-agent.ts
+e9939a777fece3422a71bb35f55dd08cbaa5c982 src/agent/claude-agent.ts
 f3afa75edee71068869383d2b2a9b934bec598ec src/agent/copilot-agent.ts
 7a3cf79a1e9f67218b5887ef01d3b1fe470ee63a src/agent/cursor-agent.ts
 b3afa9ecc2c35472879a1f3688f58e8bfbd3ddd8 src/agent/events.ts
 4b16c29e97b6d7bb409adff0c787251f1076b8af src/agent/fake-agent.ts
-bc1479017c84d4601cbb671e091a4d420239afc2 src/agent/permissions.ts
+c3465d374dc7b68ccb9d2aaf2a83d4315a9e44f0 src/agent/permissions.ts
 8749ca269ac640cf403c917fe0178bb6dbd121ba src/agent/spawn.ts
 7cc46464fa980a3fa71880275c57d68aaadab950 src/agent/stdio.ts
 67efaeabbdb4a1b61c28940267eabb1991caf267 src/agent/types.ts
@@ -37,10 +37,10 @@ bc1479017c84d4601cbb671e091a4d420239afc2 src/agent/permissions.ts
 254416104923b28c321824d1e6fc2b7d3ddec3e1 src/cli/backend.ts
 a0016d4450578e29fd487ceba4ac17d0339209d0 src/cli/config.ts
 e057a0ab092231332969a0c7afaf8afa5e5374b3 src/cli/confirm.ts
-519cac669ed2d2d60abdc45fa5d6a4e7c391b806 src/doctor/full-probes.ts
+61848a5539eec6ba483fca06610e6c0ef3b7789f src/doctor/full-probes.ts
 ef6ff0d1def61b4c8a9635a7c46f670e50c86ecb src/doctor/index.ts
 cf0a24b72748012a7502e17a2a088e5af5fa2370 src/doctor/preflight.ts
-e6030ffe9367c0cc29b60e72817fe7986e35c715 src/doctor/probes.ts
+e535de4cea86f2df44a0416af1b500c667f29e27 src/doctor/probes.ts
 498ec568917ed49ed67b4285bf55fd2966010de9 src/doctor/scratch-repo.ts
 2bf6d9539ed687bd4fe20563ed9d531e5bd84e2c src/engine/expression.ts
 e778fc0ccd01af6c5299effd9170c175f1148a89 src/engine/loader.ts
@@ -69,7 +69,7 @@ cf768f2cba0090848d14f54853a1633b24e811ef src/scripts/install-rules.ts
 f5f98b8bf1ab2c19e0116cf306da0346fa537b77 src/scripts/remove-quick-updates.ts
 e743e1dc72219e2844646110f2e5b6f3a6c30161 src/templates.ts
 cc8695cdd823dc31d303d9b79b568774f230ae6e tests/agent/audit.test.ts
-94399c989793ee98f0bd1338c8393b251ea13d5b tests/agent/claude-agent.test.ts
+5107959473d18546bd0779b7a7b5807932b42f3b tests/agent/claude-agent.test.ts
 7cae3a2f4dd0503cd75209350b2cf05e82542202 tests/agent/copilot-agent.test.ts
 4572ec36a447ef32a9a7c2d62cb531fd4c626a5c tests/agent/cursor-agent.test.ts
 0fffdaa10e1ac3f99363f51be22b874af3bcdcc9 tests/agent/events.test.ts

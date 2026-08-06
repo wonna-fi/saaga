@@ -10,14 +10,17 @@ vi.mock("execa", () => {
 
 import { execa } from "execa";
 import { ClaudeAgent } from "../../src/agent/claude-agent.js";
-import type { AgentPermissions } from "../../src/agent/permissions.js";
+import {
+  ALLOWED_SHELL_COMMANDS,
+  type AgentPermissions,
+} from "../../src/agent/permissions.js";
 
 const mockExeca = vi.mocked(execa);
 
-/** Every rule that scopes a path, leaving out tool-level rules like `Bash`. */
+/** Every Edit rule that scopes a path, leaving out Bash command rules. */
 function pathRules(settings: any): string[] {
   return [...settings.permissions.allow, ...settings.permissions.deny].filter(
-    (rule: string) => rule.includes("("),
+    (rule: string) => rule.startsWith("Edit("),
   );
 }
 
@@ -149,7 +152,7 @@ describe("ClaudeAgent", () => {
     }
   });
 
-  test("denies Bash outright, since a narrower git allow cannot survive it", async () => {
+  test("allows only the restricted shell commands", async () => {
     mockExeca.mockReturnValue(Promise.resolve({ exitCode: 0 }) as any);
 
     const cwd = await mkdtemp(join(tmpdir(), "claude-agent-"));
@@ -165,10 +168,55 @@ describe("ClaudeAgent", () => {
 
     const [, args] = mockExeca.mock.calls[0] as any[];
     const settings = JSON.parse(args[args.indexOf("--settings") + 1]);
+    const bashAllows = settings.permissions.allow.filter((rule: string) =>
+      rule.startsWith("Bash("),
+    );
+    const bashDenies = settings.permissions.deny.filter((rule: string) =>
+      rule.startsWith("Bash("),
+    );
+
+    expect(settings.permissions.deny).not.toContain("Bash");
+    expect(bashAllows).toEqual([
+      ...ALLOWED_SHELL_COMMANDS.utilities.map((command) => `Bash(${command}:*)`),
+      ...ALLOWED_SHELL_COMMANDS.git.map(
+        (subcommand) => `Bash(git ${subcommand}:*)`,
+      ),
+    ]);
+    // Claude's built-in read-only Bash set bypasses allowlists under dontAsk,
+    // so extras outside the restricted policy must be denied by name.
+    expect(bashDenies).toEqual(
+      expect.arrayContaining([
+        "Bash(cat *)",
+        "Bash(echo *)",
+        "Bash(sha256sum *)",
+        "Bash(python3 *)",
+      ]),
+    );
+  });
+
+  test("denies Bash outright when the profile disallows shell access", async () => {
+    mockExeca.mockReturnValue(Promise.resolve({ exitCode: 0 }) as any);
+
+    const cwd = await mkdtemp(join(tmpdir(), "claude-agent-"));
+    const permissions: AgentPermissions = {
+      readRoots: [cwd],
+      writeRoots: [resolve(cwd, "docs")],
+      denyPaths: [],
+      shell: "none",
+    };
+
+    const agent = new ClaudeAgent({ model: "opus" });
+    await agent.run("p", { cwd, permissions });
+
+    const [, args] = mockExeca.mock.calls[0] as any[];
+    const settings = JSON.parse(args[args.indexOf("--settings") + 1]);
 
     expect(settings.permissions.deny).toContain("Bash");
     for (const rule of settings.permissions.allow) {
       expect(rule).not.toMatch(/^Bash/);
+    }
+    for (const rule of settings.permissions.deny) {
+      expect(rule).not.toMatch(/^Bash\(/);
     }
   });
 

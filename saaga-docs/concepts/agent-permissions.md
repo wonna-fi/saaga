@@ -56,7 +56,7 @@ Each backend translates the `AgentPermissions` profile into its native permissio
 | Backend | Unrestricted Mode | Restricted Mode |
 |---------|-------------------|-----------------|
 | Cursor | `--force` | `--trust` + `cli-config.json` deny rules (via `CURSOR_CONFIG_DIR` env) |
-| Copilot | `--allow-all-tools` | `--available-tools` allowlist + `--disallow-temp-dir` + `--allow-all-tools` |
+| Copilot | `--allow-all-tools` | `--available-tools` allowlist + `--allow-tool` + `--disallow-temp-dir` |
 | Claude | `--dangerously-skip-permissions` | `--permission-mode dontAsk` + `--settings` JSON (allow/deny/additionalDirectories) |
 
 ### Cursor Translation Details
@@ -72,19 +72,20 @@ The configuration is written to `<runDir>/.cursor-cli/cli-config.json` and point
 ### Copilot Translation Details
 
 Copilot has no middle ground between restricted and unrestricted. Under restriction:
-- Only file tools are allowed: `view`, `create`, `edit`, `glob`, `grep`
+- File tools are allowed via `--available-tools`: `view`, `create`, `edit`, `glob`, `grep`, plus `bash` when `shell` is `"restricted"`
+- When `shell` is `"restricted"`, `--allow-tool` grants a `shell(<command>:*)` / `shell(git:<subcommand>*)` pattern for each `ALLOWED_SHELL_COMMANDS` entry, alongside the `write` tool grant
 - `--disallow-temp-dir` closes the temp directory hole
 - Extra roots outside `cwd` are added via `--add-dir`
-- The `restricted` shell policy degrades to no shell (Copilot cannot scope shell access)
 
 ### Claude Translation Details
 
 Claude uses `--permission-mode dontAsk` with a `--settings` JSON payload:
 - Write roots are expressed as `Edit(//<path>/**)` allow rules
 - Denied paths are expressed as `Edit(//<path>)` deny rules
-- Tools like `Bash`, `Task`, `WebFetch`, etc. are denied by name
+- Unwanted tools (`Task`, `WebFetch`, `WebSearch`, subagent/cron tools, etc.) are denied by name
 - Additional read directories are listed in `additionalDirectories`
-- The `restricted` shell policy degrades to no shell (a deny on `Bash` overrides any narrow allow)
+- When `shell` is `"restricted"`, each `ALLOWED_SHELL_COMMANDS` entry becomes a scoped `Bash(<command>:*)` / `Bash(git <subcommand>:*)` allow rule. Claude still auto-runs a built-in set of read-only Bash commands under `dontAsk` regardless of `permissions.allow`, so the adapter also denies the built-ins that fall outside the restricted policy (`Bash(cat *)`, `Bash(echo *)`, `Bash(find *)`, `Bash(python3 *)`, etc., see `CLAUDE_BUILTIN_BASH_DENY` in `src/agent/claude-agent.ts`)
+- When `shell` is `"none"`, a bare `Bash` deny is emitted instead — that deny would otherwise override every scoped allow, which is why it is only used for the no-shell case
 
 ## Internal Implementation
 
@@ -94,6 +95,8 @@ Claude uses `--permission-mode dontAsk` with a `--settings` JSON payload:
 > - `src/agent/cursor-agent.ts`.`pathRules()` — emits deny rule strings in both bare and glob form for a given path
 > - `src/agent/copilot-agent.ts`.`buildRestrictedCopilotArgs()` — builds the restricted CLI argument array for Copilot
 > - `src/agent/claude-agent.ts`.`buildClaudeSettings()` — constructs the settings JSON for Claude's permission layer
+> - `src/agent/claude-agent.ts`.`restrictedBashAllowRules()` — maps `ALLOWED_SHELL_COMMANDS` into `Bash(...)` allow rule strings
+> - `src/agent/claude-agent.ts`.`CLAUDE_BUILTIN_BASH_DENY` (constant) — Bash command patterns denied by name to close Claude's built-in read-only Bash gap under `dontAsk`
 
 ## Reference Implementations
 

@@ -106,23 +106,24 @@ export const PROBE_CATALOGUE: ProbeDefinition[] = [
     id: "restricted-shell-utility-allowed",
     description: "pwd runs under the restricted shell allowance.",
     level: "full",
-    backends: ["cursor", "copilot"],
+    backends: ["cursor", "copilot", "claude"],
   },
   {
     id: "read-only-git-allowed",
     description: "git log runs under the restricted shell allowance.",
     level: "full",
-    backends: ["cursor", "copilot"],
+    backends: ["cursor", "copilot", "claude"],
   },
   {
     id: "git-mutation-denied",
     description: "git commit is refused.",
     level: "full",
-    backends: ["cursor", "copilot"],
+    backends: ["cursor", "copilot", "claude"],
   },
   {
     id: "claude/tool-surface",
-    description: "Only the file tools are available; no web, subagents, or MCP.",
+    description:
+      "Only file tools and Bash are available; no web, subagents, or MCP.",
     level: "full",
     backends: ["claude"],
   },

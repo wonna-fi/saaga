@@ -284,7 +284,7 @@ backend, because the three CLIs expose very different permission systems:
 | ------- | --------- | -------------------------- | ---------------- |
 | cursor  | Generated `cli-config.json` pointed at by `CURSOR_CONFIG_DIR`, enumerating denied paths plus explicit `Shell(cd:*)`, `Shell(ls:*)`, `Shell(pwd:*)`, `Shell(grep:*)`, `Shell(head:*)`, `Shell(tail:*)`, `Shell(wc:*)`, `Shell(dirname:*)`, `Shell(basename:*)`, and `Shell(git:*)` allows. Uses `--trust` instead of `--force`. | Yes | Yes |
 | copilot | `--available-tools` limits the model to file tools plus `bash`; `--allow-tool` permits only the restricted utility and read-only Git shell patterns, and `--disallow-temp-dir` closes temp-directory access. | No | Yes |
-| claude  | `--permission-mode dontAsk` with an inline `--settings` JSON carrying `Edit` allow rules and a deny list that cuts the toolset down to `Read`/`Write`/`Edit`/`Glob`/`Grep`, plus `--strict-mcp-config`. | Yes | No |
+| claude  | `--permission-mode dontAsk` with an inline `--settings` JSON carrying `Edit` allow rules, scoped `Bash(...)` allows for the restricted shell policy, explicit `Bash(...)` denies for Claude's built-in read-only extras outside that policy, a deny list that cuts the remaining toolset down to `Read`/`Write`/`Edit`/`Bash`, plus `--strict-mcp-config`. | Yes | Yes |
 
 Copilot is the outlier: the adapter does not yet translate the profile's
 write roots and denied paths into Copilot file permission patterns, so writes
@@ -294,17 +294,21 @@ protection as the backstop there rather than the agent profile.
 The restricted shell policy allows utility commands (`cd`, `ls`, `pwd`,
 `grep`, `head`, `tail`, `wc`, `dirname`, `basename`)
 and read-only git (`log`, `show`, `diff`, `blame`, `status`, `ls-files`,
-`cat-file`, `rev-parse`) on cursor and copilot. Copilot translates these
-to explicit `shell(...)` permission patterns; Claude receives no shell
-because its permission model cannot scope it safely.
+`cat-file`, `rev-parse`) on cursor, copilot, and claude. Each backend
+translates these into its native rule syntax: Cursor `Shell(...)`,
+Copilot `shell(...)`, and Claude `Bash(...)`.
 
 Copilot's tool surface is narrowed with an allowlist, so anything new is
-excluded by default. Claude has no such option — `--allowedTools` widens
-rather than restricts — so its unwanted tools (web access, subagents,
+excluded by default. Claude has no exclusive allowlist — `--allowedTools`
+and `permissions.allow` grant named or scoped permissions rather than
+removing unrelated tools — so its unwanted tools (web access, subagents,
 MCP) are denied by name, and a tool introduced in a later release will
-arrive enabled. The `claude/tool-surface` probe asserts the surviving
-toolset for exactly that reason; run `saaga doctor --level full` after
-upgrading a backend CLI.
+arrive enabled. The same applies to Claude Bash: under `dontAsk`, Claude
+still auto-runs a built-in read-only command set unless those commands are
+denied explicitly, so the adapter pairs scoped allows with denies for
+built-ins outside the restricted policy. The `claude/tool-surface` probe
+asserts the surviving toolset for exactly that reason; run
+`saaga doctor --level full` after upgrading a backend CLI.
 
 Saaga does not narrow cursor's tool surface at all; its profile only
 governs paths and shell. Cursor exposes MCP tools that have not been

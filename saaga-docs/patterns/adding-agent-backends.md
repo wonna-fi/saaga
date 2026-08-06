@@ -112,9 +112,9 @@ export function createMyAgentEventParser(): EventParser {
 
 | File | Class/Method | Notes |
 |------|-------------|-------|
-| `src/agent/cursor-agent.ts` | `CursorAgent` | Restricted mode: writes `cli-config.json` with deny rules, uses `--trust` flag, sets `CURSOR_CONFIG_DIR` env var. Only backend that can honour `read-only-git` shell policy via `allow` entries |
-| `src/agent/copilot-agent.ts` | `CopilotAgent` | Restricted mode: uses `--available-tools` whitelist + `--disallow-temp-dir`. Shell is removed entirely (no middle ground). Renames `.gitignore` during invocation |
-| `src/agent/claude-agent.ts` | `ClaudeAgent` | Restricted mode: uses `--permission-mode dontAsk` + `--settings` JSON with `allow`/`deny`/`additionalDirectories`. Passes `--strict-mcp-config` to block ambient tool widening |
+| `src/agent/cursor-agent.ts` | `CursorAgent` | Restricted mode: writes `cli-config.json` with deny rules, uses `--trust` flag, sets `CURSOR_CONFIG_DIR` env var. Honours the `restricted` shell policy via `Shell(...)` allow entries |
+| `src/agent/copilot-agent.ts` | `CopilotAgent` | Restricted mode: uses `--available-tools` whitelist + `--disallow-temp-dir`. Honours the `restricted` shell policy via `shell(...)` allow entries. Renames `.gitignore` during invocation |
+| `src/agent/claude-agent.ts` | `ClaudeAgent` | Restricted mode: uses `--permission-mode dontAsk` + `--settings` JSON with `allow`/`deny`/`additionalDirectories`. Honours the `restricted` shell policy via scoped `Bash(...)` allow entries, paired with denies for Claude's built-in read-only Bash set. Passes `--strict-mcp-config` to block ambient tool widening |
 | `src/agent/fake-agent.ts` | `FakeAgent` | Test double: records `permissions` and `onEvent` in `FakeAgentCall` for assertion |
 | `src/agent/stdio.ts` | `buildStdio()`, `buildPipedStdio()` | Shared stdio configuration — all adapters use these instead of per-adapter copies |
 | `src/agent/spawn.ts` | `awaitProcess()` | Shared process-await helper with concurrent event stream draining |
