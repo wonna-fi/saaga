@@ -24,7 +24,7 @@ export interface AgentPermissions {
  * shell at all rather than granting these.
  */
 export const ALLOWED_SHELL_COMMANDS = {
-  utilities: ["cd", "ls", "pwd", "grep", "head", "tail", "wc", "find", "dirname", "basename"],
+  utilities: ["cd", "ls", "pwd", "grep", "head", "tail", "wc", "dirname", "basename"],
   git: ["log", "show", "diff", "blame", "status", "ls-files", "cat-file", "rev-parse"],
 } as const;
 

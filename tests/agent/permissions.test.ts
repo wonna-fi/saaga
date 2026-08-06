@@ -79,7 +79,6 @@ describe("ALLOWED_SHELL_COMMANDS", () => {
     expect(ALLOWED_SHELL_COMMANDS.utilities).toContain("head");
     expect(ALLOWED_SHELL_COMMANDS.utilities).toContain("tail");
     expect(ALLOWED_SHELL_COMMANDS.utilities).toContain("wc");
-    expect(ALLOWED_SHELL_COMMANDS.utilities).toContain("find");
     expect(ALLOWED_SHELL_COMMANDS.utilities).toContain("dirname");
     expect(ALLOWED_SHELL_COMMANDS.utilities).toContain("basename");
   });
