@@ -1,14 +1,14 @@
-# Generated: 2026-08-06T07:01:50.889Z
+# Generated: 2026-08-06T10:59:03.024Z
 eb5f87a2e9609984545f103fad86945898ed6be8 .github/workflows/backend-drift.yml
 d7e08a188b70e03d7663a8cc06b48d27a812ca95 .github/workflows/ci.yml
 207ce2b0b21e99567a5b41e1c60c8426b10f29a2 .npmrc
 c2366abff15f6cf68ebcf74fc0640f0a8d1885cd .saaga/config.yaml
 57f11fb08926ac76ea02d77823758f3d7b333cde AGENTS.md
 581f22ed0b141aabdd94b0cfd355c29fa9699335 DEVELOPING.md
-12f6cd0ad7243bb77251b74e670a7f20fc913712 README.md
+bef9e0a7335c2bef978a87222585bf8301e2d501 README.md
 c09a02e5db75ca8d5ccd829d75a3c118531c80dd eslint.config.js
 ce9b2880bb9fe486a39e354f6d006d15a7374968 flows/init.flow.yaml
-ccf4fdef53058d3190a9c2ff7ffcbfdcaafa1118 flows/quick-update.flow.yaml
+63b2a9b82800094af4e37900cb7c146037282bab flows/quick-update.flow.yaml
 fdaf93ad8916a3ceec01f26e2d68704809ce6709 flows/update.flow.yaml
 94ce3ba9500eeda6d5772929da10b41c96eeb5a0 flows/verify-quick-updates.flow.yaml
 f80e428ee165a33d20e25df669ecface68c0c6c1 package.json
@@ -25,7 +25,7 @@ ab2d73ce1b10e61dd56fb25b77eb63b4f79f4242 prompts/quick-update.md
 9285368586c3850b7e78367ba667762f63ab44f7 rules/rule-stub.md
 bfd78047749346152652b8d7638391220daaff6d src/agent/audit.ts
 4eb310b229673cbd0c793d82f4cf6bdba7ffbf8f src/agent/claude-agent.ts
-d18773b21b8bcad0975310d4068652283b5ced4c src/agent/copilot-agent.ts
+f3afa75edee71068869383d2b2a9b934bec598ec src/agent/copilot-agent.ts
 7a3cf79a1e9f67218b5887ef01d3b1fe470ee63a src/agent/cursor-agent.ts
 b3afa9ecc2c35472879a1f3688f58e8bfbd3ddd8 src/agent/events.ts
 4b16c29e97b6d7bb409adff0c787251f1076b8af src/agent/fake-agent.ts
@@ -37,10 +37,10 @@ bc1479017c84d4601cbb671e091a4d420239afc2 src/agent/permissions.ts
 254416104923b28c321824d1e6fc2b7d3ddec3e1 src/cli/backend.ts
 a0016d4450578e29fd487ceba4ac17d0339209d0 src/cli/config.ts
 e057a0ab092231332969a0c7afaf8afa5e5374b3 src/cli/confirm.ts
-02a7ac02c390b57602f4f7ae56d8e4bec4bc634d src/doctor/full-probes.ts
+519cac669ed2d2d60abdc45fa5d6a4e7c391b806 src/doctor/full-probes.ts
 ef6ff0d1def61b4c8a9635a7c46f670e50c86ecb src/doctor/index.ts
 cf0a24b72748012a7502e17a2a088e5af5fa2370 src/doctor/preflight.ts
-205d23d2acc4073ccd96639fdcf9ae192b276c55 src/doctor/probes.ts
+e6030ffe9367c0cc29b60e72817fe7986e35c715 src/doctor/probes.ts
 498ec568917ed49ed67b4285bf55fd2966010de9 src/doctor/scratch-repo.ts
 2bf6d9539ed687bd4fe20563ed9d531e5bd84e2c src/engine/expression.ts
 e778fc0ccd01af6c5299effd9170c175f1148a89 src/engine/loader.ts
@@ -50,13 +50,14 @@ e778fc0ccd01af6c5299effd9170c175f1148a89 src/engine/loader.ts
 7168ec5be8ba6d2ad69dfae371d5fcba589c3954 src/engine/primitives/loop.ts
 e086305be1ef59b920add6d0359e8df711730a6c src/engine/primitives/read-file.ts
 eb7ec2742ea6c7c2a4b79cdb31cfbfd19ce24421 src/engine/primitives/script.ts
-8c8c308c8a3b619c426974ff440ad4d3eebe7b20 src/engine/runner.ts
+dc999000f1aafbe0522beb543a15f9b2cacd175b src/engine/runner.ts
 880cf3d9e3e96c74d0ca771193917a22bbfb0f4e src/engine/types.ts
 d0ae9bff59fe55adab995f405d79b7430c37831a src/logger.ts
 de813e59efcfb543a951c8de519a363163419f17 src/output.ts
 b9229f24e4f0bd3f293ad7246bf61f4fec7ef335 src/paths.ts
 e9a6d1c01c59bc47577615f02ebc29a1bacb3d27 src/run-context.ts
 9b361af06968d2bef5b88c639b6463d2188d78a0 src/scripts/archive-quick-update.ts
+9c2935196daa9300f16b61972033698703ca36ff src/scripts/cleanup-quick-update-dir.ts
 392f4403ef831d7709f9a64a6a670ef5e8b5daf1 src/scripts/collect-quick-updates.ts
 082e1b7652eb55c8b013491d42839c4ad16f2730 src/scripts/detect-changes.ts
 06baae825b5a040a1c0b9af863c9e81127373c39 src/scripts/ensure-gitignore.ts
@@ -64,12 +65,12 @@ e9a6d1c01c59bc47577615f02ebc29a1bacb3d27 src/run-context.ts
 849c585dc8b23c70844fef31cde07c5d07763f85 src/scripts/generate-baseline.ts
 cf768f2cba0090848d14f54853a1633b24e811ef src/scripts/install-rules.ts
 7889de086c22ef877f7720261b16b6cc65482cb8 src/scripts/parse-plan.ts
-ed9bf182d616e82b2bdd903af60ef9c435d1401f src/scripts/registry.ts
+9a804be8582e6135fe04402683d4f569e326b7a0 src/scripts/registry.ts
 f5f98b8bf1ab2c19e0116cf306da0346fa537b77 src/scripts/remove-quick-updates.ts
 e743e1dc72219e2844646110f2e5b6f3a6c30161 src/templates.ts
 cc8695cdd823dc31d303d9b79b568774f230ae6e tests/agent/audit.test.ts
 94399c989793ee98f0bd1338c8393b251ea13d5b tests/agent/claude-agent.test.ts
-cdaac2dc3f8cf8250ea337597594971fa0a1fda5 tests/agent/copilot-agent.test.ts
+7cae3a2f4dd0503cd75209350b2cf05e82542202 tests/agent/copilot-agent.test.ts
 4572ec36a447ef32a9a7c2d62cb531fd4c626a5c tests/agent/cursor-agent.test.ts
 0fffdaa10e1ac3f99363f51be22b874af3bcdcc9 tests/agent/events.test.ts
 66962ce481c7a15301efbbe0de9f835220c77fc0 tests/agent/fake-agent.test.ts
@@ -82,12 +83,12 @@ cdaac2dc3f8cf8250ea337597594971fa0a1fda5 tests/agent/copilot-agent.test.ts
 44b73b98c78f82e43c44e2846df6fabe42ff720d tests/cli/help-version.test.ts
 7e8ecd0b3ae462a17e17ddaf41c16663bfaa0406 tests/cli/init.test.ts
 50fcd6caa03e7795d57f8b9195c7be7e57dcdfd4 tests/cli/install-rules.test.ts
-d8cdb7e447bb55c8269beeacab8569dde28a744b tests/cli/quick-update.test.ts
+5f465e2051e398e42b1bab90109886523d9eb01f tests/cli/quick-update.test.ts
 58ebba458da1dc751f5335fd7b717c0425a564de tests/cli/update.test.ts
 84229d1bc339a9823bf35c5776b9ef4801437f6b tests/cli/verify-quick-updates.test.ts
 7e2feb54d2d385e7380acfe5acceeb9ca84f5a2c tests/devcontainer/devcontainer.test.ts
 be9e7f28752c808ea426b7b62de75242dc35ea96 tests/doctor/full-probes.test.ts
-46fa4c745d0ec8754093a6bbb5481b52978086f9 tests/engine/agent-step.test.ts
+4fc197f9105a009b6719d876bfd8a2b5a7ce31da tests/engine/agent-step.test.ts
 54279361d339682b4c1b4605d59704a748c5c820 tests/engine/expect-file.test.ts
 685152d2a94503f942e45f49ef78d08c8d5819c2 tests/engine/expression.test.ts
 edbac4acfb44f41e98ce44d140c89908add1bdc8 tests/engine/foreach.test.ts
@@ -101,6 +102,7 @@ a68cba8ca2aa61e2c0c14267a9b95306bdae25c8 tests/logger.test.ts
 f6c8c14783e89ad2f6e2789abc42db5ae7c7d421 tests/placeholder.test.ts
 f847ca9387336f54cfba05665c851b0ff12082ee tests/run-context.test.ts
 d99a9951b7332f3d5300c5063bcebfa51f5e5f63 tests/scripts/archive-quick-update.test.ts
+377c704d24d64dc818006b0d8a3b86484f67baa0 tests/scripts/cleanup-quick-update-dir.test.ts
 62bd12ac2c9c4ab65022a507f39d6c9aa2e789f9 tests/scripts/collect-quick-updates.test.ts
 6109d70c0c8e4ea9a89efaf02d67c615e14e9806 tests/scripts/detect-changes.test.ts
 051d8fa7d7e811e5e51ee926f7bfca80df8322d8 tests/scripts/file-manifest.test.ts

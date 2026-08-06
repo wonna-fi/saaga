@@ -43,9 +43,10 @@ Before working with this feature, understand these concepts:
 1. Resolves prompt file path: `<PROMPTS_DIR>/<step.prompt>.md`
 2. Interpolates each `vars` value using `interpolate(raw, scope)` — resolves `${expr}` references
 3. Renders the prompt template file: `renderPromptFile(path, renderedVars)` — substitutes `{key}` placeholders
-4. Constructs `additionalDirs` from `scope.run_dir` (if it is a string); constructs `onEvent` callback from `deps.auditor` (if present — calls `auditor.record(event)` for each event); calls `deps.agent.run(prompt, { cwd: deps.cwd, additionalDirs, permissions: deps.permissions, logFile: deps.logFile, echo: deps.verbose, onEvent })`
-5. If exit code is non-zero, throws `AgentStepFailedError`; before re-throwing, calls `printFailureTail()` to show the last lines from the log file
-6. If `expect_file` is defined, interpolates the path and asserts the file exists — throws `ExpectFileMissingError` if missing
+4. Pre-creates directories for agent output paths: for any prompt var value that starts with a write-permitted root (`scope.run_dir` or `deps.permissions.writeRoots`), the parent directory is created recursively; this ensures the agent can write to expected paths without directory-not-found errors
+5. Constructs `additionalDirs` from `scope.run_dir` (if it is a string); constructs `onEvent` callback from `deps.auditor` (if present — calls `auditor.record(event)` for each event); calls `deps.agent.run(prompt, { cwd: deps.cwd, additionalDirs, permissions: deps.permissions, logFile: deps.logFile, echo: deps.verbose, onEvent })`
+6. If exit code is non-zero, throws `AgentStepFailedError`; before re-throwing, calls `printFailureTail()` to show the last lines from the log file
+7. If `expect_file` is defined, interpolates the path and asserts the file exists — throws `ExpectFileMissingError` if missing
 
 ### Edge Cases
 
