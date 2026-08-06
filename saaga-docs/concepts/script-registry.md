@@ -44,6 +44,7 @@ The Script Registry is the mechanism by which Saaga maps script names (used in f
 | `"generate-baseline"` | `src/scripts/generate-baseline.ts` | Writes `<docs_dir>/BASELINE` content manifest |
 | `"detect-changes"` | `src/scripts/detect-changes.ts` | Compares work tree against BASELINE, classifies differences |
 | `"archive-quick-update"` | `src/scripts/archive-quick-update.ts` | Copies the detect-changes report into the quick-update metadata folder for later verification |
+| `"cleanup-quick-update-dir"` | `src/scripts/cleanup-quick-update-dir.ts` | Removes a single pre-created quick-update metadata folder when the agent wrote SKIPPED rather than UPDATED; validates path safety to prevent path-traversal attacks |
 | `"collect-quick-updates"` | `src/scripts/collect-quick-updates.ts` | Snapshots unverified quick-update metadata folders and writes a JSON manifest |
 | `"remove-quick-updates"` | `src/scripts/remove-quick-updates.ts` | Deletes exactly the quick-update metadata folders listed in a manifest |
 | `"install-rules"` | `src/scripts/install-rules.ts` | Installs documentation rule stubs into the target application directory |
@@ -63,6 +64,7 @@ The script step handler in `src/engine/primitives/script.ts` performs three oper
 - `src/scripts/detect-changes.ts` — accepts `{ app_dir, output_dir, docs_dir }` args, returns `DetectChangesResult` with per-classification counts
 - `src/scripts/generate-baseline.ts` — accepts `{ app_dir, docs_dir }` args, returns `void` (side effect: writes BASELINE file)
 - `src/scripts/archive-quick-update.ts` — accepts `{ changes_path, dest_dir, summary_path? }` args, returns `void` (side effect: if `summary_path` is provided, verifies the summary exists before copying; throws if it doesn't)
+- `src/scripts/cleanup-quick-update-dir.ts` — accepts `{ metadata_root, run_id }` args, returns `void` (side effect: validates the resolved folder is strictly inside `metadata_root` to prevent path-traversal attacks, then removes the folder recursively)
 - `src/scripts/collect-quick-updates.ts` — accepts `{ metadata_dir, output_dir }` args, returns `CollectQuickUpdatesResult` with `count`, `manifest_path`, and `ids`
 - `src/scripts/remove-quick-updates.ts` — accepts `{ manifest }` args, returns `void` (side effect: deletes metadata folders listed in manifest)
 - `src/scripts/install-rules.ts` — accepts `{ app_dir, app, rule_targets, docs_dir }` args, returns `void` (side effect: upserts rule stubs into rule files for the requested targets)

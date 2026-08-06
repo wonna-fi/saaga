@@ -36,6 +36,14 @@ steps:
               dest_dir: ${app_path}/${docs_dir}/metadata/quick_updates/${run_id}
               summary_path: ${app_path}/${docs_dir}/metadata/quick_updates/${run_id}/summary.md
 
+      - if: '${status} != "UPDATED"'
+        then:
+          - script:
+              name: cleanup-quick-update-dir
+              label: cleaning up metadata
+              metadata_root: ${app_path}/${docs_dir}/metadata/quick_updates
+              run_id: ${run_id}
+
       - script:
           name: generate-baseline
           label: generating baseline

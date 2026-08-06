@@ -38,7 +38,6 @@ function quickUpdateScenario(
         if (!summaryMatch)
           throw new Error("summary path not found in prompt");
         const summaryPath = summaryMatch[1];
-        await mkdir(dirname(summaryPath), { recursive: true });
         await writeFile(
           summaryPath,
           `---\ngenerated: 2026-06-03T10:00:00Z\nverified: false\ndocs_touched:\n  - docs/concepts/test.md\nconfidence: medium\n---\n\nUpdated test concept.\n`,
@@ -115,7 +114,8 @@ describe("saaga quick-update", () => {
     expect(fake.calls).toHaveLength(1);
 
     const metaDir = join(app, DEFAULT_DOCS_DIR, "metadata", "quick_updates");
-    await expect(readdir(metaDir)).rejects.toThrow();
+    const entries = await readdir(metaDir);
+    expect(entries).toHaveLength(0);
 
     const baselineStat = await stat(join(app, DEFAULT_DOCS_DIR, "BASELINE"));
     expect(baselineStat.isFile()).toBe(true);
