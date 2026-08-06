@@ -1,11 +1,11 @@
-# Generated: 2026-08-05T21:34:24.451Z
+# Generated: 2026-08-06T06:46:46.973Z
 eb5f87a2e9609984545f103fad86945898ed6be8 .github/workflows/backend-drift.yml
 d7e08a188b70e03d7663a8cc06b48d27a812ca95 .github/workflows/ci.yml
 207ce2b0b21e99567a5b41e1c60c8426b10f29a2 .npmrc
 c2366abff15f6cf68ebcf74fc0640f0a8d1885cd .saaga/config.yaml
 57f11fb08926ac76ea02d77823758f3d7b333cde AGENTS.md
 581f22ed0b141aabdd94b0cfd355c29fa9699335 DEVELOPING.md
-ba4af98160fe6d598fa270f8a362ddca7dc0c84a README.md
+6a7c380a4258b1e4dfd23107bab35a4610376f1b README.md
 c09a02e5db75ca8d5ccd829d75a3c118531c80dd eslint.config.js
 ce9b2880bb9fe486a39e354f6d006d15a7374968 flows/init.flow.yaml
 ccf4fdef53058d3190a9c2ff7ffcbfdcaafa1118 flows/quick-update.flow.yaml
@@ -24,12 +24,12 @@ ab2d73ce1b10e61dd56fb25b77eb63b4f79f4242 prompts/quick-update.md
 25bc8dab42c0e0266024a1e4bbb6bdee0238be44 rules/cursor-rule.mdc
 9285368586c3850b7e78367ba667762f63ab44f7 rules/rule-stub.md
 bfd78047749346152652b8d7638391220daaff6d src/agent/audit.ts
-df59ce9a9810fe9abd32bcc266026a8004d03008 src/agent/claude-agent.ts
-f57fbe318ea12a14571279cf92fe235798c21744 src/agent/copilot-agent.ts
-e19f4e5c990283fb20b305312b32002230703bc7 src/agent/cursor-agent.ts
+4eb310b229673cbd0c793d82f4cf6bdba7ffbf8f src/agent/claude-agent.ts
+d18773b21b8bcad0975310d4068652283b5ced4c src/agent/copilot-agent.ts
+7a3cf79a1e9f67218b5887ef01d3b1fe470ee63a src/agent/cursor-agent.ts
 b3afa9ecc2c35472879a1f3688f58e8bfbd3ddd8 src/agent/events.ts
 4b16c29e97b6d7bb409adff0c787251f1076b8af src/agent/fake-agent.ts
-ea1710ed3371200153f90cc0514c320dd6744a9b src/agent/permissions.ts
+a59d1350f6d859106aa0808fab65517b1e34b892 src/agent/permissions.ts
 8749ca269ac640cf403c917fe0178bb6dbd121ba src/agent/spawn.ts
 7cc46464fa980a3fa71880275c57d68aaadab950 src/agent/stdio.ts
 67efaeabbdb4a1b61c28940267eabb1991caf267 src/agent/types.ts
@@ -40,7 +40,7 @@ e057a0ab092231332969a0c7afaf8afa5e5374b3 src/cli/confirm.ts
 02a7ac02c390b57602f4f7ae56d8e4bec4bc634d src/doctor/full-probes.ts
 ef6ff0d1def61b4c8a9635a7c46f670e50c86ecb src/doctor/index.ts
 cf0a24b72748012a7502e17a2a088e5af5fa2370 src/doctor/preflight.ts
-b90ce264cd2b8b3c9e45cc99c6cf6679874800ec src/doctor/probes.ts
+205d23d2acc4073ccd96639fdcf9ae192b276c55 src/doctor/probes.ts
 498ec568917ed49ed67b4285bf55fd2966010de9 src/doctor/scratch-repo.ts
 2bf6d9539ed687bd4fe20563ed9d531e5bd84e2c src/engine/expression.ts
 e778fc0ccd01af6c5299effd9170c175f1148a89 src/engine/loader.ts
@@ -67,13 +67,13 @@ cf768f2cba0090848d14f54853a1633b24e811ef src/scripts/install-rules.ts
 ed9bf182d616e82b2bdd903af60ef9c435d1401f src/scripts/registry.ts
 f5f98b8bf1ab2c19e0116cf306da0346fa537b77 src/scripts/remove-quick-updates.ts
 e743e1dc72219e2844646110f2e5b6f3a6c30161 src/templates.ts
-8978fb1f3749fdb03fdf71ec13d5389910edb375 tests/agent/audit.test.ts
-4bb782620125b82c6fd4a13401d21a9120143948 tests/agent/claude-agent.test.ts
-72919b695b1e38542029aef7ac871525a3108ce9 tests/agent/copilot-agent.test.ts
-39fac9757a95a60ba173a5490a36b00c041e4803 tests/agent/cursor-agent.test.ts
+cc8695cdd823dc31d303d9b79b568774f230ae6e tests/agent/audit.test.ts
+94399c989793ee98f0bd1338c8393b251ea13d5b tests/agent/claude-agent.test.ts
+cdaac2dc3f8cf8250ea337597594971fa0a1fda5 tests/agent/copilot-agent.test.ts
+4572ec36a447ef32a9a7c2d62cb531fd4c626a5c tests/agent/cursor-agent.test.ts
 0fffdaa10e1ac3f99363f51be22b874af3bcdcc9 tests/agent/events.test.ts
 66962ce481c7a15301efbbe0de9f835220c77fc0 tests/agent/fake-agent.test.ts
-0122bed2568b5efa654fbc8e9ac31a86cfcb8848 tests/agent/permissions.test.ts
+331a48cd346c6556616553972679a6f9c2251b04 tests/agent/permissions.test.ts
 5b3c8a309b09895ac2d22ac9f17729d5b89c2486 tests/cli/backend.test.ts
 762a720f377643a28ff3c977ccb7a80c64376df5 tests/cli/config-integration.test.ts
 0d9ec19bc7f601dbf6b459dd1c9e37c404df9932 tests/cli/config.test.ts
@@ -87,7 +87,7 @@ d8cdb7e447bb55c8269beeacab8569dde28a744b tests/cli/quick-update.test.ts
 84229d1bc339a9823bf35c5776b9ef4801437f6b tests/cli/verify-quick-updates.test.ts
 7e2feb54d2d385e7380acfe5acceeb9ca84f5a2c tests/devcontainer/devcontainer.test.ts
 be9e7f28752c808ea426b7b62de75242dc35ea96 tests/doctor/full-probes.test.ts
-2bc4ab4b1b9afd87d1112af8faec0b5063429d27 tests/engine/agent-step.test.ts
+46fa4c745d0ec8754093a6bbb5481b52978086f9 tests/engine/agent-step.test.ts
 54279361d339682b4c1b4605d59704a748c5c820 tests/engine/expect-file.test.ts
 685152d2a94503f942e45f49ef78d08c8d5819c2 tests/engine/expression.test.ts
 edbac4acfb44f41e98ce44d140c89908add1bdc8 tests/engine/foreach.test.ts
