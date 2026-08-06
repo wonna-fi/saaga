@@ -1,6 +1,6 @@
 import { resolve } from "node:path";
 import { describe, expect, test } from "vitest";
-import { buildProfile, READ_ONLY_GIT } from "../../src/agent/permissions.js";
+import { buildProfile, ALLOWED_SHELL_COMMANDS } from "../../src/agent/permissions.js";
 
 describe("buildProfile", () => {
   const appPath = "/home/user/myapp";
@@ -33,9 +33,9 @@ describe("buildProfile", () => {
     );
   });
 
-  test("sets shell to read-only-git", () => {
+  test("sets shell to restricted", () => {
     const profile = buildProfile({ appPath, docsDir, runDir });
-    expect(profile.shell).toBe("read-only-git");
+    expect(profile.shell).toBe("restricted");
   });
 
   test("allowDirs appends to both readRoots and writeRoots", () => {
@@ -70,21 +70,28 @@ describe("buildProfile", () => {
   });
 });
 
-describe("READ_ONLY_GIT", () => {
-  test("contains expected subcommands", () => {
-    expect(READ_ONLY_GIT).toContain("log");
-    expect(READ_ONLY_GIT).toContain("show");
-    expect(READ_ONLY_GIT).toContain("diff");
-    expect(READ_ONLY_GIT).toContain("blame");
-    expect(READ_ONLY_GIT).toContain("status");
+describe("ALLOWED_SHELL_COMMANDS", () => {
+  test("utilities contains cd, ls, pwd", () => {
+    expect(ALLOWED_SHELL_COMMANDS.utilities).toContain("cd");
+    expect(ALLOWED_SHELL_COMMANDS.utilities).toContain("ls");
+    expect(ALLOWED_SHELL_COMMANDS.utilities).toContain("pwd");
   });
 
-  test("does not contain mutating subcommands", () => {
-    expect(READ_ONLY_GIT).not.toContain("commit");
-    expect(READ_ONLY_GIT).not.toContain("push");
-    expect(READ_ONLY_GIT).not.toContain("checkout");
-    expect(READ_ONLY_GIT).not.toContain("reset");
-    expect(READ_ONLY_GIT).not.toContain("rebase");
-    expect(READ_ONLY_GIT).not.toContain("config");
+  test("git contains expected subcommands", () => {
+    expect(ALLOWED_SHELL_COMMANDS.git).toContain("log");
+    expect(ALLOWED_SHELL_COMMANDS.git).toContain("show");
+    expect(ALLOWED_SHELL_COMMANDS.git).toContain("diff");
+    expect(ALLOWED_SHELL_COMMANDS.git).toContain("blame");
+    expect(ALLOWED_SHELL_COMMANDS.git).toContain("status");
+  });
+
+  test("git does not contain mutating subcommands", () => {
+    const git = ALLOWED_SHELL_COMMANDS.git as readonly string[];
+    expect(git).not.toContain("commit");
+    expect(git).not.toContain("push");
+    expect(git).not.toContain("checkout");
+    expect(git).not.toContain("reset");
+    expect(git).not.toContain("rebase");
+    expect(git).not.toContain("config");
   });
 });

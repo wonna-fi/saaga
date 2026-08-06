@@ -2,7 +2,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { execa, type ResultPromise } from "execa";
 import { parseJsonLine, type AgentEvent, type EventParser } from "./events.js";
-import { enumerateExcludedPaths, READ_ONLY_GIT } from "./permissions.js";
+import { enumerateExcludedPaths, ALLOWED_SHELL_COMMANDS } from "./permissions.js";
 import { awaitProcess } from "./spawn.js";
 import { buildPipedStdio, buildStdio } from "./stdio.js";
 import type { Agent, AgentRunOpts, AgentRunResult } from "./types.js";
@@ -169,7 +169,7 @@ async function buildCursorExecaOpts(
  * since deny takes precedence over any allow.
  *
  * Shell is the exception. It is default-deny, so `allow` is the right lever
- * and the read-only git subcommands are listed there.
+ * and the restricted shell commands (utilities + read-only git) are listed there.
  */
 async function writeCursorConfig(
   opts: AgentRunOpts,
@@ -195,8 +195,11 @@ async function writeCursorConfig(
   }
 
   const allow: string[] = [];
-  if (perms.shell === "read-only-git") {
-    for (const sub of READ_ONLY_GIT) {
+  if (perms.shell === "restricted") {
+    for (const cmd of ALLOWED_SHELL_COMMANDS.utilities) {
+      allow.push(`Shell(${cmd}:*)`);
+    }
+    for (const sub of ALLOWED_SHELL_COMMANDS.git) {
       allow.push(`Shell(git:${sub}*)`);
     }
   }

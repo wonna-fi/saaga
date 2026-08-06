@@ -164,7 +164,7 @@ describe("CursorAgent", () => {
       readRoots: ["/app"],
       writeRoots: ["/app/saaga-docs", runDir],
       denyPaths: ["/app/AGENTS.md"],
-      shell: "read-only-git",
+      shell: "restricted",
     };
 
     const agent = new CursorAgent({ model: "m" });
@@ -189,7 +189,7 @@ describe("CursorAgent", () => {
       readRoots: ["/app"],
       writeRoots: ["/app/saaga-docs", runDir],
       denyPaths: ["/app/AGENTS.md"],
-      shell: "read-only-git",
+      shell: "restricted",
     };
 
     const agent = new CursorAgent({ model: "m" });
@@ -225,7 +225,7 @@ describe("CursorAgent", () => {
       readRoots: [appDir],
       writeRoots: [docsPath, runDir],
       denyPaths: [join(appDir, "AGENTS.md"), join(appDir, ".cursor/rules/**")],
-      shell: "read-only-git",
+      shell: "restricted",
     };
 
     const agent = new CursorAgent({ model: "m" });
@@ -268,6 +268,9 @@ describe("CursorAgent", () => {
     // Shell is the one default-deny surface, so allow is the right lever.
     expect(allow).toEqual(
       expect.arrayContaining([
+        "Shell(cd:*)",
+        "Shell(ls:*)",
+        "Shell(pwd:*)",
         "Shell(git:log*)",
         "Shell(git:show*)",
         "Shell(git:diff*)",

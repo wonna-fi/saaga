@@ -64,7 +64,7 @@ describe("ClaudeAgent", () => {
       readRoots: [cwd],
       writeRoots: [resolve(cwd, "saaga-docs"), runDir],
       denyPaths: [resolve(cwd, "AGENTS.md")],
-      shell: "read-only-git",
+      shell: "restricted",
     };
 
     const agent = new ClaudeAgent({ model: "opus" });
@@ -107,7 +107,7 @@ describe("ClaudeAgent", () => {
       readRoots: [cwd, extraDir],
       writeRoots: [resolve(cwd, "saaga-docs"), runDir, extraDir],
       denyPaths: [],
-      shell: "read-only-git",
+      shell: "restricted",
     };
 
     const agent = new ClaudeAgent({ model: "opus" });
@@ -133,7 +133,7 @@ describe("ClaudeAgent", () => {
       readRoots: [cwd],
       writeRoots: [resolve(cwd, "docs")],
       denyPaths: [resolve(cwd, "AGENTS.md")],
-      shell: "read-only-git",
+      shell: "restricted",
     };
 
     const agent = new ClaudeAgent({ model: "opus" });
@@ -157,7 +157,7 @@ describe("ClaudeAgent", () => {
       readRoots: [cwd],
       writeRoots: [resolve(cwd, "docs")],
       denyPaths: [],
-      shell: "read-only-git",
+      shell: "restricted",
     };
 
     const agent = new ClaudeAgent({ model: "opus" });
@@ -180,7 +180,7 @@ describe("ClaudeAgent", () => {
       readRoots: [cwd],
       writeRoots: ["/absolute/path/docs"],
       denyPaths: ["/absolute/path/AGENTS.md"],
-      shell: "read-only-git",
+      shell: "restricted",
     };
 
     const agent = new ClaudeAgent({ model: "opus" });
