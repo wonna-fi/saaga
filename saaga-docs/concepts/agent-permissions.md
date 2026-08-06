@@ -2,7 +2,7 @@
 
 ## Business Definition
 
-Agent permissions define a declarative profile that constrains what an agent backend can read, write, and execute during a Saaga run. By default, agents run under a restricted profile that limits filesystem access to the workspace and documentation directories, denies modification of rule files and baselines, and restricts shell usage to read-only git subcommands. This prevents documentation runs from accidentally modifying source code, configuration, or files outside the project.
+Agent permissions define a declarative profile that constrains what an agent backend can read, write, and execute during a Saaga run. By default, agents run under a restricted profile that limits filesystem access to the workspace and documentation directories, denies modification of rule files and baselines, and restricts shell usage to a fixed set of safe utility commands and read-only git subcommands. This prevents documentation runs from accidentally modifying source code, configuration, or files outside the project.
 
 ## Configuration
 
@@ -15,7 +15,7 @@ Agent permissions define a declarative profile that constrains what an agent bac
 **How to access:**
 - `buildProfile(input)` — constructs the default restricted `AgentPermissions` profile
 - `enumerateExcludedPaths(keepPaths)` — lists all sibling filesystem entries outside the keep paths (used by Cursor backend)
-- `READ_ONLY_GIT` (constant) — the allowlist of git subcommands permitted under the `"read-only-git"` shell policy
+- `ALLOWED_SHELL_COMMANDS` (constant) — commands permitted under the `"restricted"` shell policy: `utilities` (`cd`, `ls`, `pwd`, `grep`, `head`, `tail`, `wc`, `dirname`, `basename`) and `git` read-only subcommands
 
 ## Data Storage
 
@@ -24,7 +24,7 @@ Agent permissions define a declarative profile that constrains what an agent bac
 | `AgentPermissions` | `readRoots` | Directories the agent may read (absolute paths) |
 | `AgentPermissions` | `writeRoots` | Directories the agent may write (absolute paths) |
 | `AgentPermissions` | `denyPaths` | Paths the agent must never access, even within a root (supports glob `**` suffix) |
-| `AgentPermissions` | `shell` | Shell policy: `"none"` or `"read-only-git"` |
+| `AgentPermissions` | `shell` | Shell policy: `"none"` or `"restricted"` |
 | `BuildProfileInput` | `appPath` | The application root directory |
 | `BuildProfileInput` | `docsDir` | Relative path to the documentation directory (becomes a write root) |
 | `BuildProfileInput` | `runDir` | Absolute path to the run directory (becomes a write root) |
@@ -38,7 +38,7 @@ Agent permissions define a declarative profile that constrains what an agent bac
 | `src/agent/permissions.ts` | `enumerateExcludedPaths()` | Walks ancestor chains of keep paths and lists all sibling entries that fall outside, used for backends that only support deny rules |
 | `src/agent/permissions.ts` | `AgentPermissions` (interface) | The shape of a permission profile: read/write roots, deny paths, shell policy |
 | `src/agent/permissions.ts` | `BuildProfileInput` (interface) | Input shape for `buildProfile()` |
-| `src/agent/permissions.ts` | `READ_ONLY_GIT` (constant) | Array of git subcommands allowed under the read-only-git shell policy: `log`, `show`, `diff`, `blame`, `status`, `ls-files`, `cat-file`, `rev-parse` |
+| `src/agent/permissions.ts` | `ALLOWED_SHELL_COMMANDS` (constant) | Commands allowed under the restricted shell policy: `utilities` (`cd`, `ls`, `pwd`, `grep`, `head`, `tail`, `wc`, `dirname`, `basename`) and `git` read-only subcommands (`log`, `show`, `diff`, `blame`, `status`, `ls-files`, `cat-file`, `rev-parse`) |
 
 ## Default Profile Grants
 
@@ -47,7 +47,7 @@ When `buildProfile()` is called with standard inputs, the resulting profile gran
 - **Read**: entire app tree (the run dir is inside the app tree since it lives at `<appPath>/.saaga-runs/`)
 - **Write**: `<appPath>/<docsDir>/**` and the run directory
 - **Deny**: `AGENTS.md`, `CLAUDE.md`, `.cursor/rules/**`, `.github/instructions/**`, `<docsDir>/BASELINE`
-- **Shell**: read-only git subcommands only
+- **Shell**: restricted (utilities + read-only git subcommands)
 
 ## Backend Translation
 
@@ -65,7 +65,7 @@ Cursor's `--trust` mode enforces deny rules only (reads and writes are permitted
 1. Enumerating all paths **outside** `readRoots` as `Read`/`Write`/`Edit` deny rules
 2. Enumerating all paths **outside** `writeRoots` as `Write`/`Edit` deny rules
 3. Adding explicit deny paths as `Write`/`Edit` deny rules
-4. Allowing shell via `Shell(git:<subcommand>*)` patterns for each `READ_ONLY_GIT` entry
+4. Allowing shell via `Shell(<util>:*)` patterns for each utility in `ALLOWED_SHELL_COMMANDS.utilities` and `Shell(git:<subcommand>*)` patterns for each entry in `ALLOWED_SHELL_COMMANDS.git`
 
 The configuration is written to `<runDir>/.cursor-cli/cli-config.json` and pointed to via the `CURSOR_CONFIG_DIR` environment variable.
 
@@ -75,7 +75,7 @@ Copilot has no middle ground between restricted and unrestricted. Under restrict
 - Only file tools are allowed: `view`, `create`, `edit`, `glob`, `grep`
 - `--disallow-temp-dir` closes the temp directory hole
 - Extra roots outside `cwd` are added via `--add-dir`
-- The `read-only-git` policy degrades to no shell (Copilot cannot scope shell access)
+- The `restricted` shell policy degrades to no shell (Copilot cannot scope shell access)
 
 ### Claude Translation Details
 
@@ -84,7 +84,7 @@ Claude uses `--permission-mode dontAsk` with a `--settings` JSON payload:
 - Denied paths are expressed as `Edit(//<path>)` deny rules
 - Tools like `Bash`, `Task`, `WebFetch`, etc. are denied by name
 - Additional read directories are listed in `additionalDirectories`
-- The `read-only-git` policy degrades to no shell (a deny on `Bash` overrides any narrow allow)
+- The `restricted` shell policy degrades to no shell (a deny on `Bash` overrides any narrow allow)
 
 ## Internal Implementation
 

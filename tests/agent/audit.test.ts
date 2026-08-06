@@ -14,7 +14,7 @@ const perms: AgentPermissions = {
   readRoots: [APP, RUN],
   writeRoots: [`${APP}/saaga-docs`, RUN],
   denyPaths: [`${APP}/AGENTS.md`, `${APP}/saaga-docs/BASELINE`, `${APP}/.cursor/rules/**`],
-  shell: "read-only-git",
+  shell: "restricted",
 };
 
 function denial(partial: Partial<DenialEvent>): DenialEvent {

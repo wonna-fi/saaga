@@ -142,8 +142,8 @@ function buildCopilotArgs(
  * Tools the model may use under a restricted profile.
  *
  * Withholding `bash` is the only way to block arbitrary shell on copilot, so
- * the read-only git allowance cannot be honoured here and restricted runs get
- * no shell at all. Dropping it also removes `web_fetch` and the MCP tools.
+ * the restricted shell allowance cannot be honoured here and restricted runs
+ * get no shell at all. Dropping it also removes `web_fetch` and the MCP tools.
  */
 const RESTRICTED_TOOLS = ["view", "create", "edit", "glob", "grep"];
 

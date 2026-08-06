@@ -56,7 +56,7 @@ Probes are defined as data in `PROBE_CATALOGUE`. Each probe has a stable `id` us
 | `write-source-denied` | full | cursor, claude | restriction | Writing to `src/` is refused |
 | `rule-files-denied` | full | cursor, claude | restriction | `AGENTS.md` and rule files are unwritable |
 | `baseline-denied` | full | cursor, claude | restriction | `BASELINE` file is unwritable |
-| `read-only-git-allowed` | full | cursor | capability | `git log` runs under the read-only git allowance |
+| `read-only-git-allowed` | full | cursor | capability | `git log` runs under the restricted shell allowance |
 | `git-mutation-denied` | full | cursor | restriction | `git commit` is refused |
 | `claude/tool-surface` | full | claude | restriction | Only expected file tools are available (no web, subagents, MCP) |
 | `claude/absolute-path-anchoring` | full | claude | capability | Double-slash absolute paths work in Edit rules |

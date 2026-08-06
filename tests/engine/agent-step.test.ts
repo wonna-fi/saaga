@@ -70,7 +70,7 @@ describe("agent step invocation", () => {
       readRoots: [dir],
       writeRoots: [resolve(dir, "saaga-docs"), runDir],
       denyPaths: [resolve(dir, "AGENTS.md")],
-      shell: "read-only-git",
+      shell: "restricted",
     };
     const fake = new FakeAgent({
       "Document the Architecture": { exitCode: 0 },
@@ -106,7 +106,7 @@ describe("agent step invocation", () => {
       readRoots: [dir],
       writeRoots: [resolve(dir, "saaga-docs"), runDir],
       denyPaths: [],
-      shell: "read-only-git",
+      shell: "restricted",
     };
     const auditor = new PermissionAuditor(
       permissions,

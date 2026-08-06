@@ -5,29 +5,28 @@ export interface AgentPermissions {
   readRoots: string[];
   writeRoots: string[];
   denyPaths: string[];
-  shell: "none" | "read-only-git";
+  shell: "none" | "restricted";
 }
 
 /**
- * Git subcommands allowed under the "read-only-git" shell policy.
+ * Commands allowed under the "restricted" shell policy.
  *
- * Subcommand anchoring defeats `git -c core.pager='sh -c …' log` since
- * that command starts with `git -c`, not a listed subcommand.
+ * **utilities** — harmless navigation / inspection commands that Cursor wraps
+ * around other commands (e.g. `cd /workspaces/… && git log`) or uses as cheap
+ * alternatives to its built-in tools (`ls`, `grep`, `find`, …).
+ *
+ * **git** — read-only git subcommands. Subcommand anchoring defeats
+ * `git -c core.pager='sh -c …' log` since that command starts with `git -c`,
+ * not a listed subcommand.
  *
  * Only cursor can honour this policy. Copilot and claude both have to remove
  * the shell wholesale to block arbitrary commands, so they degrade to no
  * shell at all rather than granting these.
  */
-export const READ_ONLY_GIT: readonly string[] = [
-  "log",
-  "show",
-  "diff",
-  "blame",
-  "status",
-  "ls-files",
-  "cat-file",
-  "rev-parse",
-];
+export const ALLOWED_SHELL_COMMANDS = {
+  utilities: ["cd", "ls", "pwd", "grep", "head", "tail", "wc", "dirname", "basename"],
+  git: ["log", "show", "diff", "blame", "status", "ls-files", "cat-file", "rev-parse"],
+} as const;
 
 export interface BuildProfileInput {
   appPath: string;
@@ -43,7 +42,7 @@ export interface BuildProfileInput {
  * - Read: entire app tree (run dir is inside the app tree)
  * - Write: `<app>/<docsDir>/**` and the run directory
  * - Deny: rule files, BASELINE
- * - Shell: read-only git subcommands only
+ * - Shell: restricted (utilities + read-only git subcommands)
  *
  * When `allowDirs` are given (from `--allow-dir`), they are appended to both
  * readRoots and writeRoots.
@@ -73,7 +72,7 @@ export function buildProfile(input: BuildProfileInput): AgentPermissions {
     readRoots,
     writeRoots,
     denyPaths,
-    shell: "read-only-git",
+    shell: "restricted",
   };
 }
 

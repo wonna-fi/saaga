@@ -204,7 +204,7 @@ describe("CopilotAgent", () => {
       readRoots: [cwd],
       writeRoots: [resolve(cwd, "saaga-docs"), runDir],
       denyPaths: [resolve(cwd, "AGENTS.md")],
-      shell: "read-only-git",
+      shell: "restricted",
     };
 
     const agent = new CopilotAgent({ model: "m" });
@@ -227,7 +227,7 @@ describe("CopilotAgent", () => {
       readRoots: [cwd],
       writeRoots: [resolve(cwd, "saaga-docs"), runDir],
       denyPaths: [],
-      shell: "read-only-git",
+      shell: "restricted",
     };
 
     const agent = new CopilotAgent({ model: "m" });
@@ -246,7 +246,7 @@ describe("CopilotAgent", () => {
       readRoots: [cwd],
       writeRoots: [resolve(cwd, "docs")],
       denyPaths: [resolve(cwd, "AGENTS.md")],
-      shell: "read-only-git",
+      shell: "restricted",
     };
 
     const agent = new CopilotAgent({ model: "m" });
@@ -268,7 +268,7 @@ describe("CopilotAgent", () => {
       readRoots: [cwd, allowDir],
       writeRoots: [docsPath, runDir, allowDir],
       denyPaths: [],
-      shell: "read-only-git",
+      shell: "restricted",
     };
 
     const agent = new CopilotAgent({ model: "m" });
@@ -316,7 +316,7 @@ describe("CopilotAgent", () => {
       readRoots: [cwd, externalDir],
       writeRoots: [resolve(cwd, "docs"), runDir, externalDir],
       denyPaths: [],
-      shell: "read-only-git",
+      shell: "restricted",
     };
 
     const agent = new CopilotAgent({ model: "m" });

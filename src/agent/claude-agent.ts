@@ -216,7 +216,7 @@ const DENIED_TOOLS: readonly string[] = [
  * - Edits are allowlisted under `dontAsk`, but every other tool is allowed by
  *   default and only a deny takes it away. That deny also defeats any
  *   narrower allow such as `Bash(git log:*)`, so a restricted profile gets no
- *   shell at all — the `read-only-git` policy degrades to none here.
+ *   shell at all — the `restricted` policy degrades to none here.
  */
 function buildClaudeSettings(
   perms: AgentPermissions,

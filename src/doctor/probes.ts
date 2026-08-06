@@ -104,7 +104,7 @@ export const PROBE_CATALOGUE: ProbeDefinition[] = [
   },
   {
     id: "read-only-git-allowed",
-    description: "git log runs under the read-only git allowance.",
+    description: "git log runs under the restricted shell allowance.",
     level: "full",
     backends: ["cursor"],
   },
