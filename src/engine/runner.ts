@@ -1,5 +1,5 @@
 import { mkdir, stat } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { dirname, resolve, sep } from "node:path";
 import type { PermissionAuditor } from "../agent/audit.js";
 import type { AgentPermissions } from "../agent/permissions.js";
 import type { Agent } from "../agent/types.js";
@@ -256,14 +256,21 @@ async function runAgentStep(
   const prompt = await renderPromptFile(promptPath, renderedVars);
 
   const runDir = typeof scope.run_dir === "string" ? scope.run_dir : undefined;
-  if (runDir) {
+  const writeRoots = deps.permissions?.writeRoots ?? [];
+  const safeDirs = [...(runDir ? [runDir] : []), ...writeRoots];
+
+  if (safeDirs.length > 0) {
     const dirsToEnsure = new Set<string>();
     for (const val of Object.values(renderedVars)) {
-      if (val.startsWith(runDir)) dirsToEnsure.add(dirname(val));
+      if (safeDirs.some((root) => val.startsWith(root + sep))) {
+        dirsToEnsure.add(dirname(val));
+      }
     }
     if (step.expect_file) {
       const ef = interpolate(step.expect_file, scope);
-      if (ef.startsWith(runDir)) dirsToEnsure.add(dirname(ef));
+      if (safeDirs.some((root) => ef.startsWith(root + sep))) {
+        dirsToEnsure.add(dirname(ef));
+      }
     }
     for (const dir of dirsToEnsure) {
       await mkdir(dir, { recursive: true });

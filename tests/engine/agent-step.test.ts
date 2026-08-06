@@ -238,6 +238,104 @@ describe("agent step invocation", () => {
     expect(dirExistedDuringRun).toBe(true);
   });
 
+  test("pre-creates directories from vars paths under writeRoots before agent.run()", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "saaga-agent-step-"));
+    const runDir = join(dir, ".saaga-runs", "run-abc123");
+    await mkdir(runDir, { recursive: true });
+    const docsPath = resolve(dir, "saaga-docs");
+
+    const summaryPath = join(
+      docsPath,
+      "metadata",
+      "quick_updates",
+      "run-abc123",
+      "summary.md",
+    );
+    let dirExistedDuringRun = false;
+
+    const permissions: AgentPermissions = {
+      readRoots: [dir],
+      writeRoots: [docsPath, runDir],
+      denyPaths: [],
+      shell: "restricted",
+    };
+
+    const fake = new FakeAgent({
+      "Document the Architecture": {
+        exitCode: 0,
+        effect: async () => {
+          dirExistedDuringRun = existsSync(dirname(summaryPath));
+        },
+      },
+    });
+
+    const flow = parseFlowDefinition({
+      name: "test",
+      steps: [
+        {
+          agent: {
+            prompt: "document-architecture",
+            vars: { app: "myapp", summary_path: summaryPath },
+          },
+        },
+      ],
+    });
+
+    await runFlow(
+      flow,
+      { app: "myapp", app_path: dir, run_dir: runDir },
+      { agent: fake, cwd: dir, permissions },
+    );
+
+    expect(dirExistedDuringRun).toBe(true);
+  });
+
+  test("does not pre-create directories for paths outside run_dir and writeRoots", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "saaga-agent-step-"));
+    const runDir = join(dir, ".saaga-runs", "run-abc123");
+    await mkdir(runDir, { recursive: true });
+    const docsPath = resolve(dir, "saaga-docs");
+
+    const outsidePath = join(dir, "outside", "nested", "file.txt");
+    let dirExistedDuringRun = false;
+
+    const permissions: AgentPermissions = {
+      readRoots: [dir],
+      writeRoots: [docsPath, runDir],
+      denyPaths: [],
+      shell: "restricted",
+    };
+
+    const fake = new FakeAgent({
+      "Document the Architecture": {
+        exitCode: 0,
+        effect: async () => {
+          dirExistedDuringRun = existsSync(dirname(outsidePath));
+        },
+      },
+    });
+
+    const flow = parseFlowDefinition({
+      name: "test",
+      steps: [
+        {
+          agent: {
+            prompt: "document-architecture",
+            vars: { app: "myapp", output_path: outsidePath },
+          },
+        },
+      ],
+    });
+
+    await runFlow(
+      flow,
+      { app: "myapp", app_path: dir, run_dir: runDir },
+      { agent: fake, cwd: dir, permissions },
+    );
+
+    expect(dirExistedDuringRun).toBe(false);
+  });
+
   test("omits permissions when deps.permissions is absent", async () => {
     const dir = await mkdtemp(join(tmpdir(), "saaga-agent-step-"));
     const runDir = join(dir, "run-abc123");
