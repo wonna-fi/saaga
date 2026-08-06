@@ -15,7 +15,7 @@ Agent permissions define a declarative profile that constrains what an agent bac
 **How to access:**
 - `buildProfile(input)` — constructs the default restricted `AgentPermissions` profile
 - `enumerateExcludedPaths(keepPaths)` — lists all sibling filesystem entries outside the keep paths (used by Cursor backend)
-- `ALLOWED_SHELL_COMMANDS` (constant) — commands permitted under the `"restricted"` shell policy: `utilities` (`cd`, `ls`, `pwd`, `grep`, `head`, `tail`, `wc`, `find`, `dirname`, `basename`) and `git` read-only subcommands
+- `ALLOWED_SHELL_COMMANDS` (constant) — commands permitted under the `"restricted"` shell policy: `utilities` (`cd`, `ls`, `pwd`, `grep`, `head`, `tail`, `wc`, `dirname`, `basename`) and `git` read-only subcommands
 
 ## Data Storage
 
@@ -38,7 +38,7 @@ Agent permissions define a declarative profile that constrains what an agent bac
 | `src/agent/permissions.ts` | `enumerateExcludedPaths()` | Walks ancestor chains of keep paths and lists all sibling entries that fall outside, used for backends that only support deny rules |
 | `src/agent/permissions.ts` | `AgentPermissions` (interface) | The shape of a permission profile: read/write roots, deny paths, shell policy |
 | `src/agent/permissions.ts` | `BuildProfileInput` (interface) | Input shape for `buildProfile()` |
-| `src/agent/permissions.ts` | `ALLOWED_SHELL_COMMANDS` (constant) | Commands allowed under the restricted shell policy: `utilities` (`cd`, `ls`, `pwd`, `grep`, `head`, `tail`, `wc`, `find`, `dirname`, `basename`) and `git` read-only subcommands (`log`, `show`, `diff`, `blame`, `status`, `ls-files`, `cat-file`, `rev-parse`) |
+| `src/agent/permissions.ts` | `ALLOWED_SHELL_COMMANDS` (constant) | Commands allowed under the restricted shell policy: `utilities` (`cd`, `ls`, `pwd`, `grep`, `head`, `tail`, `wc`, `dirname`, `basename`) and `git` read-only subcommands (`log`, `show`, `diff`, `blame`, `status`, `ls-files`, `cat-file`, `rev-parse`) |
 
 ## Default Profile Grants
 
