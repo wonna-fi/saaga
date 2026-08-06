@@ -204,7 +204,7 @@ Awaits a spawned agent process while concurrently draining its stdout for event 
 
 **Unrestricted mode**: Invokes `copilot -p <prompt> --allow-all-tools --no-ask-user --model <model> --no-auto-update`. Passes `--add-dir <dir>` for each entry in `opts.additionalDirs`.
 
-**Restricted mode**: Uses `--available-tools view create edit glob grep --allow-all-tools --disallow-temp-dir`. The `--available-tools` flag restricts the model's tool surface (notably withholding `bash`), while `--disallow-temp-dir` closes the automatic temp directory access. Copilot cannot scope writes within the workspace — its deny rules are inert once `--allow-all-tools` is set — so the read-only git policy degrades to no shell at all.
+**Restricted mode**: Uses `--available-tools view create edit glob grep [bash] --allow-tool write[,shell(...)] --disallow-temp-dir`. The `--available-tools` flag restricts the model's tool surface, adding `bash` only when the profile's `shell` is `"restricted"`. `--allow-tool` grants `write` plus, when shell is restricted, a `shell(<command>:*)` / `shell(git:<subcommand>*)` pattern for each entry in `ALLOWED_SHELL_COMMANDS`. `--disallow-temp-dir` closes the automatic temp directory access. Copilot cannot scope writes within the workspace — its deny rules are inert once tool access is granted — so only the workspace boundary is enforced for file changes.
 
 Temporarily renames `.gitignore` to `.gitignore.<random-hex>.bak` before invocation. The random suffix (8 hex characters from `randomBytes(4)`) prevents collisions between concurrent agent runs.
 
@@ -216,11 +216,11 @@ Temporarily renames `.gitignore` to `.gitignore.<random-hex>.bak` before invocat
 
 **Unrestricted mode**: Invokes `claude --print --dangerously-skip-permissions --model <model>`.
 
-**Restricted mode**: Invokes `claude --print --permission-mode dontAsk --strict-mcp-config --model <model> --settings <JSON>`. The settings JSON expresses the permission profile as `Edit(//<root>/**)` allow rules for write roots, tool denials for unwanted tools (Bash, Task, WebFetch, etc.), and `additionalDirectories` for read roots outside `cwd`. When `onEvent` is set, adds `--verbose --output-format stream-json`.
+**Restricted mode**: Invokes `claude --print --permission-mode dontAsk --strict-mcp-config --model <model> --settings <JSON>`. The settings JSON expresses the permission profile as `Edit(//<root>/**)` allow rules for write roots, tool denials for unwanted tools (`Task`, `WebFetch`, `WebSearch`, subagent/cron tools, etc.), and `additionalDirectories` for read roots outside `cwd`. When the profile's `shell` is `"restricted"`, `Bash(<command>:*)` / `Bash(git <subcommand>:*)` allow rules are added for each `ALLOWED_SHELL_COMMANDS` entry, paired with `Bash(...)` denies for Claude's built-in read-only Bash commands that fall outside that policy (`cat`, `echo`, `find`, `python3`, etc. — Claude auto-runs these under `dontAsk` regardless of `permissions.allow`). When `shell` is `"none"`, a bare `Bash` deny is used instead, since it would otherwise override any scoped allow. When `onEvent` is set, adds `--verbose --output-format stream-json`.
 
 **Exports**: `ClaudeAgent` (class), `ClaudeAgentOptions` (interface), `createClaudeEventParser(): EventParser`, `CLAUDE_RESTRICTED_TOOLS` (constant)
 
-`CLAUDE_RESTRICTED_TOOLS` lists the expected tool surface under a restricted profile: `Edit`, `Glob`, `Grep`, `Read`, `Write`. The `claude/tool-surface` doctor probe asserts this set against the session event.
+`CLAUDE_RESTRICTED_TOOLS` lists the expected tool surface under a restricted profile: `Bash`, `Edit`, `Read`, `Write`. The `claude/tool-surface` doctor probe asserts this set against the session event.
 
 `createClaudeEventParser()` handles claude's `stream-json` output, correlating `tool_use` blocks with `tool_result` errors matching denial patterns.
 
@@ -256,7 +256,7 @@ Defines the probe catalogue as data.
 
 `ProbeRunResult` fields: `probeId: string`, `backend: Backend`, `status: "pass" | "fail" | "skip"`, `classification?: ProbeClassification`, `exitCode: number`, `elapsed: number`, `error?: string`.
 
-The catalogue includes fast-tier probes (`version`, `unknown-model-fails`) and full-tier probes (`handshake`, `write-in-cwd`, `read-from-cwd`, `read-gitignored`, `write-run-dir`, `read-outside-workspace-denied`, `write-outside-workspace-denied`, `arbitrary-shell-denied`, `write-source-denied`, `rule-files-denied`, `baseline-denied`, `read-only-git-allowed`, `git-mutation-denied`, `claude/tool-surface`, `claude/absolute-path-anchoring`, `claude/run-dir-writable`). Some probes are backend-specific (noted in `backends` field).
+The catalogue includes fast-tier probes (`version`, `unknown-model-fails`) and full-tier probes (`handshake`, `write-in-cwd`, `read-from-cwd`, `read-gitignored`, `write-run-dir`, `read-outside-workspace-denied`, `write-outside-workspace-denied`, `arbitrary-shell-denied`, `write-source-denied`, `rule-files-denied`, `baseline-denied`, `restricted-shell-utility-allowed`, `read-only-git-allowed`, `git-mutation-denied`, `claude/tool-surface`, `claude/absolute-path-anchoring`, `claude/run-dir-writable`). Some probes are backend-specific (noted in `backends` field).
 
 #### Full Probes (`src/doctor/full-probes.ts`)
 

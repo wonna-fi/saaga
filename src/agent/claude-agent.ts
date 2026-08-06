@@ -4,7 +4,10 @@ import {
   type AgentEvent,
   type EventParser,
 } from "./events.js";
-import type { AgentPermissions } from "./permissions.js";
+import {
+  ALLOWED_SHELL_COMMANDS,
+  type AgentPermissions,
+} from "./permissions.js";
 import { awaitProcess } from "./spawn.js";
 import { buildPipedStdio, buildStdio } from "./stdio.js";
 import type { Agent, AgentRunOpts, AgentRunResult } from "./types.js";
@@ -155,12 +158,12 @@ function buildClaudeArgs(
  * The tool surface a restricted run should be left with.
  *
  * Asserted by the `claude/tool-surface` probe, which reads the toolset claude
- * announces at session start.
+ * announces at session start. Includes Bash when shell is restricted; Bash
+ * remains available as a tool while command rules constrain what can run.
  */
 export const CLAUDE_RESTRICTED_TOOLS: readonly string[] = [
+  "Bash",
   "Edit",
-  "Glob",
-  "Grep",
   "Read",
   "Write",
 ];
@@ -168,17 +171,22 @@ export const CLAUDE_RESTRICTED_TOOLS: readonly string[] = [
 /**
  * Tools withheld from a restricted run.
  *
- * Claude has no exclusive allowlist — `--allowedTools` widens the surface
- * rather than narrowing it — so unwanted tools have to be denied by name.
- * That leaves the list open-ended: a tool introduced in a later release
- * arrives enabled. The `claude/tool-surface` probe exists to catch that.
+ * Claude has no exclusive allowlist — `--allowedTools` / `permissions.allow`
+ * grant named or scoped permissions rather than narrowing the tool surface —
+ * so unwanted tools have to be denied by name. That leaves the list
+ * open-ended: a tool introduced in a later release arrives enabled. The
+ * `claude/tool-surface` probe exists to catch that.
+ *
+ * Bash is omitted here and handled separately: a bare `Bash` deny takes
+ * precedence over every scoped allow, so it is emitted only for
+ * `shell: "none"`. Under `shell: "restricted"`, scoped `Bash(...)` allows
+ * pre-approve the canonical commands under `--permission-mode dontAsk`.
  *
  * Note that `--setting-sources ''` would be a tempting way to stop ambient
  * config from re-enabling these, but it also stops `CLAUDE.md` from loading,
  * which would silently disable the rule files saaga installs.
  */
 const DENIED_TOOLS: readonly string[] = [
-  "Bash",
   "CronCreate",
   "CronDelete",
   "CronList",
@@ -206,6 +214,38 @@ const DENIED_TOOLS: readonly string[] = [
 ];
 
 /**
+ * Claude runs a built-in set of Bash commands without a permission prompt in
+ * every mode, including `dontAsk`. `permissions.allow` is therefore not an
+ * exclusive Bash allowlist: anything in that built-in set still runs unless
+ * it is denied explicitly. These patterns cover the documented built-ins that
+ * fall outside Saaga's restricted policy, plus extras observed in live
+ * testing (`sha256sum`, `python3`, `uname`, `date`).
+ */
+const CLAUDE_BUILTIN_BASH_DENY: readonly string[] = [
+  "Bash(cat *)",
+  "Bash(echo *)",
+  "Bash(find *)",
+  "Bash(which *)",
+  "Bash(diff *)",
+  "Bash(stat *)",
+  "Bash(du *)",
+  "Bash(sha256sum *)",
+  "Bash(md5sum *)",
+  "Bash(python *)",
+  "Bash(python3 *)",
+  "Bash(uname *)",
+  "Bash(date *)",
+  "Bash(env *)",
+];
+
+function restrictedBashAllowRules(): string[] {
+  return [
+    ...ALLOWED_SHELL_COMMANDS.utilities.map((command) => `Bash(${command}:*)`),
+    ...ALLOWED_SHELL_COMMANDS.git.map((subcommand) => `Bash(git ${subcommand}:*)`),
+  ];
+}
+
+/**
  * Build the Claude CLI settings JSON that expresses the permission profile.
  *
  * Gotchas encoded here (all verified by live testing):
@@ -213,10 +253,12 @@ const DENIED_TOOLS: readonly string[] = [
  * - Double-slash for absolute paths: `//abs/path/**` not `/abs/path/**`.
  * - `additionalDirectories` grants reach but not edit rights — a matching
  *   `Edit` rule must also be present.
- * - Edits are allowlisted under `dontAsk`, but every other tool is allowed by
- *   default and only a deny takes it away. That deny also defeats any
- *   narrower allow such as `Bash(git log:*)`, so a restricted profile gets no
- *   shell at all — the `restricted` policy degrades to none here.
+ * - Under `dontAsk`, mutating/untrusted Bash is auto-denied, but Claude's
+ *   built-in read-only Bash set still runs unless denied by name. Scoped
+ *   `Bash(command:*)` / `Bash(git subcommand:*)` allows pre-approve the
+ *   restricted policy; `CLAUDE_BUILTIN_BASH_DENY` closes the built-in gap.
+ *   A bare `Bash` deny defeats those allows, so it is used only when the
+ *   profile sets `shell: "none"`.
  */
 function buildClaudeSettings(
   perms: AgentPermissions,
@@ -227,6 +269,13 @@ function buildClaudeSettings(
 
   for (const root of perms.writeRoots) {
     allow.push(`Edit(//${root}/**)`);
+  }
+
+  if (perms.shell === "restricted") {
+    allow.push(...restrictedBashAllowRules());
+    deny.push(...CLAUDE_BUILTIN_BASH_DENY);
+  } else {
+    deny.push("Bash");
   }
 
   for (const denied of perms.denyPaths) {

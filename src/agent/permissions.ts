@@ -19,9 +19,8 @@ export interface AgentPermissions {
  * `git -c core.pager='sh -c …' log` since that command starts with `git -c`,
  * not a listed subcommand.
  *
- * Only cursor can honour this policy. Copilot and claude both have to remove
- * the shell wholesale to block arbitrary commands, so they degrade to no
- * shell at all rather than granting these.
+ * Each backend translates these into its native permission syntax
+ * (Cursor `Shell(...)`, Copilot `shell(...)`, Claude `Bash(...)`).
  */
 export const ALLOWED_SHELL_COMMANDS = {
   utilities: ["cd", "ls", "pwd", "grep", "head", "tail", "wc", "dirname", "basename"],
