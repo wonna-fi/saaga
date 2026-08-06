@@ -11,9 +11,9 @@ export interface AgentPermissions {
 /**
  * Commands allowed under the "restricted" shell policy.
  *
- * **utilities** — harmless navigation commands that Cursor wraps around other
- * commands (e.g. `cd /workspaces/… && git log`) or uses as cheap alternatives
- * to Glob (`ls`).
+ * **utilities** — harmless navigation / inspection commands that Cursor wraps
+ * around other commands (e.g. `cd /workspaces/… && git log`) or uses as cheap
+ * alternatives to its built-in tools (`ls`, `grep`, `find`, …).
  *
  * **git** — read-only git subcommands. Subcommand anchoring defeats
  * `git -c core.pager='sh -c …' log` since that command starts with `git -c`,
@@ -24,7 +24,7 @@ export interface AgentPermissions {
  * shell at all rather than granting these.
  */
 export const ALLOWED_SHELL_COMMANDS = {
-  utilities: ["cd", "ls", "pwd"],
+  utilities: ["cd", "ls", "pwd", "grep", "head", "tail", "wc", "find", "dirname", "basename"],
   git: ["log", "show", "diff", "blame", "status", "ls-files", "cat-file", "rev-parse"],
 } as const;
 

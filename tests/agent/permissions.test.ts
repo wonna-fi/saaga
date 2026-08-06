@@ -71,10 +71,17 @@ describe("buildProfile", () => {
 });
 
 describe("ALLOWED_SHELL_COMMANDS", () => {
-  test("utilities contains cd, ls, pwd", () => {
+  test("utilities contains navigation and inspection commands", () => {
     expect(ALLOWED_SHELL_COMMANDS.utilities).toContain("cd");
     expect(ALLOWED_SHELL_COMMANDS.utilities).toContain("ls");
     expect(ALLOWED_SHELL_COMMANDS.utilities).toContain("pwd");
+    expect(ALLOWED_SHELL_COMMANDS.utilities).toContain("grep");
+    expect(ALLOWED_SHELL_COMMANDS.utilities).toContain("head");
+    expect(ALLOWED_SHELL_COMMANDS.utilities).toContain("tail");
+    expect(ALLOWED_SHELL_COMMANDS.utilities).toContain("wc");
+    expect(ALLOWED_SHELL_COMMANDS.utilities).toContain("find");
+    expect(ALLOWED_SHELL_COMMANDS.utilities).toContain("dirname");
+    expect(ALLOWED_SHELL_COMMANDS.utilities).toContain("basename");
   });
 
   test("git contains expected subcommands", () => {
