@@ -46,33 +46,39 @@ flowchart TD
 - **Declarative orchestration**: Workflow logic lives in YAML flow files, not application code. Adding or reordering steps requires no code changes.
 - **Agent-agnostic**: The `Agent` interface abstracts over backends. The engine never references a specific agent implementation.
 - **Scope-based data flow**: All inter-step communication flows through a mutable scope dictionary. Steps read from and write to scope variables using `${var}` expressions.
-- **Run isolation**: Each invocation gets a unique run directory under `$SAAGA_DIR/runs/<run-id>/` for plans, reviews, and status files.
+- **Run isolation**: Each invocation gets a unique run directory under `<appPath>/.saaga-runs/<run-id>/` for plans, reviews, and status files.
+- **Permission restriction**: Agents run under a restricted permission profile by default. The profile declares read roots, write roots, deny paths, and a shell policy. Each backend translates the profile into its native permission mechanism (Cursor: `cli-config.json` deny rules; Copilot: `--available-tools` + `--disallow-temp-dir`; Claude: `--permission-mode dontAsk` + `--settings` JSON). The `--dangerously-allow-all` flag disables restrictions. The `--audit-permissions` flag enables structured output parsing and denial classification.
 - **No git dependency**: File manifests, hashing, and change detection are implemented in pure Node.js. No git CLI is required at runtime.
 
 ## Modules
 
 ### CLI (`src/cli.ts`)
 
-Entry point. Defines five subcommands (`init`, `install-rules`, `update`, `quick-update`, `verify-quick-updates`) using `commander`. Four of these resolve the agent, create a run context, load the corresponding flow, and call the engine. The `install-rules` subcommand is standalone: it runs the rule installer directly without an agent backend.
+Entry point. Defines six subcommands (`init`, `install-rules`, `update`, `quick-update`, `verify-quick-updates`, `doctor`) using `commander`. Four of these (`init`, `update`, `quick-update`, `verify-quick-updates`) resolve the agent, run a preflight check, create a run context, construct a permission profile, load the corresponding flow, and call the engine. The `install-rules` subcommand is standalone: it runs the rule installer directly without an agent backend. The `doctor` subcommand checks backend CLI availability and runs diagnostic probes without a flow.
 
-Global flags include `--backend`, `--model`, `--ci`, `--verbose`, and `--yes` (`-y`). The `--verbose` flag enables detailed step output and live agent output on the terminal. The `--yes` flag skips the cost confirmation prompt for agent-backed commands.
+Global flags include `--backend`, `--model`, `--ci`, `--verbose`, `--yes` (`-y`), `--allow-dir <path>` (repeatable), `--dangerously-allow-all`, and `--audit-permissions`. The `--verbose` flag enables detailed step output and live agent output on the terminal. The `--yes` flag skips the cost confirmation prompt for agent-backed commands. `--allow-dir` grants additional read/write access to a directory and can be repeated. `--dangerously-allow-all` disables permission restrictions entirely (reproduces legacy behavior). `--audit-permissions` scans agent output for permission denials and logs a classified summary.
 
-`runFlowSubcommand()` calls `confirmAgentCosts()` before creating the run context. The cost notice uses `backendCliCommand()` to determine the CLI binary name, or falls back to the agent's `name` when the agent was injected directly. After confirmation, it creates a `logFile` path (`resolve(runCtx.runDir, "run.log")`) and passes both `logFile` and `verbose` (from the `--verbose` flag) to `RunFlowDeps`, which the engine uses for output routing. It also logs `buildCostSummary()` as a detail line to the run log.
+`runFlowSubcommand()` calls `confirmAgentCosts()` before creating the run context. The cost notice uses `backendCliCommand()` to determine the CLI binary name, or falls back to the agent's `name` when the agent was injected directly. After cost confirmation and before run context creation, it runs a preflight check via `runPreflight()` for the resolved backend (skipped when the agent is injected for tests). A `PreflightError` is thrown on failure, directing the user to `saaga doctor` for details.
+
+After creating the run context, it constructs a permission profile via `buildProfile()` (unless `--dangerously-allow-all` is set) and writes `permissions.json` to the run directory. When `--audit-permissions` is set and a profile exists, a `PermissionAuditor` is created. Both `permissions` and `auditor` are passed to `runFlow()` via `RunFlowDeps`. After flow completion, `reportAudit()` flushes the audit log and warns about denials inside granted paths.
 
 `createLogger()` accepts an optional `logFile` parameter and the `verbose` flag, forwarding them to the `Logger` constructor (which delegates to `OutputSink`).
 
 **Exports**: `runCli(argv, options): Promise<number>`, `CliOptions`
 
-`CliOptions` fields: `agent?: Agent` (injected agent for tests), `cwd?: string`, `env?: NodeJS.ProcessEnv`, `stdout?: NodeJS.WritableStream`, `stderr?: NodeJS.WritableStream`, `stdin?: NodeJS.ReadableStream` (used by cost confirmation prompt in tests).
+`CliOptions` fields: `agent?: Agent` (injected agent for tests), `cwd?: string`, `stdout?: NodeJS.WritableStream`, `stderr?: NodeJS.WritableStream`, `stdin?: NodeJS.ReadableStream` (used by cost confirmation prompt in tests).
 
-Error handling catches `AgentStepFailedError` (returns exit code), `ConfirmationDeclinedError` (writes message to stderr, returns exit code 1), and Commander info exits (version/help, returns 0).
+Error handling catches `AgentStepFailedError` (returns exit code), `ConfirmationDeclinedError` (writes message to stderr, returns exit code 1), `DoctorError` (returns the doctor exit code), `PreflightError` (returns exit code 1), and Commander info exits (version/help, returns 0).
 
 > **Internal implementation:**
 >
 > - `resolveAgent()` returns a `ResolvedAgent` containing the `Agent` plus optional `backend` and `model` fields (absent when the agent was injected via `CliOptions.agent`). These resolution details are passed to `confirmAgentCosts()` for the cost notice.
 > - `isInteractive()` is not in this module — it lives in `cli/confirm.ts`.
+> - `reportAudit()` flushes the auditor, logs total denial count and the audit log path, and emits a warning for each `unexpected` denial (inside a granted path).
+> - `splitProbeIds()` normalizes comma- and space-separated `--probe` values for the doctor subcommand.
+> - `PreflightError` and `DoctorError` are error classes with `exitCode` fields.
 
-**Dependencies**: `cli/config`, `cli/backend`, `cli/confirm`, `engine/loader`, `engine/runner`, `run-context`, `logger`, `paths`, `scripts/install-rules`
+**Dependencies**: `cli/config`, `cli/backend`, `cli/confirm`, `engine/loader`, `engine/runner`, `run-context`, `logger`, `paths`, `scripts/install-rules`, `agent/permissions`, `agent/audit`, `doctor/index`, `doctor/preflight`
 
 ### Config (`src/cli/config.ts`)
 
@@ -123,7 +129,7 @@ Handles the cost confirmation prompt shown before agent-backed subcommands start
 
 ### Agent (`src/agent/`)
 
-Defines the `Agent` interface and its implementations. Each adapter shells out to an external CLI binary.
+Defines the `Agent` interface, its implementations, and supporting modules for permissions, event parsing, auditing, I/O routing, and process management.
 
 #### Interface (`src/agent/types.ts`)
 
@@ -134,25 +140,143 @@ interface Agent {
 }
 ```
 
-`AgentRunOpts` carries `cwd`, an optional `AbortSignal`, `additionalDirs?: string[]` (extra directories the agent must be able to access, e.g. the Saaga run directory), `logFile?: string` (absolute path to append the agent's stdout/stderr to), and `echo?: boolean` (also mirror output to the terminal under `--verbose`). `AgentRunResult` carries `exitCode`.
+`AgentRunOpts` carries `cwd`, an optional `AbortSignal`, `additionalDirs?: string[]` (the run directory, used by CursorAgent to place its `cli-config.json`), `permissions?: AgentPermissions` (absent means unrestricted — the backend uses legacy flags), `logFile?: string` (absolute path to append the agent's stdout/stderr to), `echo?: boolean` (also mirror output to the terminal under `--verbose`), and `onEvent?: AgentEventSink` (when set, the backend switches to structured JSON output and forwards parsed events). `AgentRunResult` carries `exitCode`.
 
-All three real adapters use an internal `buildStdio(opts)` helper to configure child-process I/O routing. When `logFile` is set, stdout/stderr are redirected to the log file (appended). When `echo` is also true, output is tee'd to both the terminal and the log file. When neither is set, `stdio: "inherit"` is used as a fallback.
+#### Permissions (`src/agent/permissions.ts`)
+
+Defines the declarative permission profile that restricts what agent backends can access during runs.
+
+**Exports**: `AgentPermissions` (interface), `buildProfile(input): AgentPermissions`, `enumerateExcludedPaths(keepPaths): Promise<string[]>`, `BuildProfileInput` (interface), `READ_ONLY_GIT` (constant)
+
+`AgentPermissions` fields: `readRoots: string[]`, `writeRoots: string[]`, `denyPaths: string[]`, `shell: "none" | "read-only-git"`.
+
+`buildProfile()` constructs the default restricted profile: read access to the entire app tree, write access to `<app>/<docsDir>` and the run directory, deny list covering rule files (`AGENTS.md`, `CLAUDE.md`, `.cursor/rules/**`, `.github/instructions/**`) and `BASELINE`, shell policy of `read-only-git`. Additional directories from `--allow-dir` are appended to both `readRoots` and `writeRoots`.
+
+`enumerateExcludedPaths()` walks the ancestor chain of each keep path and lists every sibling not on the path, producing the deny list needed by backends that honour deny rules but not allow rules.
+
+`READ_ONLY_GIT` lists the git subcommands allowed under the `read-only-git` shell policy: `log`, `show`, `diff`, `blame`, `status`, `ls-files`, `cat-file`, `rev-parse`.
+
+#### Events (`src/agent/events.ts`)
+
+Normalized event types parsed from backend-specific structured output.
+
+**Exports**: `DenialEvent` (interface), `SessionEvent` (interface), `AgentEvent` (type), `AgentEventSink` (type), `EventParser` (interface), `LineSplitter` (class), `parseJsonLine(line): Record<string, unknown> | undefined`, `consumeEvents(stream, parser, sink): Promise<void>`
+
+`AgentEvent` is a discriminated union: `DenialEvent` (a tool call refused on permission grounds, carrying `tool`, optional `path`, and `message`) or `SessionEvent` (the toolset announced at session start, carrying `tools: string[]`).
+
+`LineSplitter` reassembles whole lines from arbitrarily chunked stream data. `consumeEvents()` drives a parser over an async iterable stream, forwarding every parsed event to the sink.
+
+#### Audit (`src/agent/audit.ts`)
+
+Classifies and summarizes permission denials after a run.
+
+**Exports**: `PermissionAuditor` (class), `classifyDenial(event, perms, cwd): ClassifiedDenial`, `DenialClass` (type), `ClassifiedDenial` (interface), `AuditResult` (interface)
+
+`DenialClass` is `"unexpected" | "out-of-workspace" | "protected-path" | "shell" | "unknown"`. `classifyDenial()` places a denial against the permission profile by comparing the resolved path to the read/write roots and deny paths.
+
+`PermissionAuditor` collects denial events via `record(event)`, classifies each one, and writes a grouped summary via `flush(): Promise<AuditResult>`. The `AuditResult` carries `logPath`, `counts` per class, and the list of `unexpected` denials (those inside a granted path, indicating a profile bug).
+
+#### Spawn (`src/agent/spawn.ts`)
+
+**Exports**: `awaitProcess(proc, events?): Promise<number>`, `EventConsumer` (interface)
+
+Awaits a spawned agent process while concurrently draining its stdout for event parsing. Without concurrent draining, a long transcript would fill the OS pipe buffer and deadlock the child process.
+
+#### Stdio (`src/agent/stdio.ts`)
+
+**Exports**: `buildStdio(opts): Record<string, unknown>`, `buildPipedStdio(opts): Record<string, unknown>`
+
+`buildStdio()` configures execa stdio options for an agent invocation. When no `logFile` is set, inherits the parent's stdio streams. When `logFile` is set, redirects stdout/stderr to the file. When both `logFile` and `echo` are set, tees to both. Always sets `stdin: "ignore"`.
+
+`buildPipedStdio()` pipes stdout through the Node process so callers can parse the event stream (used by `--audit-permissions` and probe log capture). Only stdout is piped — stderr goes directly to the log file to avoid deadlocks from an unread pipe buffer.
 
 #### CursorAgent (`src/agent/cursor-agent.ts`)
 
-Invokes `cursor-agent --print --force --model <model> --output-format text`. The `--output-format text` flag is unconditional (always passed). Uses `buildStdio(opts)` for log-file capture.
+**Unrestricted mode**: Invokes `cursor-agent --print --force --model <model> --output-format text`.
+
+**Restricted mode** (when `opts.permissions` is set): Invokes `cursor-agent --print --trust --model <model> --output-format <text|stream-json>`. Writes a `cli-config.json` under `<runDir>/.cursor-cli/` with deny rules computed by `enumerateExcludedPaths()` for both read and write boundaries. Read-only git subcommands are allowed via `Shell(git:<subcommand>*)` rules. The `CURSOR_CONFIG_DIR` environment variable is set to the config directory.
+
+**Exports**: `CursorAgent` (class), `CursorAgentOptions` (interface), `createCursorEventParser(): EventParser`
+
+`createCursorEventParser()` handles cursor's `stream-json` output, recognizing `writePermissionDenied`, `rejected`, and `error` result shapes as denials.
 
 #### CopilotAgent (`src/agent/copilot-agent.ts`)
 
-Invokes `copilot -p <prompt> --allow-all-tools --no-ask-user --model <model> --no-auto-update`. Passes `--add-dir <dir>` for each entry in `opts.additionalDirs`, granting the agent access to directories outside `cwd` (e.g. the Saaga run directory). Temporarily renames `.gitignore` to `.gitignore.<random-hex>.bak` before invocation (Copilot's indexer respects `.gitignore`, which can hide files needed during documentation runs). The random suffix (8 hex characters from `randomBytes(4)`) prevents collisions between concurrent agent runs in the same directory. Uses `buildStdio(opts)` for log-file capture.
+**Unrestricted mode**: Invokes `copilot -p <prompt> --allow-all-tools --no-ask-user --model <model> --no-auto-update`. Passes `--add-dir <dir>` for each entry in `opts.additionalDirs`.
+
+**Restricted mode**: Uses `--available-tools view create edit glob grep --allow-all-tools --disallow-temp-dir`. The `--available-tools` flag restricts the model's tool surface (notably withholding `bash`), while `--disallow-temp-dir` closes the automatic temp directory access. Copilot cannot scope writes within the workspace — its deny rules are inert once `--allow-all-tools` is set — so the read-only git policy degrades to no shell at all.
+
+Temporarily renames `.gitignore` to `.gitignore.<random-hex>.bak` before invocation. The random suffix (8 hex characters from `randomBytes(4)`) prevents collisions between concurrent agent runs.
+
+**Exports**: `CopilotAgent` (class), `CopilotAgentOptions` (interface), `createCopilotEventParser(): EventParser`
+
+`createCopilotEventParser()` handles copilot's JSONL output, correlating `tool_call` requests with `tool.execution_complete` events carrying `error.code: "denied"`.
 
 #### ClaudeAgent (`src/agent/claude-agent.ts`)
 
-Invokes `claude --print --dangerously-skip-permissions --model <model>`. The `ci` field is stored in the constructor but is not currently used in CLI argument construction. Uses `buildStdio(opts)` for log-file capture.
+**Unrestricted mode**: Invokes `claude --print --dangerously-skip-permissions --model <model>`.
+
+**Restricted mode**: Invokes `claude --print --permission-mode dontAsk --strict-mcp-config --model <model> --settings <JSON>`. The settings JSON expresses the permission profile as `Edit(//<root>/**)` allow rules for write roots, tool denials for unwanted tools (Bash, Task, WebFetch, etc.), and `additionalDirectories` for read roots outside `cwd`. When `onEvent` is set, adds `--verbose --output-format stream-json`.
+
+**Exports**: `ClaudeAgent` (class), `ClaudeAgentOptions` (interface), `createClaudeEventParser(): EventParser`, `CLAUDE_RESTRICTED_TOOLS` (constant)
+
+`CLAUDE_RESTRICTED_TOOLS` lists the expected tool surface under a restricted profile: `Edit`, `Glob`, `Grep`, `Read`, `Write`. The `claude/tool-surface` doctor probe asserts this set against the session event.
+
+`createClaudeEventParser()` handles claude's `stream-json` output, correlating `tool_use` blocks with `tool_result` errors matching denial patterns.
 
 #### FakeAgent (`src/agent/fake-agent.ts`)
 
-Test double. Returns canned results keyed by substring match against the prompt. Records all calls (including `additionalDirs`) for assertion. Supports optional side-effect callbacks to simulate file writes.
+Test double. Returns canned results keyed by substring match against the prompt. Records all calls (including `additionalDirs`, `permissions`, and `onEvent`) in `FakeAgentCall` for assertion. Supports optional side-effect callbacks to simulate file writes.
+
+### Doctor (`src/doctor/`)
+
+Diagnostic system for checking backend CLI availability and running capability/restriction probes.
+
+#### Index (`src/doctor/index.ts`)
+
+Orchestrates the doctor workflow: checks backend availability, runs fast-tier or full-tier probes, and formats results.
+
+**Exports**: `runDoctor(opts): Promise<DoctorResult>`, `formatDoctorResult(result, opts?): string`, `DoctorOptions` (interface), `DoctorResult` (interface), `DoctorBackendResult` (interface)
+
+`DoctorOptions` fields: `backend: Backend | "all"`, `level: ProbeLevel`, `json?: boolean`, `probe?: string[]`, `model?: string`, `ci?: boolean`, `cwd?: string`.
+
+`DoctorResult` fields: `schemaVersion: 1`, `backends: DoctorBackendResult[]`, `exitCode: number`, `logDir?: string`. Exit codes: 0 = all passed, 1 = at least one failed, 2 = could not run (binary missing).
+
+`DoctorBackendResult` fields: `backend: Backend`, `available: boolean`, `reason?: string`, `version?: string`, `probes: ProbeRunResult[]`.
+
+For full-tier runs, logs are placed under `<cwd>/.saaga-runs/doctor/<timestamp>/`.
+
+#### Probes (`src/doctor/probes.ts`)
+
+Defines the probe catalogue as data.
+
+**Exports**: `PROBE_CATALOGUE: ProbeDefinition[]`, `ProbeDefinition` (interface), `ProbeLevel` (type), `ProbeRunResult` (interface), `ProbeClassification` (type)
+
+`ProbeLevel` is `"fast" | "full"`. `ProbeClassification` is `"policy-denial" | "backend-failure"` — established by rerunning a failed capability probe without the profile.
+
+`ProbeRunResult` fields: `probeId: string`, `backend: Backend`, `status: "pass" | "fail" | "skip"`, `classification?: ProbeClassification`, `exitCode: number`, `elapsed: number`, `error?: string`.
+
+The catalogue includes fast-tier probes (`version`, `unknown-model-fails`) and full-tier probes (`handshake`, `write-in-cwd`, `read-from-cwd`, `read-gitignored`, `write-run-dir`, `read-outside-workspace-denied`, `write-outside-workspace-denied`, `arbitrary-shell-denied`, `write-source-denied`, `rule-files-denied`, `baseline-denied`, `read-only-git-allowed`, `git-mutation-denied`, `claude/tool-surface`, `claude/absolute-path-anchoring`, `claude/run-dir-writable`). Some probes are backend-specific (noted in `backends` field).
+
+#### Full Probes (`src/doctor/full-probes.ts`)
+
+Full-tier probe runner that invokes a real agent in a scratch repository.
+
+**Exports**: `runFullSideEffectProbes(opts): Promise<ProbeRunResult[]>`, `FullProbeRunOptions` (interface)
+
+Each probe defines a `buildPrompt()` and an `assert()`. Probes are classified as `capability` (asserts something works) or `restriction` (asserts something is denied). When a capability probe fails, it is automatically rerun without the permission profile to produce a `ProbeClassification` distinguishing `policy-denial` from `backend-failure`.
+
+#### Scratch Repo (`src/doctor/scratch-repo.ts`)
+
+**Exports**: `createScratchRepo(): Promise<ScratchRepo>`, `ScratchRepo` (interface)
+
+Creates a disposable git repository in the system temp directory with a known file layout: `src/index.ts` (with a nonce), `build/generated.txt` (gitignored, with a nonce), `AGENTS.md`, `saaga-docs/BASELINE`, `.gitignore`, and an `outside/` directory with a secret file. The scratch repo is initialized as a git repo with an initial commit. A `cleanup()` method removes the entire tree.
+
+#### Preflight (`src/doctor/preflight.ts`)
+
+**Exports**: `runPreflight(backend): Promise<PreflightResult>`, `PreflightResult` (interface)
+
+Runs fast-tier probes for a single backend before starting a flow. Returns `{ passed: boolean, doctorResult }`. Does not throw — the caller decides how to handle failure.
 
 ### Engine (`src/engine/`)
 
@@ -198,7 +322,7 @@ Executes a `FlowDefinition` by iterating its steps. Creates a `PhaseTracker` at 
 
 **Exports**: `runFlow(flow, initialScope, deps)`, `RunFlowDeps`, `AgentStepFailedError`, `ExpectFileMissingError`
 
-`RunFlowDeps` bundles the `Agent`, working directory, optional script registry override, an optional `logger?: Logger`, `logFile?: string` (absolute path to the run log file for agent output capture), and `verbose?: boolean` (mirror agent output to terminal). When `logger` is omitted, a silent logger (no-op sink) is used so library callers and tests don't get noise.
+`RunFlowDeps` bundles the `Agent`, working directory, optional script registry override, an optional `logger?: Logger`, `logFile?: string` (absolute path to the run log file for agent output capture), `verbose?: boolean` (mirror agent output to terminal), `permissions?: AgentPermissions` (permission profile for agent steps; absent means unrestricted), and `auditor?: PermissionAuditor` (collects and classifies permission denials; its presence switches agent steps to structured JSON output). When `logger` is omitted, a silent logger (no-op sink) is used so library callers and tests don't get noise.
 
 #### Expression (`src/engine/expression.ts`)
 
@@ -229,7 +353,7 @@ Built-in script handlers invoked by `script` steps. Registered in a `ScriptRegis
 
 **Exports**: `defaultScriptRegistry: ScriptRegistry`, `ScriptHandler` type, `ScriptContext` type
 
-The default registry maps: `"parse-plan"` → `parsePlan`, `"detect-changes"` → `detectChanges`, `"generate-baseline"` → `generateBaseline`, `"archive-quick-update"` → `archiveQuickUpdate`, `"collect-quick-updates"` → `collectQuickUpdates`, `"remove-quick-updates"` → `removeQuickUpdates`, `"install-rules"` → `installRules`.
+The default registry maps: `"parse-plan"` → `parsePlan`, `"detect-changes"` → `detectChanges`, `"generate-baseline"` → `generateBaseline`, `"archive-quick-update"` → `archiveQuickUpdate`, `"collect-quick-updates"` → `collectQuickUpdates`, `"remove-quick-updates"` → `removeQuickUpdates`, `"install-rules"` → `installRules`, `"ensure-gitignore"` → `ensureGitignore`.
 
 #### parse-plan (`src/scripts/parse-plan.ts`)
 
@@ -243,9 +367,17 @@ Compares the current work tree against `<app>/<docs_dir>/BASELINE`. Classifies d
 
 Writes `<app>/<docs_dir>/BASELINE` containing a `# Generated:` timestamp header and one `<hash> <path>` line per in-scope file, excluding `<docsDir>/`, `.saagaignore`, `.git/`, and any path matched by `.gitignore`/`.saagaignore` patterns. Hashes are computed locally without git CLI.
 
+#### ensure-gitignore (`src/scripts/ensure-gitignore.ts`)
+
+Ensures a given pattern (e.g. `.saaga-runs/`) is present in the project's `.gitignore`. Creates the file if it does not exist. Used as the first step of the init flow to prevent run artifacts from being committed.
+
+**Exports**: `ensureGitignore()`, `EnsureGitignoreArgs`
+
+`EnsureGitignoreArgs` fields: `app_dir: string`, `pattern: string`.
+
 #### file-manifest (`src/scripts/file-manifest.ts`)
 
-Shared utility used by `detect-changes` and `generate-baseline`. Recursively walks an application directory, honoring nested `.gitignore` and `.saagaignore` files at every directory level with "deepest match wins" semantics (via the `ignore` npm package). Accepts `(appDir, docsDir)` parameters to know which top-level directory to hard-exclude. Returns a sorted `FileEntry[]` with SHA-1 git blob hashes computed locally. No git CLI required.
+Shared utility used by `detect-changes` and `generate-baseline`. Recursively walks an application directory, honoring nested `.gitignore` and `.saagaignore` files at every directory level with "deepest match wins" semantics (via the `ignore` npm package). Accepts `(appDir, docsDir)` parameters to know which top-level directory to hard-exclude. Hard-excludes `.saaga-runs/` at the top level (run artifacts are never part of the manifest). Returns a sorted `FileEntry[]` with SHA-1 git blob hashes computed locally. No git CLI required.
 
 Symlinks are included as manifest entries and hashed git-style (hash of the link target path string, not the linked file's content). Symlinked directories are not traversed.
 
@@ -291,9 +423,11 @@ Generates a unique run ID and creates the run output directory. Also provides a 
 
 **Exports**: `createRunContext(input): Promise<RunContext>`, `RunContext`, `CreateRunContextInput`
 
+`CreateRunContextInput` fields: `app: string` (display name), `subcommand: string` (label embedded in run ID), `appPath: string` (required; absolute path to the application directory), `now?: Date` (test override).
+
 **ID format**: `<app>-<subcommand>-<YYYYMMDD>-<HHMMSS>-<8 hex chars>`
 
-**Directory**: `$SAAGA_DIR/runs/<run-id>/` (defaults to `$HOME/.saaga/runs/`)
+**Directory**: `<appPath>/.saaga-runs/<run-id>/`
 
 ### Paths (`src/paths.ts`)
 
@@ -331,7 +465,7 @@ Low-level terminal output engine. `OutputSink` manages the pending-line state ma
 
 **Exports**: `OutputSink` class, `OutputSinkOptions` interface, `Marker` type, `formatDuration()`, `truncateLabel()`
 
-`Marker` is a string union: `"DONE" | "SKIP" | "FAIL"`. Rendered as `[DONE]`, `[SKIP]`, `[FAIL]` with ANSI color in TTY mode (green, dim, red via `picocolors`), plain text in CI mode.
+`Marker` is a string union: `"DONE" | "SKIP" | "FAIL" | "PASS"`. Rendered as `[DONE]`, `[SKIP]`, `[FAIL]`, `[PASS]` with ANSI color in TTY mode (green for `DONE`/`PASS`, dim for `SKIP`, red for `FAIL` via `picocolors`), plain text in CI mode.
 
 `OutputSinkOptions` fields: `ci?: boolean`, `stream?: NodeJS.WritableStream` (default `process.stderr`), `logFile?: string`, `verbose?: boolean`.
 
@@ -352,7 +486,7 @@ YAML files that define the step sequence for each subcommand. The engine loads t
 
 | Flow | Subcommand | Steps |
 |------|------------|-------|
-| `init.flow.yaml` | `init` | Architecture → plan → phase-0 slice → install-rules → foreach phase (slice + verify/fix loop) → generate baseline. All script/prompt steps receive `docs_dir` from scope. |
+| `init.flow.yaml` | `init` | Ensure-gitignore → architecture → plan → phase-0 slice → install-rules → foreach phase (slice + verify/fix loop) → generate baseline. All script/prompt steps receive `docs_dir` from scope. |
 | `update.flow.yaml` | `update` | Detect changes → if changes exist: plan → foreach phase (slice + verify/fix loop) → regenerate baseline. All script/prompt steps receive `docs_dir` from scope. |
 | `quick-update.flow.yaml` | `quick-update` | Detect changes → if changes exist: agent quick-update → read status → if UPDATED: archive-quick-update → generate baseline. Metadata paths use `${docs_dir}`. |
 | `verify-quick-updates.flow.yaml` | `verify-quick-updates` | Collect quick-updates → if any: plan → foreach phase (slice + verify/fix loop) → remove processed artifacts. Metadata paths use `${docs_dir}`. |
@@ -382,6 +516,11 @@ flowchart BT
     templates[templates]
     runctx[run-context]
     agtypes[agent/types]
+    agperms[agent/permissions]
+    agevents[agent/events]
+    agaudit[agent/audit]
+    agspawn[agent/spawn]
+    agstdio[agent/stdio]
     cursor[agent/cursor-agent]
     copilot[agent/copilot-agent]
     claude[agent/claude-agent]
@@ -404,12 +543,33 @@ flowchart BT
     collect[scripts/collect-quick-updates]
     removqu[scripts/remove-quick-updates]
     instrules[scripts/install-rules]
+    ensuregi[scripts/ensure-gitignore]
+    doctor[doctor/index]
+    preflight[doctor/preflight]
+    probes[doctor/probes]
+    fullprobes[doctor/full-probes]
+    scratch[doctor/scratch-repo]
     cli[cli]
 
+    agaudit --> agevents
+    agaudit --> agperms
+    agspawn --> agevents
     cursor --> agtypes
+    cursor --> agperms
+    cursor --> agevents
+    cursor --> agspawn
+    cursor --> agstdio
     copilot --> agtypes
+    copilot --> agevents
+    copilot --> agspawn
+    copilot --> agstdio
     claude --> agtypes
+    claude --> agperms
+    claude --> agevents
+    claude --> agspawn
+    claude --> agstdio
     fake --> agtypes
+    fake --> agperms
     backend --> agtypes
     backend --> cursor
     backend --> copilot
@@ -433,6 +593,9 @@ flowchart BT
     runner --> output
     runner --> phases
     runner --> scripts
+    runner --> agaudit
+    runner --> agperms
+    runner --> agtypes
 
     scripts --> parsep
     scripts --> detect
@@ -441,10 +604,26 @@ flowchart BT
     scripts --> collect
     scripts --> removqu
     scripts --> instrules
+    scripts --> ensuregi
     detect --> fmani
     genbl --> fmani
     instrules --> paths
     instrules --> templates
+
+    doctor --> backend
+    doctor --> probes
+    doctor --> fullprobes
+    fullprobes --> probes
+    fullprobes --> scratch
+    fullprobes --> agperms
+    fullprobes --> agevents
+    fullprobes --> claude
+    fullprobes --> agtypes
+    fullprobes --> output
+    fullprobes --> backend
+    probes --> backend
+    preflight --> doctor
+    preflight --> backend
 
     cli --> backend
     cli --> confirm
@@ -455,10 +634,16 @@ flowchart BT
     cli --> logger
     cli --> paths
     cli --> instrules
+    cli --> agperms
+    cli --> agaudit
+    cli --> doctor
+    cli --> preflight
 
     style cli fill:#4A90D9,color:#fff
     style runner fill:#7B68EE,color:#fff
     style agtypes fill:#3CB371,color:#fff
     style scripts fill:#DAA520,color:#fff
     style output fill:#E06C75,color:#fff
+    style doctor fill:#9B59B6,color:#fff
+    style agperms fill:#2ECC71,color:#fff
 ```

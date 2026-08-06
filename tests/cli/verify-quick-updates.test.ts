@@ -11,11 +11,9 @@ import { runCli } from "../../src/cli.js";
 async function tmpVerifyEnv(name: string) {
   const root = await mkdtemp(join(tmpdir(), "saaga-verify-qu-"));
   const app = join(root, name);
-  const home = join(root, "home");
   await mkdir(app);
-  await mkdir(home);
   await writeFile(join(app, "src.ts"), "alpha", "utf8");
-  return { root, app, home };
+  return { root, app };
 }
 
 async function seedQuickUpdateArtifact(app: string, id: string) {
@@ -67,7 +65,7 @@ function verifyScenario(
 
 describe("saaga verify-quick-updates", () => {
   test("no artifacts: exits cleanly without invoking the agent", async () => {
-    const { app, home } = await tmpVerifyEnv("noop");
+    const { app } = await tmpVerifyEnv("noop");
 
     const fake = new FakeAgent({
       "Plan Verification": planVerifyScenario("---\nphases: []\n---\n"),
@@ -75,14 +73,13 @@ describe("saaga verify-quick-updates", () => {
 
     const exitCode = await runCli(["verify-quick-updates", app], {
       agent: fake,
-      env: { HOME: home },
     });
     expect(exitCode).toBe(0);
     expect(fake.calls).toHaveLength(0);
   });
 
   test("with artifacts: plan + slice + verify per phase, then removes artifacts", async () => {
-    const { app, home } = await tmpVerifyEnv("full");
+    const { app } = await tmpVerifyEnv("full");
     await seedQuickUpdateArtifact(app, "run-abc");
 
     const fake = new FakeAgent({
@@ -102,7 +99,6 @@ phases:
 
     const exitCode = await runCli(["verify-quick-updates", app], {
       agent: fake,
-      env: { HOME: home },
     });
     expect(exitCode).toBe(0);
 
@@ -118,7 +114,7 @@ phases:
   });
 
   test("verify FAIL triggers fix, then re-verify", async () => {
-    const { app, home } = await tmpVerifyEnv("fixloop");
+    const { app } = await tmpVerifyEnv("fixloop");
     await seedQuickUpdateArtifact(app, "run-fix");
 
     const fake = new FakeAgent({
@@ -139,7 +135,6 @@ phases:
 
     const exitCode = await runCli(["verify-quick-updates", app], {
       agent: fake,
-      env: { HOME: home },
     });
     expect(exitCode).toBe(0);
 
@@ -151,7 +146,7 @@ phases:
   });
 
   test("multiple artifacts are consolidated and all removed", async () => {
-    const { app, home } = await tmpVerifyEnv("multi");
+    const { app } = await tmpVerifyEnv("multi");
     await seedQuickUpdateArtifact(app, "run-1");
     await seedQuickUpdateArtifact(app, "run-2");
 
@@ -170,7 +165,6 @@ phases:
 
     const exitCode = await runCli(["verify-quick-updates", app], {
       agent: fake,
-      env: { HOME: home },
     });
     expect(exitCode).toBe(0);
 

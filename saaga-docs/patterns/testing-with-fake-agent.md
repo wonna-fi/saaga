@@ -42,16 +42,24 @@ const fake = new FakeAgent({
 //    This skips backend resolution entirely.
 const exitCode = await runCli(["init", appDir], {
   agent: fake,
-  env: { HOME: tmpHome },
 });
 
 // 4. Assert on exit code
 expect(exitCode).toBe(0);
 
-// 5. Assert on recorded calls: order, count, prompt content, and cwd
+// 5. Assert on recorded calls: order, count, prompt content, cwd,
+//    and the new permissions and onEvent fields
 expect(fake.calls).toHaveLength(3);
 expect(fake.calls[0].prompt).toContain("Document the Architecture");
 expect(fake.calls[0].cwd).toBe(appDir);
+
+// 6. Assert that permissions were forwarded to the agent
+expect(fake.calls[0].permissions).toBeDefined();
+expect(fake.calls[0].permissions?.readRoots).toContain(appDir);
+expect(fake.calls[0].permissions?.shell).toBe("read-only-git");
+
+// 7. Assert that onEvent callback was provided (when auditor is active)
+expect(fake.calls[0].onEvent).toBeDefined();
 ```
 
 ### Side Effects for `expect_file` Steps
@@ -84,7 +92,6 @@ const fake = new FakeAgent({
 
 const exitCode = await runCli(["init", appDir], {
   agent: fake,
-  env: { HOME: tmpHome },
 });
 expect(exitCode).not.toBe(0);
 ```
@@ -113,9 +120,11 @@ const fake = new FakeAgent({
 
 - **Substring matching**: scenarios are matched by checking `prompt.includes(key)`. The first matching key wins, so order scenario keys from most specific to least specific.
 - **`CliOptions.agent` bypass**: when `agent` is provided, the CLI skips `resolveBackend()` entirely — no backend env vars needed.
-- **`calls` array**: every invocation is recorded in `fake.calls` as `{ prompt, cwd }`, allowing assertions on call order, count, prompt content, and working directory.
+- **`calls` array**: every invocation is recorded in `fake.calls` as a `FakeAgentCall` with fields: `prompt`, `cwd`, `additionalDirs`, `permissions`, and `onEvent`. This allows assertions on call order, count, prompt content, working directory, and whether the permission profile and event sink were forwarded correctly.
 - **`effect` timing**: the effect callback runs after the call is recorded but before the result is returned. This means you can inspect `fake.calls` inside an effect.
 - **Unmatched prompts throw**: if no scenario key is a substring of the prompt, `FakeAgent` throws `"FakeAgent: no scenario matched prompt (first 120 chars): ..."`. This catches unexpected agent invocations.
+- **Permissions forwarding**: the flow engine passes `deps.permissions` through to every `Agent.run()` call. Tests can assert that `fake.calls[i].permissions` matches the expected profile to verify the restriction system is wired correctly.
+- **Event sink forwarding**: when a `PermissionAuditor` is present in `RunFlowDeps`, the runner wraps `auditor.record()` as the `onEvent` callback. Tests can assert that `fake.calls[i].onEvent` is defined to verify audit wiring.
 
 ## Reference Implementations
 
@@ -134,3 +143,4 @@ const fake = new FakeAgent({
 - Forget to write `expect_file` outputs in effects — the runner will throw `ExpectFileMissingError` after the agent returns
 - Use `FakeAgent` in production — it is only exported for test use; production code uses `createAgent()` to construct real backends
 - Modify `fake.calls` directly — treat it as read-only for assertions; the array is populated by `FakeAgent.run()`
+- Ignore `permissions` and `onEvent` in test assertions — these fields confirm that the restriction and audit systems are correctly wired through the flow engine

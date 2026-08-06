@@ -7,17 +7,15 @@ export interface CreateRunContextInput {
   app: string;
   /** Subcommand label embedded in the run-id (e.g. `init`, `update`, `slice-1`). */
   subcommand: string;
-  /** Absolute path to the application directory; surfaced as `${app_path}`. */
-  appPath?: string;
-  /** Process env (defaults to `process.env`); used to read HOME and SAAGA_DIR. */
-  env?: NodeJS.ProcessEnv;
+  /** Absolute path to the application directory. */
+  appPath: string;
   /** Override the timestamp portion of the id (used by tests). */
   now?: Date;
 }
 
 export interface RunContext {
   app: string;
-  appPath?: string;
+  appPath: string;
   subcommand: string;
   runId: string;
   runDir: string;
@@ -27,8 +25,7 @@ export interface RunContext {
 
 /**
  * Generates a unique run identifier and creates the corresponding run dir
- * on disk. The dir defaults to `$HOME/.saaga/runs/<run-id>` and can be
- * relocated via `SAAGA_DIR`.
+ * on disk at `<appPath>/.saaga-runs/<run-id>`.
  *
  * The id format mirrors `run.sh::generate_run_id()`:
  *   `<app>-<subcommand>-<YYYYMMDD>-<HHMMSS>-<8 hex chars>`
@@ -36,24 +33,12 @@ export interface RunContext {
 export async function createRunContext(
   input: CreateRunContextInput,
 ): Promise<RunContext> {
-  const env = input.env ?? process.env;
   const now = input.now ?? new Date();
   const stamp = formatTimestamp(now);
   const random = randomBytes(4).toString("hex");
   const runId = `${input.app}-${input.subcommand}-${stamp}-${random}`;
 
-  const baseDir =
-    env.SAAGA_DIR && env.SAAGA_DIR.length > 0
-      ? env.SAAGA_DIR
-      : env.HOME && env.HOME.length > 0
-      ? resolve(env.HOME, ".saaga")
-      : (() => {
-          throw new Error(
-            "Cannot determine run directory: HOME is not set and SAAGA_DIR is not provided",
-          );
-        })();
-
-  const runDir = resolve(baseDir, "runs", runId);
+  const runDir = resolve(input.appPath, ".saaga-runs", runId);
   await mkdir(runDir, { recursive: true });
 
   return {

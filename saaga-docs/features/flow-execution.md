@@ -31,7 +31,7 @@ Before working with this feature, understand these concepts:
 
 | Step Type | Handler | Behavior |
 |-----------|---------|----------|
-| `agent` | `runAgentStep()` (internal) | Resolves label via `resolveLabel()`, advances the phase tracker (if top-level or first in foreach), emits `phaseBegin()` with `Phase N/M: label`, renders prompt, calls `Agent.run()` with `additionalDirs` (from `scope.run_dir`), `logFile`, and `echo`. Emits `phaseEnd("DONE")` on success or `phaseEnd("FAIL")` on failure (with log tail). Asserts `expect_file`. |
+| `agent` | `runAgentStep()` (internal) | Resolves label via `resolveLabel()`, advances the phase tracker (if top-level or first in foreach), emits `phaseBegin()` with `Phase N/M: label`, renders prompt, calls `Agent.run()` with `additionalDirs` (from `scope.run_dir`), `permissions`, `logFile`, `echo`, and `onEvent` (from auditor). Emits `phaseEnd("DONE")` on success or `phaseEnd("FAIL")` on failure (with log tail). Asserts `expect_file`. |
 | `script` | `runScriptStep()` | Resolves label, advances phase tracker, emits `phaseBegin()` / `phaseEnd()`. Looks up script in registry, interpolates args, executes handler, optionally stores result in scope. |
 | `foreach` | `runForeachStep()` via `runForeachWithPhases()` | Resolves array from scope, logs item count as a detail line. Advances the phase tracker once per iteration (on the first child step). Child steps run with `insideForeach: true` context. |
 | `loop` | `runLoopStep()` via `runLoopWithPhases()` | Repeats body up to `max` times, sets `${iteration}`, exits early when `until:` is true. Child steps inherit the parent's foreach context and include iteration suffixes (e.g. `(iteration 2/3)`) in phase lines. |
@@ -43,7 +43,7 @@ Before working with this feature, understand these concepts:
 1. Resolves prompt file path: `<PROMPTS_DIR>/<step.prompt>.md`
 2. Interpolates each `vars` value using `interpolate(raw, scope)` — resolves `${expr}` references
 3. Renders the prompt template file: `renderPromptFile(path, renderedVars)` — substitutes `{key}` placeholders
-4. Constructs `additionalDirs` from `scope.run_dir` (if it is a string); calls `deps.agent.run(prompt, { cwd: deps.cwd, additionalDirs, logFile: deps.logFile, echo: deps.verbose })`
+4. Constructs `additionalDirs` from `scope.run_dir` (if it is a string); constructs `onEvent` callback from `deps.auditor` (if present — calls `auditor.record(event)` for each event); calls `deps.agent.run(prompt, { cwd: deps.cwd, additionalDirs, permissions: deps.permissions, logFile: deps.logFile, echo: deps.verbose, onEvent })`
 5. If exit code is non-zero, throws `AgentStepFailedError`; before re-throwing, calls `printFailureTail()` to show the last lines from the log file
 6. If `expect_file` is defined, interpolates the path and asserts the file exists — throws `ExpectFileMissingError` if missing
 
@@ -67,15 +67,19 @@ Before working with this feature, understand these concepts:
 ### Dependencies Interface
 
 ```typescript
+import type { PermissionAuditor } from "../agent/audit.js";
+import type { AgentPermissions } from "../agent/permissions.js";
 import { Logger } from "../logger.js";
 
 interface RunFlowDeps {
-  agent: Agent;              // Backend for agent steps
-  cwd: string;              // Working directory for agent invocations
-  scripts?: ScriptRegistry;  // Override script registry (for tests)
-  logger?: Logger;           // Structured logger for flow progress output (defaults to silent)
-  logFile?: string;          // Absolute path to the run log file for agent output capture
-  verbose?: boolean;         // Mirror agent output to terminal (--verbose)
+  agent: Agent;                       // Backend for agent steps
+  cwd: string;                        // Working directory for agent invocations
+  scripts?: ScriptRegistry;           // Override script registry (for tests)
+  logger?: Logger;                    // Structured logger for flow progress output (defaults to silent)
+  logFile?: string;                   // Absolute path to the run log file for agent output capture
+  verbose?: boolean;                  // Mirror agent output to terminal (--verbose)
+  permissions?: AgentPermissions;     // Permission profile for agent steps; absent means unrestricted
+  auditor?: PermissionAuditor;        // Collects/classifies denial events; switches agent to structured output
 }
 ```
 
@@ -84,7 +88,7 @@ interface RunFlowDeps {
 | Module | Function/Method | Purpose |
 |--------|-----------------|---------|
 | `src/engine/runner.ts` | `runFlow()` | Main entry point: executes a flow definition with given scope and dependencies |
-| `src/engine/runner.ts` | `RunFlowDeps` (interface) | Configuration for the execution environment: `agent`, `cwd`, optional `scripts`, `logger`, `logFile`, `verbose` |
+| `src/engine/runner.ts` | `RunFlowDeps` (interface) | Configuration for the execution environment: `agent`, `cwd`, optional `scripts`, `logger`, `logFile`, `verbose`, `permissions`, `auditor` |
 | `src/engine/runner.ts` | `ExpectFileMissingError` (class) | Thrown when `expect_file` assertion fails |
 | `src/engine/runner.ts` | `AgentStepFailedError` (class) | Thrown when an agent step exits with non-zero code |
 | `src/engine/phases.ts` | `PhaseTracker` (class) | Tracks the flat phase index and dynamically computes the total for `Phase N/M` progress display |
@@ -109,7 +113,7 @@ interface RunFlowDeps {
 > - `runStep()` — dispatches a single step by type, manages phase tracking and phase-line emission based on `StepContext`
 > - `runForeachWithPhases()` — wraps `runForeachStep()` with phase-tracker advancement (once per iteration, on the first child step)
 > - `runLoopWithPhases()` — wraps `runLoopStep()` with loop iteration context (iteration number and max) for phase-line suffixes
-> - `runAgentStep()` — resolves the prompt template, renders it, constructs `additionalDirs` from `scope.run_dir`, invokes the agent with `logFile`/`echo`, and asserts `expect_file`
+> - `runAgentStep()` — resolves the prompt template, renders it, constructs `additionalDirs` from `scope.run_dir`, passes `permissions` and `onEvent` (from auditor) to the agent, invokes with `logFile`/`echo`, and asserts `expect_file`
 > - `resolveLabel()` — resolves the step's `label` field via interpolation, falling back to the step name with hyphens replaced by spaces
 > - `buildPhaseLine()` — constructs the phase line string from counter, label, and iteration suffix
 > - `formatIterSuffix()` — produces the `(iteration N/M)` suffix for steps inside a loop, or empty string otherwise

@@ -16,7 +16,7 @@ describe("saaga install-rules", () => {
     const app = await tmpApp();
 
     // No agent option, no config, no credentials: must still work.
-    const exitCode = await runCli(["install-rules", app], { env: {} });
+    const exitCode = await runCli(["install-rules", app], {});
     expect(exitCode).toBe(0);
 
     const agentsMd = await readFile(join(app, "AGENTS.md"), "utf8");
@@ -30,7 +30,7 @@ describe("saaga install-rules", () => {
 
     const exitCode = await runCli(
       ["install-rules", app, "--rule-targets", "cursor,claude"],
-      { env: {} },
+      {},
     );
     expect(exitCode).toBe(0);
 
@@ -51,10 +51,10 @@ describe("saaga install-rules", () => {
     const app = await tmpApp();
     await writeFile(join(app, "AGENTS.md"), "# Existing\n", "utf8");
 
-    await runCli(["install-rules", app], { env: {} });
+    await runCli(["install-rules", app], {});
     const first = await readFile(join(app, "AGENTS.md"), "utf8");
 
-    await runCli(["install-rules", app], { env: {} });
+    await runCli(["install-rules", app], {});
     const second = await readFile(join(app, "AGENTS.md"), "utf8");
 
     expect(first.startsWith("# Existing")).toBe(true);
@@ -64,13 +64,13 @@ describe("saaga install-rules", () => {
   test("fails on invalid targets", async () => {
     const app = await tmpApp();
     await expect(
-      runCli(["install-rules", app, "--rule-targets", "bogus"], { env: {} }),
+      runCli(["install-rules", app, "--rule-targets", "bogus"], {}),
     ).rejects.toThrow(/invalid rule target 'bogus'/);
   });
 
   test("fails on a missing directory", async () => {
     await expect(
-      runCli(["install-rules", "/nonexistent/path"], { env: {} }),
+      runCli(["install-rules", "/nonexistent/path"], {}),
     ).rejects.toThrow(/Directory not found/);
   });
 });

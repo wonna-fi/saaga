@@ -13,10 +13,8 @@ async function tmpAppEnv(name: string) {
   const root = await mkdtemp(join(tmpdir(), "saaga-test-"));
   const app = join(root, name);
   await mkdir(app);
-  const home = join(root, "home");
-  await mkdir(home);
   await writeFile(join(app, "README.md"), "x", "utf8");
-  return { root, app, home };
+  return { root, app };
 }
 
 function planInitScenario(planContent: string): {
@@ -79,7 +77,7 @@ phases:
 
 describe("saaga init", () => {
   test("phase-0-only plan: architecture, plan-init, slice-doc(0), install-rules, baseline", async () => {
-    const { app, home } = await tmpAppEnv("salesforce");
+    const { app } = await tmpAppEnv("salesforce");
     const planScenario = planInitScenario(SINGLE_PHASE_PLAN);
 
     const fake = new FakeAgent({
@@ -90,7 +88,6 @@ describe("saaga init", () => {
 
     const exitCode = await runCli(["init", app], {
       agent: fake,
-      env: { HOME: home },
     });
 
     expect(exitCode).toBe(0);
@@ -117,24 +114,24 @@ describe("saaga init", () => {
     expect(planPath).not.toBeNull();
     const path = planPath as string;
     expect(isAbsolute(path)).toBe(true);
-    expect(path.startsWith(join(home, ".saaga", "runs"))).toBe(true);
+    expect(path.startsWith(join(app, ".saaga-runs"))).toBe(true);
     expect(path.endsWith("/plans/salesforce-init.plan.md")).toBe(true);
   });
 
   test("fails when plan-init does not produce the expected file", async () => {
-    const { app, home } = await tmpAppEnv("noplan");
+    const { app } = await tmpAppEnv("noplan");
     const fake = new FakeAgent({
       "Document the Architecture": { exitCode: 0 },
       "Plan Domain Documentation": { exitCode: 0 },
     });
 
     await expect(
-      runCli(["init", app], { agent: fake, env: { HOME: home } }),
+      runCli(["init", app], { agent: fake }),
     ).rejects.toThrow(/expect_file/);
   });
 
   test("foreach skips phase 0 and runs slice-doc + verify for non-zero phases", async () => {
-    const { app, home } = await tmpAppEnv("acme");
+    const { app } = await tmpAppEnv("acme");
 
     const planContent = `---
 phases:
@@ -158,7 +155,6 @@ phases:
 
     const exitCode = await runCli(["init", app], {
       agent: fake,
-      env: { HOME: home },
     });
 
     expect(exitCode).toBe(0);
@@ -179,7 +175,7 @@ phases:
   });
 
   test("verify/fix loop: FAIL then fix then verify(PASS), then no third iteration", async () => {
-    const { app, home } = await tmpAppEnv("verifyfix");
+    const { app } = await tmpAppEnv("verifyfix");
 
     const fake = new FakeAgent({
       "Document the Architecture": { exitCode: 0 },
@@ -194,7 +190,6 @@ phases:
 
     const exitCode = await runCli(["init", app], {
       agent: fake,
-      env: { HOME: home },
     });
 
     expect(exitCode).toBe(0);
@@ -219,7 +214,7 @@ phases:
   });
 
   test("P15 full parity: ordering + docs/BASELINE exists at the end", async () => {
-    const { app, home } = await tmpAppEnv("parity");
+    const { app } = await tmpAppEnv("parity");
 
     const planContent = `---
 phases:
@@ -241,7 +236,6 @@ phases:
 
     const exitCode = await runCli(["init", app], {
       agent: fake,
-      env: { HOME: home },
     });
 
     expect(exitCode).toBe(0);
@@ -266,7 +260,7 @@ phases:
   });
 
   test("--rule-targets flag reaches the install step", async () => {
-    const { app, home } = await tmpAppEnv("flagged");
+    const { app } = await tmpAppEnv("flagged");
     const fake = new FakeAgent({
       "Document the Architecture": { exitCode: 0 },
       "Plan Domain Documentation": planInitScenario(SINGLE_PHASE_PLAN).scenario,
@@ -275,7 +269,7 @@ phases:
 
     const exitCode = await runCli(
       ["init", app, "--rule-targets", "cursor,copilot"],
-      { agent: fake, env: { HOME: home } },
+      { agent: fake },
     );
 
     expect(exitCode).toBe(0);
@@ -296,13 +290,12 @@ phases:
   });
 
   test("invalid --rule-targets fails fast before any agent call", async () => {
-    const { app, home } = await tmpAppEnv("badflag");
+    const { app } = await tmpAppEnv("badflag");
     const fake = new FakeAgent({});
 
     await expect(
       runCli(["init", app, "--rule-targets", "bogus"], {
         agent: fake,
-        env: { HOME: home },
       }),
     ).rejects.toThrow(/invalid rule target 'bogus'/);
 
@@ -310,13 +303,12 @@ phases:
   });
 
   test("empty/whitespace --rule-targets fails fast before any agent call", async () => {
-    const { app, home } = await tmpAppEnv("emptyflag");
+    const { app } = await tmpAppEnv("emptyflag");
     const fake = new FakeAgent({});
 
     await expect(
       runCli(["init", app, "--rule-targets", "   "], {
         agent: fake,
-        env: { HOME: home },
       }),
     ).rejects.toThrow(/no rule target specified/);
 

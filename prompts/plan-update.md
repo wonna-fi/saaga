@@ -598,3 +598,5 @@ If you discover apparent bugs or inconsistencies while documenting:
 - Do NOT author or edit agent rule files (`AGENTS.md`, `CLAUDE.md`, Cursor `.mdc`, Copilot instructions); the documentation guidance written into them is managed separately by the `install-rules` step, not by this plan.
 - If the application has an existing `{docs_dir}/ARCHITECTURE.md`, use it to understand the current documented structure and identify structural changes.
 - Write the plan to `{output_path}`. Do NOT use any IDE-specific tools (like CreatePlan). Write the file directly.
+- Do NOT modify repository source code or create git commits.
+- Read-only git history is available when the project is a git repository. You may use `git log`, `git show`, `git diff`, `git blame`, and similar read-only commands to understand the nature and intent of changes. Do not run any git commands that modify the repository.

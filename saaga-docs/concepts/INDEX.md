@@ -10,9 +10,11 @@
 | [Project Configuration](./project-configuration.md) | The `.saaga/config.yaml` file: fields, loading, validation, and resolution chains |
 | [Backend Resolution](./backend-resolution.md) | The precedence chain for selecting a backend and model defaults |
 | [Cost Confirmation](./cost-confirmation.md) | The interactive cost disclaimer shown before agent-backed commands: notice builder, auto-approve, and `ConfirmationDeclinedError` |
-| [Run Context and Isolation](./run-context.md) | Run ID format, `SAAGA_DIR` resolution, and run directory creation for artifact isolation |
+| [Run Context and Isolation](./run-context.md) | Run ID format, `<appPath>/.saaga-runs/` directory layout, and run context creation for artifact isolation |
 | [Script Registry](./script-registry.md) | The `ScriptRegistry` map, `ScriptHandler` signature, `ScriptContext`, and how built-in scripts are registered and invoked |
 | [Baseline and Change Detection](./baseline-and-change-detection.md) | The `<docs_dir>/BASELINE` file format, `.saagaignore` filtering, and change classification system |
 | [Flow Definitions](./flow-definitions.md) | The four flow YAML files, their step sequences, and how they compose agent steps, scripts, and control flow |
 | [Output and Progress Display](./output-and-progress.md) | `OutputSink`, `PhaseTracker`, `Marker` type, `formatDuration()`, TTY spinner, column-aligned markers, log-file capture, and `--verbose` mode |
 | [Prompt Templates](./prompt-templates.md) | The eight prompt template files, their `{var}` placeholders, and their role in each workflow |
+| [Agent Permissions and Restriction](./agent-permissions.md) | `AgentPermissions` interface, `buildProfile()`, `enumerateExcludedPaths()`, `READ_ONLY_GIT`, and how backends translate the profile |
+| [Agent Events and Denial Parsing](./agent-events.md) | `AgentEvent` union, `EventParser`, `LineSplitter`, `consumeEvents()`, per-backend parsers, `PermissionAuditor`, and `classifyDenial()` |

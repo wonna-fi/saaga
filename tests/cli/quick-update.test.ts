@@ -13,12 +13,10 @@ import { generateBaseline } from "../../src/scripts/generate-baseline.js";
 async function tmpQuickUpdateEnv(name: string) {
   const root = await mkdtemp(join(tmpdir(), "saaga-quick-"));
   const app = join(root, name);
-  const home = join(root, "home");
   await mkdir(app);
-  await mkdir(home);
   await writeFile(join(app, "src.ts"), "alpha", "utf8");
   await generateBaseline({ app_dir: app, docs_dir: DEFAULT_DOCS_DIR }, { cwd: app });
-  return { root, app, home };
+  return { root, app };
 }
 
 function quickUpdateScenario(
@@ -53,7 +51,7 @@ function quickUpdateScenario(
 
 describe("saaga quick-update", () => {
   test("zero changes: no agent is invoked", async () => {
-    const { app, home } = await tmpQuickUpdateEnv("noop");
+    const { app } = await tmpQuickUpdateEnv("noop");
 
     const fake = new FakeAgent({
       "Quick-Update Domain Documentation": quickUpdateScenario("UPDATED"),
@@ -61,14 +59,13 @@ describe("saaga quick-update", () => {
 
     const exitCode = await runCli(["quick-update", app], {
       agent: fake,
-      env: { HOME: home },
     });
     expect(exitCode).toBe(0);
     expect(fake.calls).toHaveLength(0);
   });
 
   test("UPDATED: agent runs, metadata artifact is created, baseline is regenerated", async () => {
-    const { app, home } = await tmpQuickUpdateEnv("updated");
+    const { app } = await tmpQuickUpdateEnv("updated");
     await writeFile(join(app, "src.ts"), "modified", "utf8");
 
     const fake = new FakeAgent({
@@ -77,7 +74,6 @@ describe("saaga quick-update", () => {
 
     const exitCode = await runCli(["quick-update", app], {
       agent: fake,
-      env: { HOME: home },
     });
     expect(exitCode).toBe(0);
     expect(fake.calls).toHaveLength(1);
@@ -105,7 +101,7 @@ describe("saaga quick-update", () => {
   });
 
   test("SKIPPED: no metadata artifact, but baseline is still regenerated", async () => {
-    const { app, home } = await tmpQuickUpdateEnv("skipped");
+    const { app } = await tmpQuickUpdateEnv("skipped");
     await writeFile(join(app, "src.ts"), "modified", "utf8");
 
     const fake = new FakeAgent({
@@ -114,7 +110,6 @@ describe("saaga quick-update", () => {
 
     const exitCode = await runCli(["quick-update", app], {
       agent: fake,
-      env: { HOME: home },
     });
     expect(exitCode).toBe(0);
     expect(fake.calls).toHaveLength(1);

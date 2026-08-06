@@ -8,22 +8,20 @@ import { runCli } from "../../src/cli.js";
 async function tmpApp(
   name: string,
   config?: string,
-): Promise<{ root: string; app: string; home: string }> {
+): Promise<{ root: string; app: string }> {
   const root = await mkdtemp(join(tmpdir(), "saaga-cfgint-"));
   const app = join(root, name);
   await mkdir(app);
-  const home = join(root, "home");
-  await mkdir(home);
   if (config) {
     await mkdir(join(app, ".saaga"), { recursive: true });
     await writeFile(join(app, ".saaga", "config.yaml"), config, "utf8");
   }
-  return { root, app, home };
+  return { root, app };
 }
 
 describe("config-driven CLI integration", () => {
   test("config supplies backend so no --backend flag needed", async () => {
-    const { app, home } = await tmpApp("salesforce", "backend: cursor\n");
+    const { app } = await tmpApp("salesforce", "backend: cursor\n");
     await writeFile(join(app, "README.md"), "x", "utf8");
 
     const planContent = `---
@@ -57,13 +55,12 @@ phases:
     // should not throw "Backend must be specified".
     const exitCode = await runCli(["init", app], {
       agent: fake,
-      env: { HOME: home },
     });
     expect(exitCode).toBe(0);
   });
 
   test("config ruleTargets is used for init when --rule-targets not passed", async () => {
-    const { app, home } = await tmpApp("ruleapp", "ruleTargets: cursor\n");
+    const { app } = await tmpApp("ruleapp", "ruleTargets: cursor\n");
     await writeFile(join(app, "README.md"), "x", "utf8");
 
     const planContent = `---
@@ -92,7 +89,6 @@ phases:
 
     const exitCode = await runCli(["init", app], {
       agent: fake,
-      env: { HOME: home },
     });
     expect(exitCode).toBe(0);
 
@@ -114,7 +110,7 @@ phases:
   });
 
   test("--rule-targets flag overrides config ruleTargets", async () => {
-    const { app, home } = await tmpApp("flagwin", "ruleTargets: cursor\n");
+    const { app } = await tmpApp("flagwin", "ruleTargets: cursor\n");
     await writeFile(join(app, "README.md"), "x", "utf8");
 
     const planContent = `---
@@ -143,7 +139,6 @@ phases:
 
     const exitCode = await runCli(["init", app, "--rule-targets", "agentsmd"], {
       agent: fake,
-      env: { HOME: home },
     });
     expect(exitCode).toBe(0);
 
@@ -155,7 +150,7 @@ phases:
   test("install-rules subcommand uses config ruleTargets", async () => {
     const { app } = await tmpApp("irconfig", "ruleTargets: claude\n");
 
-    const exitCode = await runCli(["install-rules", app], { env: {} });
+    const exitCode = await runCli(["install-rules", app], {});
     expect(exitCode).toBe(0);
 
     const claude = await readFile(join(app, "CLAUDE.md"), "utf8");
@@ -176,7 +171,7 @@ phases:
 
     const exitCode = await runCli(
       ["install-rules", app, "--rule-targets", "agentsmd"],
-      { env: {} },
+      {},
     );
     expect(exitCode).toBe(0);
 

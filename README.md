@@ -73,10 +73,13 @@ API keys itself.
 | copilot  | `copilot`        | `claude-sonnet-4.5`             |
 | claude   | `claude`         | `opus`                          |
 
-> **Sandbox recommendation** — The agent backend runs with broad
-> autonomy over the filesystem. It is recommended to run Saaga inside a
-> container to sandbox the agent from your host environment. See
-> [Running in containers](#running-in-containers-recommended) below.
+> **Restricted by default** — Saaga restricts each agent backend to the
+> narrow permissions it actually needs. On every backend the agent cannot
+> run arbitrary shell commands and cannot reach outside the app tree
+> (the run directory lives inside the workspace at `.saaga-runs/`).
+> Running in a container is still recommended for defense in depth — see
+> [Running in containers](#running-in-containers) and
+> [Permissions](#permissions) below.
 
 ## Quick start
 
@@ -136,6 +139,10 @@ saaga verify-quick-updates [dir]
 saaga install-rules [dir]       Install always-on documentation rules
                                 into agent rule files. No agent backend
                                 required.
+
+saaga doctor                    Check backend CLI availability and
+                                run capability probes. See
+                                "Diagnosing backend issues" below.
 ```
 
 ### Global flags
@@ -146,6 +153,9 @@ saaga install-rules [dir]       Install always-on documentation rules
 | `--model <name>` | `-m` | Override the per-backend default model |
 | `--ci` | | Plain (non-color) log output, suitable for CI pipelines |
 | `--yes` | `-y` | Skip the cost confirmation prompt (see [Runtime and cost](#runtime-and-cost)) |
+| `--allow-dir <path>` | | Grant additional read/write access to a directory (repeatable; see [Permissions](#permissions)) |
+| `--dangerously-allow-all` | | Run without permission restrictions, reproducing legacy unrestricted behavior |
+| `--audit-permissions` | | Scan agent output for permission denials and log a summary to `<run_dir>/permission-audit.log` |
 | `--version` | `-v` | Print the version and exit |
 
 ### Subcommand-specific flags
@@ -157,7 +167,8 @@ saaga install-rules [dir]       Install always-on documentation rules
 ### Output locations
 
 - **Run artifacts** (plans, status files, change reports) are written
-  under `$SAAGA_DIR/runs/<run-id>/` (defaults to `$HOME/.saaga/runs/`).
+  under `<project>/.saaga-runs/<run-id>/`. This directory is
+  automatically added to `.gitignore` by `saaga init`.
 - **Generated docs** land in `<project>/saaga-docs/`.
 
 ## Runtime and cost
@@ -254,12 +265,177 @@ package-lock.json
 *.map
 ```
 
-## Running in containers (recommended)
+## Permissions
 
-The agent backend executes with broad autonomy over the filesystem and
-network. Running Saaga inside a container sandboxes it from your host
-environment so the agent cannot affect anything outside the mounted
-project directory.
+Saaga restricts each agent backend to the minimum permissions it needs.
+Two guarantees hold on every backend:
+
+- **No arbitrary shell.** The agent cannot run commands of its choosing.
+- **Nothing outside the workspace.** Reads and writes are confined to the
+  app tree (including gitignored build output). The run directory lives
+  inside the workspace at `.saaga-runs/`.
+
+Within the workspace, writes are meant to be limited to
+`<app>/<docs_dir>/**` and the run directory, leaving source code, rule
+files, and `BASELINE` untouched. How completely that holds depends on the
+backend, because the three CLIs expose very different permission systems:
+
+| Backend | Mechanism | Writes scoped in workspace | Read-only git |
+| ------- | --------- | -------------------------- | ------------- |
+| cursor  | Generated `cli-config.json` pointed at by `CURSOR_CONFIG_DIR`, enumerating denied paths plus explicit `Shell(git:*)` allows. Uses `--trust` instead of `--force`. | Yes | Yes |
+| copilot | `--available-tools` limited to the file tools, which withholds `bash` along with `web_fetch` and the MCP tools, plus `--disallow-temp-dir`. | No | No |
+| claude  | `--permission-mode dontAsk` with an inline `--settings` JSON carrying `Edit` allow rules and a deny list that cuts the toolset down to `Read`/`Write`/`Edit`/`Glob`/`Grep`, plus `--strict-mcp-config`. | Yes | No |
+
+Copilot is the outlier: its deny rules become inert once
+`--allow-all-tools` is set, which non-interactive runs require, so writes
+cannot be narrowed below the workspace boundary. Treat review and branch
+protection as the backstop there rather than the agent profile.
+
+Read-only git (`log`, `show`, `diff`, `blame`, `status`, `ls-files`,
+`cat-file`, `rev-parse`) is available on cursor only. On copilot and
+claude, removing the shell wholesale is the only way to block arbitrary
+commands, so they get no shell at all.
+
+Copilot's tool surface is narrowed with an allowlist, so anything new is
+excluded by default. Claude has no such option — `--allowedTools` widens
+rather than restricts — so its unwanted tools (web access, subagents,
+MCP) are denied by name, and a tool introduced in a later release will
+arrive enabled. The `claude/tool-surface` probe asserts the surviving
+toolset for exactly that reason; run `saaga doctor --level full` after
+upgrading a backend CLI.
+
+Saaga does not narrow cursor's tool surface at all; its profile only
+governs paths and shell. Cursor exposes MCP tools that have not been
+examined here.
+
+The effective profile is written to `<run_dir>/permissions.json` for
+every run.
+
+### Escape hatches
+
+If a run fails because the agent cannot reach a path it needs (unusual
+layouts, monorepos, symlinks), use `--allow-dir` to grant access:
+
+```bash
+saaga update --allow-dir /path/to/shared/lib
+```
+
+`--allow-dir` is repeatable and appends the path to both read and write
+roots. It is deliberately not configurable via `.saaga/config.yaml` so a
+workaround cannot become silent permanent state.
+
+If you need to reproduce the legacy unrestricted behavior entirely, pass
+`--dangerously-allow-all`. This omits the permission profile and uses
+the original backend flags (`--force`, `--allow-all-tools`,
+`--dangerously-skip-permissions`). A warning is printed on every use:
+
+```bash
+saaga init --dangerously-allow-all --backend cursor
+```
+
+### Auditing denials
+
+Pass `--audit-permissions` to record every tool call a backend refused
+during a run. Results go to `<run_dir>/permission-audit.log`, grouped by
+what the refusal means rather than in the order they happened:
+
+| Class | Meaning |
+| ----- | ------- |
+| `unexpected` | Refused inside a directory the profile grants. A saaga bug or backend drift — the run silently produced less than it should have. Also printed as a warning. |
+| `out-of-workspace` | The agent wanted a path outside the app tree and run directory. Rerun with `--allow-dir <path>` if it genuinely needs it. |
+| `protected-path` | Refused a path the profile deliberately withholds, such as `src/` or `AGENTS.md`. Working as intended. |
+| `shell` | Refused a command. Expected under every profile. |
+| `unknown` | The backend did not report which path was refused. |
+
+The classification compares the refused path against the profile's read
+and write roots, so it does not depend on how a backend worded the
+refusal. That matters because the wording is written by the model and is
+sometimes wrong about the cause — copilot has been observed explaining a
+refusal as "/etc requires root privileges" when its own permission layer
+had blocked the call.
+
+To get at that information the flag switches the backend to JSON output,
+so **`<run_dir>/*.log` contains JSON instead of a readable transcript for
+audited runs**. A notice is printed when the flag takes effect. The flag
+has no effect under `--dangerously-allow-all`, since an unrestricted run
+refuses nothing.
+
+## Diagnosing backend issues
+
+The `doctor` command checks backend CLI availability and runs capability
+probes to verify that permission restrictions are working correctly.
+
+```bash
+# Fast tier (default) — zero model calls, checks binary + version + flags
+saaga doctor
+
+# Check a specific backend
+saaga doctor --backend cursor
+
+# Full tier — makes real model calls to verify side-effect probes
+saaga doctor --level full
+
+# Machine-readable output for CI
+saaga doctor --json
+
+# Run specific probes (comma- or space-separated)
+saaga doctor --level full --probe write-in-cwd,arbitrary-shell-denied
+```
+
+Full-tier probes exercise the real permission boundaries: that files
+outside the workspace stay unreadable and unwritable, that a shell
+command the agent cannot otherwise compute the answer to does not run,
+and — where the backend supports it — that source, rule files, and
+`BASELINE` reject writes. Each probe is a live agent run, so the full
+tier takes several minutes and spends tokens.
+
+### Doctor flags
+
+| Flag | Description |
+| ---- | ----------- |
+| `--backend <name>` | Backend to check: `cursor`, `copilot`, `claude`, or `all` (default: `all`) |
+| `--level <level>` | Probe tier: `fast` (default, zero tokens) or `full` (makes model calls) |
+| `--model <name>` | Model override for full-tier probes (defaults to a cheap model per backend) |
+| `--json` | Output versioned JSON instead of human-readable text |
+| `--probe <ids...>` | Run only the specified probe IDs |
+
+When a full-tier probe fails, the raw agent output for each backend is
+kept under `.saaga-runs/doctor/<timestamp>/<backend>.log` and the
+directory is printed in the summary.
+
+When a capability probe fails, doctor reruns it once with the permission
+profile removed and reports which side the fault is on:
+
+- **Succeeds without the profile** — the profile is too tight for this
+  backend or CLI version. That is a saaga bug, or drift to fix.
+- **Fails without the profile too** — the profile is not implicated; look
+  at the CLI, credentials, or environment.
+
+Probes that assert something is *refused* are not rerun, since they are
+meant to fail once the restriction is lifted.
+
+### Exit codes
+
+| Code | Meaning |
+| ---- | ------- |
+| 0 | All probes passed |
+| 1 | At least one probe failed |
+| 2 | Could not run (binary missing, no credentials) |
+
+### Preflight checks
+
+Before `init` and `update` spend tokens, Saaga automatically runs the
+fast-tier doctor probes for the selected backend. If the backend CLI is
+not found or its version query fails, the run is refused with a
+diagnostic message pointing you to `saaga doctor` for details.
+
+## Running in containers
+
+Although Saaga restricts agent backends to the narrow permissions they
+need (see [Permissions](#permissions)), running inside a container adds
+defense in depth. A container sandboxes the agent from your host
+environment so even if a permission boundary were bypassed, the agent
+cannot affect anything outside the mounted project directory.
 
 [`examples/Dockerfile`](./examples/Dockerfile) provides a starting
 point. It bakes Saaga and an agent backend CLI into a self-contained

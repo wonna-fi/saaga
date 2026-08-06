@@ -34,8 +34,9 @@ interface IgnoreLayer {
  * outcome.
  *
  * Hard-excluded (regardless of ignore files):
- *   - `.git/`      (top-level only)
- *   - `<docsDir>/` (top-level only, defaults to `saaga-docs`)
+ *   - `.git/`          (top-level only)
+ *   - `.saaga-runs/`   (top-level only — run artifacts)
+ *   - `<docsDir>/`     (top-level only, defaults to `saaga-docs`)
  *   - any file named `.saagaignore` (at any depth)
  *
  * Regular files and symlinks are included; symlinks are hashed git-style
@@ -143,6 +144,7 @@ function isHardExcluded(
   if (isDir) {
     const top = relPath.split("/")[0];
     if (top === ".git") return true;
+    if (top === ".saaga-runs") return true;
     if (relPath === docsDir || relPath.startsWith(docsDir + "/")) return true;
   }
   if (basename(relPath) === ".saagaignore") return true;

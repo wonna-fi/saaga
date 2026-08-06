@@ -38,8 +38,9 @@ describe("Logger", () => {
     log.error("e");
     const lines = stream.text.split("\n").filter((l) => l.length > 0);
     expect(lines).toHaveLength(3);
-    expect(lines[0]).toMatch(/\[INFO\] hi$/);
-    expect(lines[1]).toMatch(/\[WARN\] w$/);
-    expect(lines[2]).toMatch(/\[ERROR\] e$/);
+    const strip = (s: string) => s.replace(/\u001b\[[0-9;]*m/g, "");
+    expect(strip(lines[0])).toMatch(/\[INFO\] hi$/);
+    expect(strip(lines[1])).toMatch(/\[WARN\] w$/);
+    expect(strip(lines[2])).toMatch(/\[ERROR\] e$/);
   });
 });

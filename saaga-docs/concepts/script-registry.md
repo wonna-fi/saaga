@@ -47,6 +47,7 @@ The Script Registry is the mechanism by which Saaga maps script names (used in f
 | `"collect-quick-updates"` | `src/scripts/collect-quick-updates.ts` | Snapshots unverified quick-update metadata folders and writes a JSON manifest |
 | `"remove-quick-updates"` | `src/scripts/remove-quick-updates.ts` | Deletes exactly the quick-update metadata folders listed in a manifest |
 | `"install-rules"` | `src/scripts/install-rules.ts` | Installs documentation rule stubs into the target application directory |
+| `"ensure-gitignore"` | `src/scripts/ensure-gitignore.ts` | Ensures a pattern (e.g., `.saaga-runs/`) is present in the project's `.gitignore` |
 
 ## Internal Implementation
 
@@ -65,6 +66,7 @@ The script step handler in `src/engine/primitives/script.ts` performs three oper
 - `src/scripts/collect-quick-updates.ts` — accepts `{ metadata_dir, output_dir }` args, returns `CollectQuickUpdatesResult` with `count`, `manifest_path`, and `ids`
 - `src/scripts/remove-quick-updates.ts` — accepts `{ manifest }` args, returns `void` (side effect: deletes metadata folders listed in manifest)
 - `src/scripts/install-rules.ts` — accepts `{ app_dir, app, rule_targets, docs_dir }` args, returns `void` (side effect: upserts rule stubs into rule files for the requested targets)
+- `src/scripts/ensure-gitignore.ts` — accepts `{ app_dir, pattern }` args, returns `void` (side effect: appends the pattern to `.gitignore` if absent, or creates the file if it does not exist)
 
 ## Related Concepts
 

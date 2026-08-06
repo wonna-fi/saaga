@@ -27,10 +27,10 @@ The document should be concise. Avoid flavour text and unnecessary sentences.
 
 1. Analyze the project and reason about how it's structured and how it's divided into modules or components.
 2. Create a rubric with binary criteria for evaluating the quality of the final document.
-3. Based on the analysis, save a temporary file containing the structure of the app (this can be a file or directory listing). The goal is to provide a persistent and reliable source for the structure and a checklist to make sure everything is covered.
+3. Based on the analysis, save a temporary file containing the structure of the app (this can be a file or directory listing) to `{scratch_path}`. The goal is to provide a persistent and reliable source for the structure and a checklist to make sure everything is covered.
 4. Write the overall architecture section.
 5. Write the module/component section.
-6. Verify that the module/component section addresses the contents of the temporary file.
+6. Verify that the module/component section addresses the contents of the temporary file at `{scratch_path}`.
 7. Assess the quality of the final document using the rubric you defined in step 2. If the document does not score maximum points, address the flaws.
 
 ## Scope Exclusions
@@ -42,3 +42,5 @@ If a `.saagaignore` file exists at the project root, it lists paths and patterns
 - Write the document to `{docs_dir}/ARCHITECTURE.md`. Create the `{docs_dir}/` directory if it does not exist.
 - If you create diagrams, draw them as mermaid charts with accessible colors.
 - A high quality document is imperative. Write it with professional pride.
+- Do NOT modify repository source code, configuration, or any files outside `{docs_dir}/` and `{scratch_path}`.
+- Do NOT create git commits or run any git commands that modify the repository state.

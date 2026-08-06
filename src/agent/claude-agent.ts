@@ -1,4 +1,12 @@
 import { execa, type ResultPromise } from "execa";
+import {
+  parseJsonLine,
+  type AgentEvent,
+  type EventParser,
+} from "./events.js";
+import type { AgentPermissions } from "./permissions.js";
+import { awaitProcess } from "./spawn.js";
+import { buildPipedStdio, buildStdio } from "./stdio.js";
 import type { Agent, AgentRunOpts, AgentRunResult } from "./types.js";
 
 export interface ClaudeAgentOptions {
@@ -17,47 +25,227 @@ export class ClaudeAgent implements Agent {
   }
 
   async run(prompt: string, opts: AgentRunOpts): Promise<AgentRunResult> {
-    const args = [
-      "--print",
-      "--dangerously-skip-permissions",
-      "--model",
-      this.model,
-    ];
-
-    args.push(prompt);
-
-    const stdio = buildStdio(opts);
+    const args = buildClaudeArgs(this.model, prompt, opts);
+    const stdio = opts.onEvent ? buildPipedStdio(opts) : buildStdio(opts);
 
     let proc: ResultPromise;
     try {
       proc = execa("claude", args, {
         cwd: opts.cwd,
         reject: false,
-        signal: opts.signal,
+        cancelSignal: opts.signal,
         ...stdio,
       });
     } catch {
       return { exitCode: 1 };
     }
 
-    const result = await proc;
-    return { exitCode: result.exitCode ?? 1 };
+    const exitCode = await awaitProcess(
+      proc,
+      opts.onEvent && { parser: createClaudeEventParser(), sink: opts.onEvent },
+    );
+    return { exitCode };
   }
 }
 
-function buildStdio(opts: AgentRunOpts): Record<string, unknown> {
-  if (!opts.logFile) {
-    return { stdio: "inherit" };
-  }
-  const fileSink = { file: opts.logFile, append: true };
-  if (opts.echo) {
-    return {
-      stdout: ["inherit", fileSink],
-      stderr: ["inherit", fileSink],
-    };
-  }
+/**
+ * Messages claude emits when its permission layer refuses a call.
+ *
+ * These come from the CLI rather than the model, so they are stable within a
+ * version. Unlike cursor and copilot, claude reports a permission refusal
+ * with the same `is_error` flag it uses for ordinary tool failures, so a
+ * pattern is needed to tell the two apart.
+ */
+const CLAUDE_DENIAL_PATTERNS = [
+  /denied by your permission settings/i,
+  /permission to use .* has been denied/i,
+  /blocked by permission/i,
+];
+
+/**
+ * Parse claude's `stream-json` output.
+ *
+ * A refusal arrives as a `tool_result` carrying only the originating call's
+ * id, so the targeted path has to be recovered from the `tool_use` seen
+ * earlier in the stream.
+ */
+export function createClaudeEventParser(): EventParser {
+  const pending = new Map<string, { tool: string; path?: string }>();
+
   return {
-    stdout: fileSink,
-    stderr: fileSink,
+    push(line: string): AgentEvent[] {
+      const obj = parseJsonLine(line);
+      if (!obj) return [];
+      const events: AgentEvent[] = [];
+
+      if (obj.type === "system" && obj.subtype === "init" && Array.isArray(obj.tools)) {
+        events.push({ kind: "session", tools: obj.tools as string[] });
+      }
+
+      const message = obj.message as { content?: unknown } | undefined;
+      const content = Array.isArray(message?.content) ? message.content : [];
+      for (const block of content as Record<string, unknown>[]) {
+        if (block.type === "tool_use" && typeof block.id === "string") {
+          const input = (block.input ?? {}) as Record<string, unknown>;
+          const path = input.file_path ?? input.path ?? input.notebook_path;
+          pending.set(block.id, {
+            tool: typeof block.name === "string" ? block.name : "unknown",
+            path: typeof path === "string" ? path : undefined,
+          });
+        }
+        if (block.type === "tool_result" && block.is_error === true) {
+          const text = extractText(block.content);
+          if (!CLAUDE_DENIAL_PATTERNS.some((p) => p.test(text))) continue;
+          const origin =
+            typeof block.tool_use_id === "string" ? pending.get(block.tool_use_id) : undefined;
+          events.push({
+            kind: "denial",
+            tool: origin?.tool ?? "unknown",
+            path: origin?.path,
+            message: text.replace(/<\/?tool_use_error>/g, "").trim(),
+          });
+        }
+      }
+      return events;
+    },
+  };
+}
+
+function extractText(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  return content
+    .map((c) => (typeof c === "object" && c && "text" in c ? String((c as { text: unknown }).text) : ""))
+    .join(" ");
+}
+
+function buildClaudeArgs(
+  model: string,
+  prompt: string,
+  opts: AgentRunOpts,
+): string[] {
+  if (!opts.permissions) {
+    return [
+      "--print",
+      "--dangerously-skip-permissions",
+      "--model",
+      model,
+      prompt,
+    ];
+  }
+
+  const settings = buildClaudeSettings(opts.permissions, opts.cwd);
+  return [
+    "--print",
+    "--permission-mode",
+    "dontAsk",
+    // Without --mcp-config this leaves the session with no MCP servers,
+    // so an ambient user or project config cannot widen the tool surface.
+    "--strict-mcp-config",
+    ...(opts.onEvent ? ["--verbose", "--output-format", "stream-json"] : []),
+    "--model",
+    model,
+    "--settings",
+    JSON.stringify(settings),
+    prompt,
+  ];
+}
+
+/**
+ * The tool surface a restricted run should be left with.
+ *
+ * Asserted by the `claude/tool-surface` probe, which reads the toolset claude
+ * announces at session start.
+ */
+export const CLAUDE_RESTRICTED_TOOLS: readonly string[] = [
+  "Edit",
+  "Glob",
+  "Grep",
+  "Read",
+  "Write",
+];
+
+/**
+ * Tools withheld from a restricted run.
+ *
+ * Claude has no exclusive allowlist — `--allowedTools` widens the surface
+ * rather than narrowing it — so unwanted tools have to be denied by name.
+ * That leaves the list open-ended: a tool introduced in a later release
+ * arrives enabled. The `claude/tool-surface` probe exists to catch that.
+ *
+ * Note that `--setting-sources ''` would be a tempting way to stop ambient
+ * config from re-enabling these, but it also stops `CLAUDE.md` from loading,
+ * which would silently disable the rule files saaga installs.
+ */
+const DENIED_TOOLS: readonly string[] = [
+  "Bash",
+  "CronCreate",
+  "CronDelete",
+  "CronList",
+  "DesignSync",
+  "EnterWorktree",
+  "ExitWorktree",
+  "Monitor",
+  "NotebookEdit",
+  "PushNotification",
+  "ReportFindings",
+  "ScheduleWakeup",
+  "SendMessage",
+  "Skill",
+  "Task",
+  "TaskCreate",
+  "TaskGet",
+  "TaskList",
+  "TaskOutput",
+  "TaskStop",
+  "TaskUpdate",
+  "ToolSearch",
+  "WebFetch",
+  "WebSearch",
+  "Workflow",
+];
+
+/**
+ * Build the Claude CLI settings JSON that expresses the permission profile.
+ *
+ * Gotchas encoded here (all verified by live testing):
+ * - `Edit(path)` not `Write(path)` — Write rules are ignored by file checks.
+ * - Double-slash for absolute paths: `//abs/path/**` not `/abs/path/**`.
+ * - `additionalDirectories` grants reach but not edit rights — a matching
+ *   `Edit` rule must also be present.
+ * - Edits are allowlisted under `dontAsk`, but every other tool is allowed by
+ *   default and only a deny takes it away. That deny also defeats any
+ *   narrower allow such as `Bash(git log:*)`, so a restricted profile gets no
+ *   shell at all — the `read-only-git` policy degrades to none here.
+ */
+function buildClaudeSettings(
+  perms: AgentPermissions,
+  cwd: string,
+): Record<string, unknown> {
+  const allow: string[] = [];
+  const deny: string[] = [...DENIED_TOOLS];
+
+  for (const root of perms.writeRoots) {
+    allow.push(`Edit(//${root}/**)`);
+  }
+
+  for (const denied of perms.denyPaths) {
+    deny.push(`Edit(//${denied})`);
+  }
+
+  // Claude restricts Read/Glob/Grep to cwd and additionalDirectories.
+  // Without listing every root here, --allow-dir paths get Edit rules but
+  // remain invisible to reads — the bug Bugbot caught.
+  const reach = new Set<string>();
+  for (const root of [...perms.readRoots, ...perms.writeRoots]) {
+    if (root !== cwd && !root.startsWith(cwd + "/")) reach.add(root);
+  }
+
+  return {
+    permissions: {
+      allow,
+      deny,
+      additionalDirectories: [...reach],
+    },
   };
 }

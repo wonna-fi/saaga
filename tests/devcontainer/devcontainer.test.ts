@@ -37,11 +37,19 @@ describe("rewrite/.devcontainer scaffold", () => {
     const parsed = JSON.parse(stripJsonComments(raw)) as {
       name: string;
       postCreateCommand: string;
+      mounts: string[];
     };
     expect(parsed.name).toBe("saaga");
     expect(parsed.postCreateCommand).toContain(
       ".devcontainer/install-agents.sh",
     );
+
+    // .cursor mount is kept; .saaga mount has been removed (run dir is in-workspace now)
+    expect(parsed.mounts).toHaveLength(1);
+    expect(parsed.mounts[0]).toContain(".cursor");
+    for (const mount of parsed.mounts) {
+      expect(mount).not.toContain(".saaga");
+    }
   });
 
   test("install-agents.sh exists and is an empty stub", async () => {
