@@ -283,20 +283,20 @@ backend, because the three CLIs expose very different permission systems:
 | Backend | Mechanism | Writes scoped in workspace | Restricted shell |
 | ------- | --------- | -------------------------- | ---------------- |
 | cursor  | Generated `cli-config.json` pointed at by `CURSOR_CONFIG_DIR`, enumerating denied paths plus explicit `Shell(cd:*)`, `Shell(ls:*)`, `Shell(pwd:*)`, `Shell(grep:*)`, `Shell(head:*)`, `Shell(tail:*)`, `Shell(wc:*)`, `Shell(dirname:*)`, `Shell(basename:*)`, and `Shell(git:*)` allows. Uses `--trust` instead of `--force`. | Yes | Yes |
-| copilot | `--available-tools` limited to the file tools, which withholds `bash` along with `web_fetch` and the MCP tools, plus `--disallow-temp-dir`. | No | No |
+| copilot | `--available-tools` limits the model to file tools plus `bash`; `--allow-tool` permits only the restricted utility and read-only Git shell patterns, and `--disallow-temp-dir` closes temp-directory access. | No | Yes |
 | claude  | `--permission-mode dontAsk` with an inline `--settings` JSON carrying `Edit` allow rules and a deny list that cuts the toolset down to `Read`/`Write`/`Edit`/`Glob`/`Grep`, plus `--strict-mcp-config`. | Yes | No |
 
-Copilot is the outlier: its deny rules become inert once
-`--allow-all-tools` is set, which non-interactive runs require, so writes
+Copilot is the outlier: the adapter does not yet translate the profile's
+write roots and denied paths into Copilot file permission patterns, so writes
 cannot be narrowed below the workspace boundary. Treat review and branch
 protection as the backstop there rather than the agent profile.
 
 The restricted shell policy allows utility commands (`cd`, `ls`, `pwd`,
 `grep`, `head`, `tail`, `wc`, `dirname`, `basename`)
 and read-only git (`log`, `show`, `diff`, `blame`, `status`, `ls-files`,
-`cat-file`, `rev-parse`) on cursor only. On copilot and claude, removing
-the shell wholesale is the only way to block arbitrary commands, so they
-get no shell at all.
+`cat-file`, `rev-parse`) on cursor and copilot. Copilot translates these
+to explicit `shell(...)` permission patterns; Claude receives no shell
+because its permission model cannot scope it safely.
 
 Copilot's tool surface is narrowed with an allowlist, so anything new is
 excluded by default. Claude has no such option — `--allowedTools` widens

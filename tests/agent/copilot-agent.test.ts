@@ -10,7 +10,10 @@ vi.mock("execa", () => {
 
 import { execa } from "execa";
 import { CopilotAgent } from "../../src/agent/copilot-agent.js";
-import type { AgentPermissions } from "../../src/agent/permissions.js";
+import {
+  ALLOWED_SHELL_COMMANDS,
+  type AgentPermissions,
+} from "../../src/agent/permissions.js";
 
 const mockExeca = vi.mocked(execa);
 
@@ -195,7 +198,7 @@ describe("CopilotAgent", () => {
     // User's pre-existing .gitignore.bak is untouched
     expect(await readFile(giBakPath, "utf8")).toBe(userBackupContent);
   });
-  test("restricts the tool set to file tools, withholding bash", async () => {
+  test("allows only the restricted shell commands", async () => {
     mockExeca.mockReturnValue(Promise.resolve({ exitCode: 0 }) as any);
 
     const cwd = await mkdtemp(join(tmpdir(), "copilot-agent-"));
@@ -213,9 +216,39 @@ describe("CopilotAgent", () => {
     const [, args] = mockExeca.mock.calls[0] as any[];
     const start = args.indexOf("--available-tools");
     expect(start).toBeGreaterThan(-1);
-    const tools = args.slice(start + 1, args.indexOf("--allow-all-tools"));
+    const tools = args.slice(start + 1, args.indexOf("--allow-tool"));
+    expect(tools).toEqual(["view", "create", "edit", "glob", "grep", "bash"]);
+
+    const allowRules = args[args.indexOf("--allow-tool") + 1].split(",");
+    expect(allowRules).toEqual([
+      "write",
+      ...ALLOWED_SHELL_COMMANDS.utilities.map((command) => `shell(${command}:*)`),
+      ...ALLOWED_SHELL_COMMANDS.git.map(
+        (subcommand) => `shell(git:${subcommand}*)`,
+      ),
+    ]);
+    expect(args).not.toContain("--allow-all-tools");
+  });
+
+  test("withholds bash when the profile disallows shell access", async () => {
+    mockExeca.mockReturnValue(Promise.resolve({ exitCode: 0 }) as any);
+
+    const cwd = await mkdtemp(join(tmpdir(), "copilot-agent-"));
+    const permissions: AgentPermissions = {
+      readRoots: [cwd],
+      writeRoots: [resolve(cwd, "saaga-docs")],
+      denyPaths: [],
+      shell: "none",
+    };
+
+    const agent = new CopilotAgent({ model: "m" });
+    await agent.run("p", { cwd, permissions });
+
+    const [, args] = mockExeca.mock.calls[0] as any[];
+    const start = args.indexOf("--available-tools");
+    const tools = args.slice(start + 1, args.indexOf("--allow-tool"));
     expect(tools).toEqual(["view", "create", "edit", "glob", "grep"]);
-    expect(tools).not.toContain("bash");
+    expect(args[args.indexOf("--allow-tool") + 1]).toBe("write");
   });
 
   test("keeps the workspace path boundary intact", async () => {
@@ -238,7 +271,7 @@ describe("CopilotAgent", () => {
     expect(args).toContain("--disallow-temp-dir");
   });
 
-  test("uses no deny rules, which are inert alongside --allow-all-tools", async () => {
+  test("uses explicit tool permissions instead of --allow-all-tools", async () => {
     mockExeca.mockReturnValue(Promise.resolve({ exitCode: 0 }) as any);
 
     const cwd = await mkdtemp(join(tmpdir(), "copilot-agent-"));
@@ -254,7 +287,8 @@ describe("CopilotAgent", () => {
 
     const [, args] = mockExeca.mock.calls[0] as any[];
     expect(args).not.toContain("--deny-tool");
-    expect(args).not.toContain("--allow-tool");
+    expect(args).toContain("--allow-tool");
+    expect(args).not.toContain("--allow-all-tools");
   });
 
   test("grants --add-dir for roots outside the cwd only", async () => {

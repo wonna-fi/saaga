@@ -3,6 +3,7 @@ import { rename, stat } from "node:fs/promises";
 import { resolve, sep } from "node:path";
 import { execa, type ResultPromise } from "execa";
 import { parseJsonLine, type AgentEvent, type EventParser } from "./events.js";
+import { ALLOWED_SHELL_COMMANDS } from "./permissions.js";
 import { awaitProcess } from "./spawn.js";
 import { buildPipedStdio, buildStdio } from "./stdio.js";
 import type { Agent, AgentRunOpts, AgentRunResult } from "./types.js";
@@ -141,20 +142,27 @@ function buildCopilotArgs(
 /**
  * Tools the model may use under a restricted profile.
  *
- * Withholding `bash` is the only way to block arbitrary shell on copilot, so
- * the restricted shell allowance cannot be honoured here and restricted runs
- * get no shell at all. Dropping it also removes `web_fetch` and the MCP tools.
+ * `bash` is included only when the profile permits the restricted shell
+ * allowance. Keeping the surface explicit also excludes web fetch and MCP
+ * tools.
  */
-const RESTRICTED_TOOLS = ["view", "create", "edit", "glob", "grep"];
+const RESTRICTED_FILE_TOOLS = ["view", "create", "edit", "glob", "grep"];
+
+function restrictedShellAllowRules(): string[] {
+  return [
+    ...ALLOWED_SHELL_COMMANDS.utilities.map((command) => `shell(${command}:*)`),
+    ...ALLOWED_SHELL_COMMANDS.git.map((subcommand) => `shell(git:${subcommand}*)`),
+  ];
+}
 
 /**
  * Build copilot args under a restricted profile.
  *
- * Copilot offers no middle ground between these and unrestricted access. A
- * bare `--deny-tool bash` denies every tool including file creation, and
- * `--allow-all-tools` — which non-interactive runs require — makes scoped
- * deny rules inert. So writes cannot be scoped within the workspace; the
- * guarantees are "no shell" and "nothing outside the workspace" only.
+ * `--available-tools` controls the tools visible to the model. `--allow-tool`
+ * grants non-interactive permission to individual tools and shell command
+ * patterns, without granting the rest of the shell surface. Copilot cannot
+ * scope writes within the workspace, so only the workspace boundary is
+ * enforced for file changes.
  *
  * `--disallow-temp-dir` matters because copilot otherwise grants the system
  * temp directory automatically, which would leave a hole in that boundary.
@@ -165,6 +173,7 @@ function buildRestrictedCopilotArgs(
   opts: AgentRunOpts,
 ): string[] {
   const perms = opts.permissions!;
+  const shellRules = perms.shell === "restricted" ? restrictedShellAllowRules() : [];
   const args = [
     "-p",
     prompt,
@@ -173,8 +182,10 @@ function buildRestrictedCopilotArgs(
     model,
     "--no-auto-update",
     "--available-tools",
-    ...RESTRICTED_TOOLS,
-    "--allow-all-tools",
+    ...RESTRICTED_FILE_TOOLS,
+    ...(perms.shell === "restricted" ? ["bash"] : []),
+    "--allow-tool",
+    ["write", ...shellRules].join(","),
     "--disallow-temp-dir",
     ...(opts.onEvent ? ["--output-format", "json"] : []),
   ];
