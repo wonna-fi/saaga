@@ -28,15 +28,55 @@ describe("loadConfig", () => {
     await mkdir(join(dir, ".saaga"), { recursive: true });
     await writeFile(
       join(dir, ".saaga", "config.yaml"),
-      "backend: cursor\nmodel: opus\nquickModel: sonnet\nruleTargets: agentsmd,cursor\n",
+      [
+        "defaultBackend: cursor",
+        "backends:",
+        "  cursor:",
+        "    modelLow: sonnet",
+        "    modelMedium: sonnet",
+        "    modelHigh: opus",
+        "ruleTargets: agentsmd,cursor",
+        "",
+      ].join("\n"),
       "utf8",
     );
     const config = await loadConfig(dir);
     expect(config).toEqual({
-      backend: "cursor",
-      model: "opus",
-      quickModel: "sonnet",
+      defaultBackend: "cursor",
+      backends: {
+        cursor: {
+          modelLow: "sonnet",
+          modelMedium: "sonnet",
+          modelHigh: "opus",
+        },
+      },
       ruleTargets: "agentsmd,cursor",
+    });
+  });
+
+  test("parses partial backend model overrides", async () => {
+    const dir = await tmpDir();
+    await mkdir(join(dir, ".saaga"), { recursive: true });
+    await writeFile(
+      join(dir, ".saaga", "config.yaml"),
+      [
+        "defaultBackend: claude",
+        "backends:",
+        "  claude:",
+        "    modelHigh: opus",
+        "  cursor:",
+        "    modelMedium: claude-4.6-sonnet-medium-thinking",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    const config = await loadConfig(dir);
+    expect(config).toEqual({
+      defaultBackend: "claude",
+      backends: {
+        claude: { modelHigh: "opus" },
+        cursor: { modelMedium: "claude-4.6-sonnet-medium-thinking" },
+      },
     });
   });
 
@@ -57,7 +97,7 @@ describe("loadConfig", () => {
     await mkdir(join(dir, ".saaga"), { recursive: true });
     await writeFile(
       join(dir, ".saaga", "config.yaml"),
-      "backend: [\n",
+      "defaultBackend: [\n",
       "utf8",
     );
     await expect(loadConfig(dir)).rejects.toThrow(ConfigError);
@@ -74,26 +114,69 @@ describe("loadConfig", () => {
     await expect(loadConfig(dir)).rejects.toThrow(/must be a YAML mapping/);
   });
 
-  test("throws ConfigError when backend is not a string", async () => {
+  test("throws ConfigError when defaultBackend is not a string", async () => {
     const dir = await tmpDir();
     await mkdir(join(dir, ".saaga"), { recursive: true });
     await writeFile(
       join(dir, ".saaga", "config.yaml"),
-      "backend: 123\n",
+      "defaultBackend: 123\n",
       "utf8",
     );
-    await expect(loadConfig(dir)).rejects.toThrow(/'backend' must be a string/);
+    await expect(loadConfig(dir)).rejects.toThrow(
+      /'defaultBackend' must be a string/,
+    );
   });
 
-  test("throws ConfigError when model is not a string", async () => {
+  test("throws ConfigError when backends is not a mapping", async () => {
     const dir = await tmpDir();
     await mkdir(join(dir, ".saaga"), { recursive: true });
     await writeFile(
       join(dir, ".saaga", "config.yaml"),
-      "model: [opus]\n",
+      "backends: [cursor]\n",
       "utf8",
     );
-    await expect(loadConfig(dir)).rejects.toThrow(/'model' must be a string/);
+    await expect(loadConfig(dir)).rejects.toThrow(
+      /'backends' must be a YAML mapping/,
+    );
+  });
+
+  test("throws ConfigError for unknown backend key", async () => {
+    const dir = await tmpDir();
+    await mkdir(join(dir, ".saaga"), { recursive: true });
+    await writeFile(
+      join(dir, ".saaga", "config.yaml"),
+      "backends:\n  gemini:\n    modelHigh: x\n",
+      "utf8",
+    );
+    await expect(loadConfig(dir)).rejects.toThrow(
+      /'backends\.gemini' is not a valid backend/,
+    );
+  });
+
+  test("throws ConfigError when a backend entry is not a mapping", async () => {
+    const dir = await tmpDir();
+    await mkdir(join(dir, ".saaga"), { recursive: true });
+    await writeFile(
+      join(dir, ".saaga", "config.yaml"),
+      "backends:\n  cursor: opus\n",
+      "utf8",
+    );
+    await expect(loadConfig(dir)).rejects.toThrow(
+      /'backends\.cursor' must be a YAML mapping/,
+    );
+  });
+
+  test("throws ConfigError when modelHigh is not a string", async () => {
+    const dir = await tmpDir();
+    await mkdir(join(dir, ".saaga"), { recursive: true });
+    await writeFile(
+      join(dir, ".saaga", "config.yaml"),
+      "backends:\n  cursor:\n    modelHigh: [opus]\n",
+      "utf8",
+    );
+    await expect(loadConfig(dir)).rejects.toThrow(
+      /'backends\.cursor\.modelHigh' must be a string/,
+    );
   });
 
   test("throws ConfigError when ruleTargets has non-string items", async () => {
@@ -162,10 +245,22 @@ describe("loadConfig", () => {
     await mkdir(join(dir, ".saaga"), { recursive: true });
     await writeFile(
       join(dir, ".saaga", "config.yaml"),
-      "backend: claude\nfutureField: hello\n",
+      "defaultBackend: claude\nfutureField: hello\n",
       "utf8",
     );
     const config = await loadConfig(dir);
-    expect(config).toEqual({ backend: "claude" });
+    expect(config).toEqual({ defaultBackend: "claude" });
+  });
+
+  test("ignores legacy backend/model/quickModel keys", async () => {
+    const dir = await tmpDir();
+    await mkdir(join(dir, ".saaga"), { recursive: true });
+    await writeFile(
+      join(dir, ".saaga", "config.yaml"),
+      "backend: cursor\nmodel: opus\nquickModel: sonnet\n",
+      "utf8",
+    );
+    const config = await loadConfig(dir);
+    expect(config).toEqual({});
   });
 });

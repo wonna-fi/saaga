@@ -1,9 +1,9 @@
-# Generated: 2026-08-06T19:52:49.552Z
+# Generated: 2026-08-09T19:38:43.215Z
 eb5f87a2e9609984545f103fad86945898ed6be8 .github/workflows/backend-drift.yml
 d7e08a188b70e03d7663a8cc06b48d27a812ca95 .github/workflows/ci.yml
 207ce2b0b21e99567a5b41e1c60c8426b10f29a2 .npmrc
-c2366abff15f6cf68ebcf74fc0640f0a8d1885cd .saaga/config.yaml
-57f11fb08926ac76ea02d77823758f3d7b333cde AGENTS.md
+112a0ad4efe1a08976f929d4d93604f939cf53d4 .saaga/config.yaml
+b8df2be7068a3d124ae7210656f2f4f3bbae507c AGENTS.md
 581f22ed0b141aabdd94b0cfd355c29fa9699335 DEVELOPING.md
 9544c5ef1346e0656ab9b652faab9935b289a3fa README.md
 c09a02e5db75ca8d5ccd829d75a3c118531c80dd eslint.config.js
@@ -11,7 +11,7 @@ ce9b2880bb9fe486a39e354f6d006d15a7374968 flows/init.flow.yaml
 63b2a9b82800094af4e37900cb7c146037282bab flows/quick-update.flow.yaml
 fdaf93ad8916a3ceec01f26e2d68704809ce6709 flows/update.flow.yaml
 94ce3ba9500eeda6d5772929da10b41c96eeb5a0 flows/verify-quick-updates.flow.yaml
-f80e428ee165a33d20e25df669ecface68c0c6c1 package.json
+6d3562f1671d2b3dc66e3dc88861d14d4d846ecc package.json
 1d8e6af157dd7c0f119b74ec856ddeb7398a1f10 prompts/document-architecture.md
 eeb68060e537ca789468a4b600ba49caf8d5222b prompts/fix-documentation.md
 98d7cdce40495b48094cb20d07c70cf6dab8f061 prompts/plan-init.md
@@ -33,12 +33,12 @@ c3465d374dc7b68ccb9d2aaf2a83d4315a9e44f0 src/agent/permissions.ts
 8749ca269ac640cf403c917fe0178bb6dbd121ba src/agent/spawn.ts
 7cc46464fa980a3fa71880275c57d68aaadab950 src/agent/stdio.ts
 67efaeabbdb4a1b61c28940267eabb1991caf267 src/agent/types.ts
-38feedefb816a6d1fe438af1169b2fcc1e565c95 src/cli.ts
-254416104923b28c321824d1e6fc2b7d3ddec3e1 src/cli/backend.ts
-a0016d4450578e29fd487ceba4ac17d0339209d0 src/cli/config.ts
+65285a6d13906a60f4f85cd3483f07569584493e src/cli.ts
+37b5da599835134bf79bcbc1d67cceeba6c8013f src/cli/backend.ts
+bcb687709b41a803ac9261084cf477345eba304a src/cli/config.ts
 e057a0ab092231332969a0c7afaf8afa5e5374b3 src/cli/confirm.ts
 61848a5539eec6ba483fca06610e6c0ef3b7789f src/doctor/full-probes.ts
-ef6ff0d1def61b4c8a9635a7c46f670e50c86ecb src/doctor/index.ts
+55bcb94cd24159d6780ad91ab379f34654e0bcbf src/doctor/index.ts
 cf0a24b72748012a7502e17a2a088e5af5fa2370 src/doctor/preflight.ts
 e535de4cea86f2df44a0416af1b500c667f29e27 src/doctor/probes.ts
 498ec568917ed49ed67b4285bf55fd2966010de9 src/doctor/scratch-repo.ts
@@ -75,9 +75,9 @@ cc8695cdd823dc31d303d9b79b568774f230ae6e tests/agent/audit.test.ts
 0fffdaa10e1ac3f99363f51be22b874af3bcdcc9 tests/agent/events.test.ts
 66962ce481c7a15301efbbe0de9f835220c77fc0 tests/agent/fake-agent.test.ts
 24cf242bac6c0f61769ca429043187486ce7a75f tests/agent/permissions.test.ts
-5b3c8a309b09895ac2d22ac9f17729d5b89c2486 tests/cli/backend.test.ts
-762a720f377643a28ff3c977ccb7a80c64376df5 tests/cli/config-integration.test.ts
-0d9ec19bc7f601dbf6b459dd1c9e37c404df9932 tests/cli/config.test.ts
+dd9c60d55c662db26a39243bbde5b8422005f03b tests/cli/backend.test.ts
+eddf670cc930b90fd7af667cba3f528496c2a3ef tests/cli/config-integration.test.ts
+b954002b3dc7537399e87701459917ab4a46f10f tests/cli/config.test.ts
 0aaab138c09ccc140f198f45427ed27f1aac6fb4 tests/cli/cost-confirmation.test.ts
 59909285bc0dc3ed1e6dfe2a24d864d19fd424de tests/cli/doctor.test.ts
 44b73b98c78f82e43c44e2846df6fabe42ff720d tests/cli/help-version.test.ts
