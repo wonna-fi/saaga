@@ -2,21 +2,42 @@ import { ClaudeAgent } from "../agent/claude-agent.js";
 import { CopilotAgent } from "../agent/copilot-agent.js";
 import { CursorAgent } from "../agent/cursor-agent.js";
 import type { Agent } from "../agent/types.js";
+import type { BackendModels } from "./config.js";
 
 export type Backend = "cursor" | "copilot" | "claude";
 
+export type ModelTier = "low" | "medium" | "high";
+
 const ALLOWED_BACKENDS: readonly Backend[] = ["cursor", "copilot", "claude"];
 
-const DEFAULT_MODELS: Record<Backend, string> = {
-  cursor: "claude-4.6-opus-high-thinking",
-  copilot: "claude-sonnet-4.5",
-  claude: "opus",
+interface BackendModelDefaults {
+  modelLow: string;
+  modelMedium: string;
+  modelHigh: string;
+}
+
+const DEFAULT_BACKEND_MODELS: Record<Backend, BackendModelDefaults> = {
+  cursor: {
+    modelLow: "claude-4.6-sonnet-medium-thinking",
+    modelMedium: "claude-4.6-sonnet-medium-thinking",
+    modelHigh: "claude-4.6-opus-high-thinking",
+  },
+  copilot: {
+    modelLow: "claude-sonnet-4.5",
+    modelMedium: "claude-sonnet-4.5",
+    modelHigh: "claude-sonnet-4.5",
+  },
+  claude: {
+    modelLow: "sonnet",
+    modelMedium: "sonnet",
+    modelHigh: "opus",
+  },
 };
 
-const DEFAULT_QUICK_MODELS: Record<Backend, string> = {
-  cursor: "claude-4.6-sonnet-medium-thinking",
-  copilot: "claude-sonnet-4.5",
-  claude: "sonnet",
+const TIER_KEY: Record<ModelTier, keyof BackendModelDefaults> = {
+  low: "modelLow",
+  medium: "modelMedium",
+  high: "modelHigh",
 };
 
 const BACKEND_CLI_COMMANDS: Record<Backend, string> = {
@@ -40,7 +61,7 @@ export interface ResolveBackendInput {
 /**
  * Resolves the backend from:
  *   1. `--backend <name>` flag if provided
- *   2. `.saaga/config.yaml` `backend` field as fallback
+ *   2. `.saaga/config.yaml` `defaultBackend` field as fallback
  *   3. Otherwise: error
  */
 export function resolveBackend(input: ResolveBackendInput): Backend {
@@ -61,12 +82,24 @@ export function resolveBackend(input: ResolveBackendInput): Backend {
   return candidate as Backend;
 }
 
-export function defaultModelFor(backend: Backend): string {
-  return DEFAULT_MODELS[backend];
-}
-
-export function defaultQuickModelFor(backend: Backend): string {
-  return DEFAULT_QUICK_MODELS[backend];
+/**
+ * Resolves the model string for a quality tier.
+ *
+ * Precedence: `configModels[tierKey]` → built-in default for the backend.
+ * Callers that also accept CLI overrides should apply those before calling
+ * this helper (or pass them via `configModels`).
+ */
+export function resolveModelForTier(
+  backend: Backend,
+  tier: ModelTier,
+  configModels?: BackendModels,
+): string {
+  const key = TIER_KEY[tier];
+  const fromConfig = configModels?.[key];
+  if (fromConfig && fromConfig.length > 0) {
+    return fromConfig;
+  }
+  return DEFAULT_BACKEND_MODELS[backend][key];
 }
 
 /** The CLI binary Saaga executes for a backend. */

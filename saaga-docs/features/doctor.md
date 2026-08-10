@@ -35,7 +35,7 @@ The `doctor` subcommand is registered on the root `saaga` program with these sub
 | `--json` | off | Output results as versioned JSON (`schemaVersion: 1`) |
 | `--probe <ids...>` | all | Run only the specified probe IDs (comma- or space-separated) |
 
-The global `-b, --backend`, `-m, --model`, and `--ci` flags also apply. When `--backend` is omitted, doctor defaults to `"all"` (unlike flow subcommands which require a backend).
+The global `-b, --backend`, `--model-low`, and `--ci` flags also apply. When `--backend` is omitted, doctor defaults to `"all"` (unlike flow subcommands which require a backend). Doctor probes always use the **low** tier model, so `--model-low` is the relevant model override for doctor.
 
 ### Probe Catalogue
 
@@ -97,7 +97,7 @@ Full-tier probes have a `kind` field that determines failure diagnosis behavior:
 
 | Model/Type | Key Fields | Purpose |
 |--------|------------|---------|
-| `DoctorOptions` | `backend`, `level`, `json`, `probe`, `model`, `ci`, `cwd` | Input options for `runDoctor()` |
+| `DoctorOptions` | `backend`, `level`, `json`, `probe`, `model`, `backendModels`, `ci`, `cwd` | Input options for `runDoctor()` |
 | `DoctorResult` | `schemaVersion`, `backends`, `exitCode`, `logDir` | Top-level result container (schema version is always `1`) |
 | `DoctorBackendResult` | `backend`, `available`, `reason`, `version`, `probes` | Per-backend availability and probe results |
 | `ProbeDefinition` | `id`, `description`, `level`, `backends` | Static probe metadata in the catalogue |
@@ -158,11 +158,11 @@ When a full-tier capability probe fails:
 
 ### Probe Model Selection
 
-Full-tier probes require a model for agent invocations. The model is selected in order of precedence:
+Full-tier probes require a model for agent invocations. Doctor always uses the **low** quality tier. The model is selected in order of precedence:
 
-1. CLI `--model` flag override
-2. Environment variable `SAAGA_PROBE_<BACKEND>_MODEL` (e.g. `SAAGA_PROBE_CURSOR_MODEL`)
-3. Built-in defaults: `claude-4.6-sonnet-medium-thinking` (cursor), `claude-sonnet-4.5` (copilot), `sonnet` (claude)
+1. CLI `--model-low` flag override (passed to `DoctorOptions.model`)
+2. `backends.<backend>.modelLow` from `.saaga/config.yaml` (passed to `DoctorOptions.backendModels`)
+3. Built-in low-tier defaults: `claude-4.6-sonnet-medium-thinking` (cursor), `claude-sonnet-4.5` (copilot), `sonnet` (claude)
 
 ### Log Files
 
@@ -203,6 +203,6 @@ Before any flow subcommand (`init`, `update`, `quick-update`, `verify-quick-upda
 When a new agent backend is added to Saaga, extend the doctor system:
 
 1. Ensure the backend's CLI binary name is returned by `backendCliCommand()` (already required by the agent interface)
-2. Add the backend to the `DEFAULT_PROBE_MODELS` map in `src/doctor/index.ts`
+2. Add the backend's built-in model defaults to `DEFAULT_BACKEND_MODELS` in `src/cli/backend.ts` (doctor uses the `modelLow` tier entry)
 3. Add the backend's bogus-model CLI arguments to `runUnknownModelProbe()` in `src/doctor/index.ts`
 4. Review existing full-tier probes — most are backend-agnostic, but some may need `backends` scoping adjustments

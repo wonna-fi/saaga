@@ -2,7 +2,13 @@ import { execFileSync } from "node:child_process";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import pc from "picocolors";
-import { createAgent, type Backend, backendCliCommand } from "../cli/backend.js";
+import {
+  createAgent,
+  type Backend,
+  backendCliCommand,
+  resolveModelForTier,
+} from "../cli/backend.js";
+import type { BackendModels } from "../cli/config.js";
 import { runFullSideEffectProbes, type FullProbeRunOptions } from "./full-probes.js";
 import { PROBE_CATALOGUE, type ProbeRunResult, type ProbeLevel } from "./probes.js";
 
@@ -11,8 +17,10 @@ export interface DoctorOptions {
   level: ProbeLevel;
   json?: boolean;
   probe?: string[];
-  /** Model override per backend for full-tier probes. */
+  /** Model override for full-tier probes (uses modelLow when absent). */
   model?: string;
+  /** Per-backend model config from `.saaga/config.yaml` (optional). */
+  backendModels?: Partial<Record<Backend, BackendModels>>;
   /** CI mode — plain output without spinners or colors. */
   ci?: boolean;
   /** Working directory; logs are placed under `<cwd>/.saaga-runs/doctor/`. */
@@ -162,18 +170,14 @@ function runUnknownModelProbe(backend: Backend): ProbeRunResult {
   }
 }
 
-/** Default probe models — cheap models suitable for short diagnostic prompts. */
-const DEFAULT_PROBE_MODELS: Record<Backend, string> = {
-  cursor: "claude-4.6-sonnet-medium-thinking",
-  copilot: "claude-sonnet-4.5",
-  claude: "sonnet",
-};
-
-function probeModelFor(backend: Backend, override?: string): string {
-  if (override) return override;
-  const envKey = `SAAGA_PROBE_${backend.toUpperCase()}_MODEL`;
-  const env = process.env[envKey];
-  return env && env.length > 0 ? env : DEFAULT_PROBE_MODELS[backend];
+/** Doctor probes always use the low-tier model. */
+function probeModelFor(
+  backend: Backend,
+  override?: string,
+  configModels?: BackendModels,
+): string {
+  if (override && override.length > 0) return override;
+  return resolveModelForTier(backend, "low", configModels);
 }
 
 export async function runDoctor(opts: DoctorOptions): Promise<DoctorResult> {
@@ -215,7 +219,7 @@ export async function runDoctor(opts: DoctorOptions): Promise<DoctorResult> {
         return r;
       });
 
-      const model = probeModelFor(backend, opts.model);
+      const model = probeModelFor(backend, opts.model, opts.backendModels?.[backend]);
       const agent = createAgent({ backend, model });
       const runOpts: FullProbeRunOptions = {
         backend,

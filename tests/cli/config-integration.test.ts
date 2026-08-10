@@ -21,7 +21,7 @@ async function tmpApp(
 
 describe("config-driven CLI integration", () => {
   test("config supplies backend so no --backend flag needed", async () => {
-    const { app } = await tmpApp("salesforce", "backend: cursor\n");
+    const { app } = await tmpApp("salesforce", "defaultBackend: cursor\n");
     await writeFile(join(app, "README.md"), "x", "utf8");
 
     const planContent = `---
@@ -51,7 +51,7 @@ phases:
     // Even though no --backend is passed, the config provides it.
     // FakeAgent bypasses resolveBackend, but we verify no error from
     // the config loading path. The real resolution test is:
-    // without FakeAgent and without --backend, having config.backend
+    // without FakeAgent and without --backend, having config.defaultBackend
     // should not throw "Backend must be specified".
     const exitCode = await runCli(["init", app], {
       agent: fake,

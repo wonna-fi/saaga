@@ -1,10 +1,13 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { parse as parseYaml } from "yaml";
+import type { Backend } from "./backend.js";
 
 export const CONFIG_DIR = ".saaga";
 export const CONFIG_FILE = "config.yaml";
 export const DEFAULT_DOCS_DIR = "saaga-docs";
+
+const ALLOWED_BACKENDS: readonly Backend[] = ["cursor", "copilot", "claude"];
 
 export class ConfigError extends Error {
   constructor(message: string) {
@@ -13,10 +16,15 @@ export class ConfigError extends Error {
   }
 }
 
+export interface BackendModels {
+  modelLow?: string;
+  modelMedium?: string;
+  modelHigh?: string;
+}
+
 export interface SaagaConfig {
-  backend?: string;
-  model?: string;
-  quickModel?: string;
+  defaultBackend?: string;
+  backends?: Partial<Record<Backend, BackendModels>>;
   ruleTargets?: string;
   docsDir?: string;
   autoApprove?: boolean;
@@ -62,31 +70,17 @@ export async function loadConfig(projectDir: string): Promise<SaagaConfig> {
   const obj = raw as Record<string, unknown>;
   const config: SaagaConfig = {};
 
-  if (obj.backend !== undefined) {
-    if (typeof obj.backend !== "string") {
+  if (obj.defaultBackend !== undefined) {
+    if (typeof obj.defaultBackend !== "string") {
       throw new ConfigError(
-        `${CONFIG_DIR}/${CONFIG_FILE}: 'backend' must be a string`,
+        `${CONFIG_DIR}/${CONFIG_FILE}: 'defaultBackend' must be a string`,
       );
     }
-    config.backend = obj.backend;
+    config.defaultBackend = obj.defaultBackend;
   }
 
-  if (obj.model !== undefined) {
-    if (typeof obj.model !== "string") {
-      throw new ConfigError(
-        `${CONFIG_DIR}/${CONFIG_FILE}: 'model' must be a string`,
-      );
-    }
-    config.model = obj.model;
-  }
-
-  if (obj.quickModel !== undefined) {
-    if (typeof obj.quickModel !== "string") {
-      throw new ConfigError(
-        `${CONFIG_DIR}/${CONFIG_FILE}: 'quickModel' must be a string`,
-      );
-    }
-    config.quickModel = obj.quickModel;
+  if (obj.backends !== undefined) {
+    config.backends = parseBackends(obj.backends);
   }
 
   if (obj.ruleTargets !== undefined) {
@@ -112,6 +106,54 @@ export async function loadConfig(projectDir: string): Promise<SaagaConfig> {
   }
 
   return config;
+}
+
+function parseBackends(
+  value: unknown,
+): Partial<Record<Backend, BackendModels>> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new ConfigError(
+      `${CONFIG_DIR}/${CONFIG_FILE}: 'backends' must be a YAML mapping`,
+    );
+  }
+
+  const raw = value as Record<string, unknown>;
+  const result: Partial<Record<Backend, BackendModels>> = {};
+
+  for (const [key, entry] of Object.entries(raw)) {
+    if (!ALLOWED_BACKENDS.includes(key as Backend)) {
+      throw new ConfigError(
+        `${CONFIG_DIR}/${CONFIG_FILE}: 'backends.${key}' is not a valid backend (must be 'cursor', 'copilot', or 'claude')`,
+      );
+    }
+    result[key as Backend] = parseBackendModels(key, entry);
+  }
+
+  return result;
+}
+
+function parseBackendModels(backend: string, value: unknown): BackendModels {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new ConfigError(
+      `${CONFIG_DIR}/${CONFIG_FILE}: 'backends.${backend}' must be a YAML mapping`,
+    );
+  }
+
+  const obj = value as Record<string, unknown>;
+  const models: BackendModels = {};
+
+  for (const field of ["modelLow", "modelMedium", "modelHigh"] as const) {
+    if (obj[field] !== undefined) {
+      if (typeof obj[field] !== "string") {
+        throw new ConfigError(
+          `${CONFIG_DIR}/${CONFIG_FILE}: 'backends.${backend}.${field}' must be a string`,
+        );
+      }
+      models[field] = obj[field];
+    }
+  }
+
+  return models;
 }
 
 /**

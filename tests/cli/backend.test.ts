@@ -2,9 +2,8 @@ import { describe, expect, test } from "vitest";
 import {
   BackendError,
   backendCliCommand,
-  defaultModelFor,
-  defaultQuickModelFor,
   resolveBackend,
+  resolveModelForTier,
 } from "../../src/cli/backend.js";
 
 describe("resolveBackend", () => {
@@ -49,29 +48,53 @@ describe("resolveBackend", () => {
   });
 });
 
-describe("defaultModelFor", () => {
-  test("returns cursor default", () => {
-    expect(defaultModelFor("cursor")).toBe("claude-4.6-opus-high-thinking");
+describe("resolveModelForTier", () => {
+  test("returns built-in high defaults", () => {
+    expect(resolveModelForTier("cursor", "high")).toBe(
+      "claude-4.6-opus-high-thinking",
+    );
+    expect(resolveModelForTier("copilot", "high")).toBe("claude-sonnet-4.5");
+    expect(resolveModelForTier("claude", "high")).toBe("opus");
   });
-  test("returns copilot default", () => {
-    expect(defaultModelFor("copilot")).toBe("claude-sonnet-4.5");
-  });
-  test("returns claude default", () => {
-    expect(defaultModelFor("claude")).toBe("opus");
-  });
-});
 
-describe("defaultQuickModelFor", () => {
-  test("returns a cheaper cursor model", () => {
-    expect(defaultQuickModelFor("cursor")).toBe(
+  test("returns built-in medium defaults (former quick models)", () => {
+    expect(resolveModelForTier("cursor", "medium")).toBe(
       "claude-4.6-sonnet-medium-thinking",
     );
+    expect(resolveModelForTier("copilot", "medium")).toBe("claude-sonnet-4.5");
+    expect(resolveModelForTier("claude", "medium")).toBe("sonnet");
   });
-  test("returns copilot quick default", () => {
-    expect(defaultQuickModelFor("copilot")).toBe("claude-sonnet-4.5");
+
+  test("returns built-in low defaults matching medium for now", () => {
+    expect(resolveModelForTier("cursor", "low")).toBe(
+      "claude-4.6-sonnet-medium-thinking",
+    );
+    expect(resolveModelForTier("copilot", "low")).toBe("claude-sonnet-4.5");
+    expect(resolveModelForTier("claude", "low")).toBe("sonnet");
   });
-  test("returns claude quick default", () => {
-    expect(defaultQuickModelFor("claude")).toBe("sonnet");
+
+  test("uses config override for the requested tier", () => {
+    expect(
+      resolveModelForTier("cursor", "high", { modelHigh: "custom-high" }),
+    ).toBe("custom-high");
+    expect(
+      resolveModelForTier("cursor", "medium", { modelMedium: "custom-med" }),
+    ).toBe("custom-med");
+    expect(
+      resolveModelForTier("cursor", "low", { modelLow: "custom-low" }),
+    ).toBe("custom-low");
+  });
+
+  test("falls back to defaults when config tier is absent", () => {
+    expect(resolveModelForTier("claude", "high", { modelLow: "haiku" })).toBe(
+      "opus",
+    );
+  });
+
+  test("treats empty config values as absent", () => {
+    expect(resolveModelForTier("claude", "high", { modelHigh: "" })).toBe(
+      "opus",
+    );
   });
 });
 

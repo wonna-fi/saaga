@@ -33,7 +33,9 @@ Before working with this feature, understand these concepts:
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--backend <name>` | `-b` | Agent backend (`cursor`, `copilot`, or `claude`) |
-| `--model <name>` | `-m` | AI model override (defaults per-backend) |
+| `--model-low <name>` | — | Override the low-tier model (used by `doctor` probes) |
+| `--model-medium <name>` | — | Override the medium-tier model (used by `quick-update`) |
+| `--model-high <name>` | — | Override the high-tier model (used by `init`, `update`, `verify-quick-updates`) |
 | `--ci` | — | CI mode: plain (non-color) log output |
 | `--verbose` | — | Show detailed step output and live agent output on terminal |
 | `--yes` | `-y` | Skip the cost confirmation prompt for agent-backed commands |
@@ -66,7 +68,7 @@ Before working with this feature, understand these concepts:
 8. CLI creates a log file path: `logFile = resolve(runCtx.runDir, "run.log")`
 9. CLI resolves `verbose` from `globals.verbose ?? false`
 10. CLI creates a `Logger` via internal `createLogger(globals, options, logFile)` — passes `ci`, `stream`, `logFile`, and `verbose` to `LoggerOptions`
-11. Logger logs startup info: `saaga <subcommand> <path> (backend=<name>)` with optional conditional segment `, model=<model>` only when `--model` is explicitly provided. Also logs run ID and run directory. Logs `buildCostSummary()` as a detail line.
+11. Logger logs startup info: `saaga <subcommand> <path> (backend=<name>)` with optional conditional segment `, model=<model>` when a tier-specific model flag (`--model-high` or `--model-medium`) is explicitly provided. Also logs run ID and run directory. Logs `buildCostSummary()` as a detail line.
 12. CLI resolves the effective documentation directory via `resolveDocsDir(config)` (falls back to `DEFAULT_DOCS_DIR` = `"saaga-docs"`)
 13. CLI constructs the permission profile:
     - If `--dangerously-allow-all` is set: skips profile construction, writes a warning to stderr, and `permissions` remains `undefined`
@@ -81,13 +83,13 @@ Before working with this feature, understand these concepts:
 
 ### User Flow: quick-update Subcommand
 
-The `quick-update` subcommand follows the same flow as standard subcommands (steps 1–19 above) with one difference: the agent is resolved using `config.quickModel` (from `.saaga/config.yaml`) or `defaultQuickModelFor(backend)` instead of the standard model. The `--model` flag overrides both.
+The `quick-update` subcommand follows the same flow as standard subcommands (steps 1–19 above) with one difference: the agent is resolved using the **medium** quality tier — `--model-medium` flag → `config.backends.<backend>.modelMedium` → built-in medium default — instead of the high tier used by standard subcommands.
 
 ### User Flow: doctor Subcommand
 
 1. User runs `saaga doctor [--backend <name>] [--level fast|full] [--json] [--probe <ids...>]`
 2. CLI resolves `backend` from `--backend` flag or defaults to `"all"` (checks all backends)
-3. CLI constructs `DoctorOptions`: `{ backend, level, json, probe, model, ci }`
+3. CLI constructs `DoctorOptions`: `{ backend, level, json, probe, model: globals.modelLow, backendModels: config.backends, ci }`
 4. CLI calls `runDoctor(doctorOpts)` — runs probes at the specified level and returns a `DoctorResult`
 5. If `--json` is set, writes the result as formatted JSON to stdout; otherwise writes human-readable output via `formatDoctorResult()`
 6. If `result.exitCode !== 0`, throws `DoctorError` (exit code 1 = probes failed, 2 = probes could not run)
@@ -140,12 +142,12 @@ The program uses Commander's `exitOverride()` to prevent Commander from calling 
 | `src/cli.ts` | `runCli()` | CLI entry point — parses args, dispatches to subcommand handlers, returns exit code |
 | `src/cli.ts` | `CliOptions` (interface) | Options for `runCli()`: optional `agent`, `cwd`, `stdout`, `stderr`, `stdin` overrides |
 | `src/cli/config.ts` | `loadConfig()` | Load project config from `.saaga/config.yaml`; returns `SaagaConfig` |
-| `src/cli/config.ts` | `SaagaConfig` (interface) | Shape of the parsed config: `backend?`, `model?`, `quickModel?`, `ruleTargets?`, `docsDir?`, `autoApprove?` |
+| `src/cli/config.ts` | `SaagaConfig` (interface) | Shape of the parsed config: `defaultBackend?`, `backends?`, `ruleTargets?`, `docsDir?`, `autoApprove?` |
 | `src/cli/config.ts` | `DEFAULT_DOCS_DIR` (constant) | Default documentation directory name: `"saaga-docs"` |
 | `src/cli/config.ts` | `ConfigError` (class) | Error for malformed config YAML or invalid field types |
 | `src/cli/backend.ts` | `resolveBackend()` | Resolve backend name from flag → config → error |
-| `src/cli/backend.ts` | `defaultModelFor()` | Return the default model for a backend (standard subcommands) |
-| `src/cli/backend.ts` | `defaultQuickModelFor()` | Return the default quick model for a backend (`quick-update` subcommand) |
+| `src/cli/backend.ts` | `resolveModelForTier()` | Return the model string for a quality tier; consults per-backend config overrides before built-in defaults |
+| `src/cli/backend.ts` | `ModelTier` (type) | String union: `"low" \| "medium" \| "high"` |
 | `src/cli/backend.ts` | `createAgent()` | Construct a `CursorAgent`, `CopilotAgent`, or `ClaudeAgent` |
 | `src/cli/backend.ts` | `backendCliCommand()` | Return the CLI binary name for a given backend |
 | `src/cli/backend.ts` | `BackendError` (class) | Error for backend resolution failures |
@@ -172,7 +174,7 @@ The program uses Commander's `exitOverride()` to prevent Commander from calling 
 |--------|----------|---------|
 | `src/cli.ts` | `readPackageVersion()` | Read version from `package.json` (not exported) |
 | `src/cli.ts` | `isCommanderInfoExit()` | Detect Commander version/help exit codes (not exported) |
-| `src/cli.ts` | `resolveAgent()` | Orchestrate backend resolution → model selection (standard or quick) → agent construction; returns `ResolvedAgent` (with optional `backend` and `model` fields) (not exported) |
+| `src/cli.ts` | `resolveAgent()` | Orchestrate backend resolution → tier selection (medium for quick-update, high otherwise) → `resolveModelForTier()` → agent construction; returns `ResolvedAgent` (with optional `backend` and `model` fields) (not exported) |
 | `src/cli/confirm.ts` | `isInteractive()` | Determines if the terminal supports interactive prompt by checking `--ci`, stdin existence, and `isTTY` (not exported) |
 | `src/cli.ts` | `runFlowSubcommand()` | Shared handler for `init`, `update`, `quick-update`, `verify-quick-updates`: validates dir, creates run context, executes flow (not exported) |
 | `src/cli.ts` | `runInstallRulesSubcommand()` | Handler for `install-rules`: validates dir, calls `installRules()` directly without backend/run context (not exported) |

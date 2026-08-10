@@ -8,11 +8,11 @@ import { PermissionAuditor } from "./agent/audit.js";
 import type { Agent } from "./agent/types.js";
 import {
   type Backend,
+  type ModelTier,
   backendCliCommand,
   createAgent,
-  defaultModelFor,
-  defaultQuickModelFor,
   resolveBackend,
+  resolveModelForTier,
 } from "./cli/backend.js";
 import {
   DEFAULT_DOCS_DIR,
@@ -53,7 +53,9 @@ export interface CliOptions {
 
 interface GlobalCliFlags {
   backend?: string;
-  model?: string;
+  modelLow?: string;
+  modelMedium?: string;
+  modelHigh?: string;
   ci?: boolean;
   verbose?: boolean;
   yes?: boolean;
@@ -118,7 +120,18 @@ export async function runCli(
     )
     .version(version, "-v, --version", "Print version and exit")
     .option("-b, --backend <name>", "Agent backend (cursor|copilot|claude)")
-    .option("-m, --model <name>", "AI model override (defaults per-backend)")
+    .option(
+      "--model-low <name>",
+      "Override the low-tier model for this invocation",
+    )
+    .option(
+      "--model-medium <name>",
+      "Override the medium-tier model for this invocation",
+    )
+    .option(
+      "--model-high <name>",
+      "Override the high-tier model for this invocation",
+    )
     .option(
       "--ci",
       "CI mode: plain (non-color) log output",
@@ -260,10 +273,10 @@ export async function runCli(
       "Check backend CLI availability and capability probes. " +
         "Fast tier (default) makes zero model calls.",
     )
-    // --backend and --model are deliberately not redeclared here. The program
-    // already defines -b/--backend and -m/--model, and commander binds the
-    // long forms to the parent, leaving a subcommand copy stuck at its
-    // default. Read them from the globals instead.
+    // --backend and --model-* are deliberately not redeclared here. The
+    // program already defines them, and commander binds the long forms to
+    // the parent, leaving a subcommand copy stuck at its default. Read them
+    // from the globals instead. Doctor probes use the low-tier model.
     .option(
       "--level <level>",
       "Probe tier: fast (no model calls) or full",
@@ -279,12 +292,15 @@ export async function runCli(
     )
     .action(async (cmdOpts: DoctorFlags, cmd: Command) => {
       const globals = cmd.optsWithGlobals<GlobalCliFlags>();
+      const baseCwd = options.cwd ?? process.cwd();
+      const config = await loadConfig(baseCwd);
       const doctorOpts: DoctorOptions = {
         backend: (globals.backend ?? "all") as DoctorOptions["backend"],
         level: (cmdOpts.level ?? "fast") as DoctorOptions["level"],
         json: cmdOpts.json,
         probe: splitProbeIds(cmdOpts.probe),
-        model: globals.model,
+        model: globals.modelLow,
+        backendModels: config.backends,
         ci: globals.ci,
       };
 
@@ -359,17 +375,19 @@ function resolveAgent(
   const config = opts.config ?? {};
   const backend: Backend = resolveBackend({
     flag: globals.backend,
-    config: config.backend,
+    config: config.defaultBackend,
   });
 
-  let model: string;
-  if (globals.model) {
-    model = globals.model;
-  } else if (opts.useQuickModel) {
-    model = config.quickModel ?? defaultQuickModelFor(backend);
-  } else {
-    model = config.model ?? defaultModelFor(backend);
-  }
+  // Runtime behavior is unchanged for now: quick-update uses medium, all
+  // other agent-backed commands use high. Workflow-level tier selection
+  // lands in a later change.
+  const tier: ModelTier = opts.useQuickModel ? "medium" : "high";
+  const flagForTier =
+    tier === "medium" ? globals.modelMedium : globals.modelHigh;
+  const model =
+    flagForTier && flagForTier.length > 0
+      ? flagForTier
+      : resolveModelForTier(backend, tier, config.backends?.[backend]);
 
   return {
     agent: createAgent({ backend, model, ci: globals.ci }),
@@ -456,9 +474,12 @@ async function runFlowSubcommand(input: RunFlowSubcommandInput): Promise<void> {
   const verbose = globals.verbose ?? false;
   const logger = createLogger(globals, options, logFile);
 
+  const modelFlag = input.useQuickModel
+    ? globals.modelMedium
+    : globals.modelHigh;
   logger.info(
     `saaga ${subcommand} ${appPath} (backend=${agent.name}${
-      globals.model ? `, model=${globals.model}` : ""
+      modelFlag ? `, model=${modelFlag}` : ""
     })`,
   );
   logger.info(`run ${runCtx.runId} -> ${runCtx.runDir}`);

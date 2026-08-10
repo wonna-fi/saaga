@@ -23,3 +23,15 @@ This application has structured domain documentation organized into three types:
 - **No documentation updates during implementation**: Do NOT update domain documentation (concepts, patterns, features) when making code changes. Documentation updates are handled separately by Saaga to ensure quality and consistency. Focus your work on the code changes only.
 
 - **Consult before implementing**: Before implementing new features or changes, check the existing concepts and patterns to understand and reuse existing services/modules. Avoid reinventing functionality that already exists.
+
+## Development Rules
+
+### Definition of Done Checklist
+
+A task is ready when the following criteria are met:
+
+1. The implementation fulfills the requirements
+2. The implementation has tests
+3. The complete test suite passes
+4. There are no linter errors
+5. The README is updated

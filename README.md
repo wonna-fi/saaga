@@ -67,11 +67,11 @@ Each backend must be authenticated independently (e.g. by logging in to
 the CLI or setting credentials in the environment). Saaga does not manage
 API keys itself.
 
-| Backend  | CLI              | Default model                   |
-| -------- | ---------------- | ------------------------------- |
-| cursor   | `cursor-agent`   | `claude-4.6-opus-high-thinking` |
-| copilot  | `copilot`        | `claude-sonnet-4.5`             |
-| claude   | `claude`         | `opus`                          |
+| Backend  | CLI              | Default high                    | Default medium                      | Default low                         |
+| -------- | ---------------- | ------------------------------- | ----------------------------------- | ----------------------------------- |
+| cursor   | `cursor-agent`   | `claude-4.6-opus-high-thinking` | `claude-4.6-sonnet-medium-thinking` | `claude-4.6-sonnet-medium-thinking` |
+| copilot  | `copilot`        | `claude-sonnet-4.5`             | `claude-sonnet-4.5`                 | `claude-sonnet-4.5`                 |
+| claude   | `claude`         | `opus`                          | `sonnet`                            | `sonnet`                            |
 
 > **Restricted by default** — Saaga restricts each agent backend to the
 > narrow permissions it actually needs. On every backend the agent cannot
@@ -150,7 +150,9 @@ saaga doctor                    Check backend CLI availability and
 | Flag | Short | Description |
 | ---- | ----- | ----------- |
 | `--backend <name>` | `-b` | Agent backend: `cursor`, `copilot`, or `claude` |
-| `--model <name>` | `-m` | Override the per-backend default model |
+| `--model-low <name>` | | Override the low-tier model for this invocation |
+| `--model-medium <name>` | | Override the medium-tier model for this invocation |
+| `--model-high <name>` | | Override the high-tier model for this invocation |
 | `--ci` | | Plain (non-color) log output, suitable for CI pipelines |
 | `--yes` | `-y` | Skip the cost confirmation prompt (see [Runtime and cost](#runtime-and-cost)) |
 | `--allow-dir <path>` | | Grant additional read/write access to a directory (repeatable; see [Permissions](#permissions)) |
@@ -190,8 +192,8 @@ guidance below as relative expectations, not fixed numbers.
 > substantial number of tokens, since it reads across your entire
 > codebase and runs several agent phases including a verify/fix loop.
 > Costs depend on your chosen backend and model. If you want to keep the
-> initial spend down, point `--model` at a cheaper model or scope what
-> gets documented with [`.saagaignore`](#excluding-files-saagaignore).
+> initial spend down, point `--model-high` at a cheaper model or scope
+> what gets documented with [`.saagaignore`](#excluding-files-saagaignore).
 
 ### Cost confirmation prompt
 
@@ -227,15 +229,24 @@ defaults. All keys are optional; CLI flags always take precedence.
 
 ```yaml
 # .saaga/config.yaml
-backend: cursor            # cursor | copilot | claude
-model: opus                # model for standard subcommands
-quickModel: sonnet         # model for quick-update subcommand
+defaultBackend: cursor     # cursor | copilot | claude
+backends:                  # per-backend model overrides (all optional)
+  cursor:
+    modelLow: claude-4.6-sonnet-medium-thinking
+    modelMedium: claude-4.6-sonnet-medium-thinking
+    modelHigh: claude-4.6-opus-high-thinking
+  claude:
+    modelHigh: opus
 ruleTargets: [agentsmd]    # agentsmd | cursor | claude | copilot | none
 docsDir: saaga-docs        # name of the generated docs folder (default: saaga-docs)
 autoApprove: false         # true skips the cost confirmation prompt (same as --yes)
 ```
 
-Resolution order: **CLI flag -> `.saaga/config.yaml` -> built-in default**.
+Each backend supports three model tiers: `modelLow` (doctor probes),
+`modelMedium` (quick-update), and `modelHigh` (init, update,
+verify-quick-updates). Any absent tier falls back to a built-in default.
+
+Resolution order: **CLI flag (`--model-low` / `--model-medium` / `--model-high`) -> `backends.<name>.model*` in `.saaga/config.yaml` -> built-in default**.
 
 ### Excluding files (.saagaignore)
 
@@ -401,7 +412,7 @@ tier takes several minutes and spends tokens.
 | ---- | ----------- |
 | `--backend <name>` | Backend to check: `cursor`, `copilot`, `claude`, or `all` (default: `all`) |
 | `--level <level>` | Probe tier: `fast` (default, zero tokens) or `full` (makes model calls) |
-| `--model <name>` | Model override for full-tier probes (defaults to a cheap model per backend) |
+| `--model-low <name>` | Model override for full-tier probes (defaults to the low-tier model per backend) |
 | `--json` | Output versioned JSON instead of human-readable text |
 | `--probe <ids...>` | Run only the specified probe IDs |
 
