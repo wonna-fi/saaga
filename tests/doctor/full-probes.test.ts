@@ -13,13 +13,12 @@ function nonceFrom(prompt: string, label: string): string {
 }
 
 describe("diagnosing a failed capability probe", () => {
+  // Capability retries: 1 initial + 2 retries + 1 unrestricted diagnostic = 4
   test("classifies as policy-denial when it succeeds without the profile", async () => {
     const agent = new FakeAgent({
       "probe-write.txt": {
         exitCode: 0,
         effect: async (opts, prompt) => {
-          // Behave as a backend whose restricted profile is too tight: the
-          // write only lands when no profile is in force.
           if (opts.permissions) return;
           const nonce = nonceFrom(prompt, "WRITE_NONCE");
           await writeFile(
@@ -41,10 +40,12 @@ describe("diagnosing a failed capability probe", () => {
     expect(results[0].status).toBe("fail");
     expect(results[0].classification).toBe("policy-denial");
 
-    // The retry is the same probe run again with the profile removed.
-    expect(agent.calls).toHaveLength(2);
+    // 1 initial + 2 retries (all restricted, all fail) + 1 unrestricted diagnostic
+    expect(agent.calls).toHaveLength(4);
     expect(agent.calls[0].permissions).toBeDefined();
-    expect(agent.calls[1].permissions).toBeUndefined();
+    expect(agent.calls[1].permissions).toBeDefined();
+    expect(agent.calls[2].permissions).toBeDefined();
+    expect(agent.calls[3].permissions).toBeUndefined();
   });
 
   test("classifies as backend-failure when it fails either way", async () => {
@@ -59,6 +60,39 @@ describe("diagnosing a failed capability probe", () => {
 
     expect(results[0].status).toBe("fail");
     expect(results[0].classification).toBe("backend-failure");
+    // 1 initial + 2 retries + 1 unrestricted diagnostic
+    expect(agent.calls).toHaveLength(4);
+  });
+
+  test("classifies as transient when it passes on retry", async () => {
+    let callCount = 0;
+    const agent = new FakeAgent({
+      "probe-write.txt": {
+        exitCode: 0,
+        effect: async (opts, prompt) => {
+          callCount++;
+          if (callCount === 1) return;
+          const nonce = nonceFrom(prompt, "WRITE_NONCE");
+          await writeFile(
+            join(opts.cwd, "saaga-docs", "probe-write.txt"),
+            `WRITE_NONCE_${nonce}`,
+          );
+        },
+      },
+    });
+
+    const results = await runFullSideEffectProbes({
+      backend: "cursor",
+      agent,
+      filterIds: ["write-in-cwd"],
+      quiet: true,
+    });
+
+    expect(results).toHaveLength(1);
+    expect(results[0].status).toBe("pass");
+    expect(results[0].classification).toBe("transient");
+    expect(results[0].retries).toBe(1);
+    // 1 initial (fail) + 1 retry (pass) — no unrestricted diagnostic needed
     expect(agent.calls).toHaveLength(2);
   });
 

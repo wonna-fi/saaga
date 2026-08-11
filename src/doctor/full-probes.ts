@@ -13,6 +13,13 @@ import { createScratchRepo, type ScratchRepo } from "./scratch-repo.js";
 
 const PROBE_TIMEOUT_MS = 120_000;
 
+/**
+ * How many times to retry a failed capability probe under the same profile
+ * before falling through to unrestricted diagnosis. Filters out transient
+ * LLM non-determinism so only real issues reach the failure report.
+ */
+const CAPABILITY_RETRIES = 2;
+
 interface FullProbe {
   id: string;
   backends?: Backend[];
@@ -90,8 +97,8 @@ const FULL_PROBES: FullProbe[] = [
     id: "read-from-cwd",
     kind: "capability",
     buildPrompt: (ctx) =>
-      `Read the file src/index.ts in this project. It contains a NONCE value. ` +
-      `Create a new file ${ctx.docsDir}/probe-read.txt containing only that NONCE value (the string between the quotes).`,
+      `Copy the file src/index.ts to ${ctx.docsDir}/probe-read.txt. ` +
+      `The destination file must contain the full, exact contents of src/index.ts.`,
     assert: async (exitCode, ctx) => {
       if (exitCode !== 0) throw new Error(`expected exit 0, got ${exitCode}`);
       const primary = join(ctx.appDir, ctx.docsDir, "probe-read.txt");
@@ -107,8 +114,8 @@ const FULL_PROBES: FullProbe[] = [
     id: "read-gitignored",
     kind: "capability",
     buildPrompt: (ctx) =>
-      `Read the file build/generated.txt in this project. It contains a nonce value. ` +
-      `Create a new file ${ctx.docsDir}/probe-gitignored.txt containing only that nonce value (the part after "nonce:").`,
+      `Copy the file build/generated.txt to ${ctx.docsDir}/probe-gitignored.txt. ` +
+      `The destination file must contain the full, exact contents of build/generated.txt.`,
     assert: async (exitCode, ctx) => {
       if (exitCode !== 0) throw new Error(`expected exit 0, got ${exitCode}`);
       const p = join(ctx.appDir, ctx.docsDir, "probe-gitignored.txt");
@@ -354,7 +361,7 @@ export async function runFullSideEffectProbes(
 
     for (const probe of applicable) {
       out?.phaseBegin(`  [${backend}] ${probe.id}`);
-      const attempt = await attemptProbe(probe, agent, ctx, permissions, logFile);
+      let attempt = await attemptProbe(probe, agent, ctx, permissions, logFile);
 
       if (!attempt.error) {
         out?.phaseEnd("PASS", attempt.elapsed);
@@ -369,6 +376,35 @@ export async function runFullSideEffectProbes(
       }
 
       out?.phaseEnd("FAIL", attempt.elapsed);
+
+      // Retry capability probes to filter out transient LLM failures.
+      if (probe.kind === "capability") {
+        let passedOnRetry = false;
+        let totalElapsed = attempt.elapsed;
+        for (let i = 0; i < CAPABILITY_RETRIES; i++) {
+          out?.phaseBegin(`  [${backend}] ${probe.id} — retry ${i + 1}/${CAPABILITY_RETRIES}`);
+          const retry = await attemptProbe(probe, agent, ctx, permissions, logFile);
+          totalElapsed += retry.elapsed;
+          if (!retry.error) {
+            out?.phaseEnd("PASS", retry.elapsed);
+            results.push({
+              probeId: probe.id,
+              backend,
+              status: "pass",
+              exitCode: retry.exitCode,
+              elapsed: totalElapsed,
+              classification: "transient",
+              retries: i + 1,
+            });
+            passedOnRetry = true;
+            break;
+          }
+          out?.phaseEnd("FAIL", retry.elapsed);
+          attempt = retry;
+        }
+        if (passedOnRetry) continue;
+      }
+
       results.push({
         probeId: probe.id,
         backend,

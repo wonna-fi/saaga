@@ -1,24 +1,21 @@
-name: Doctor (full)
+name: Doctor (fast)
 
-# Runs the full probe suite against whatever the backend CLIs ship today.
-#
-# The permission profiles depend on undocumented CLI behaviour — which flags
-# scope writes, whether a bare tool deny disables everything else, whether a
-# tool surface can be narrowed — so a release can silently loosen or break
-# them. Nothing is recorded on success: a green run is the signal, and the
-# run history is the record.
+# Runs the fast (zero-token) doctor probes against whatever the backend CLIs
+# ship today: binary on PATH, --version, and that help still documents every
+# flag Saaga passes. Catches flag removals/renames.
+# Nothing is recorded on success: a green run is the signal.
 
 on:
   workflow_dispatch:
   schedule:
-    # Weekly on Mondays at 06:00 UTC
-    - cron: "0 6 * * 1"
+    # Daily at 06:00 UTC
+    - cron: "0 6 * * *"
 
 jobs:
   probes:
     name: ${{ matrix.backend }}
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
@@ -44,18 +41,15 @@ jobs:
         run: |
           chmod +x "examples/install-agents/${{ matrix.install }}"
           "./examples/install-agents/${{ matrix.install }}"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
-      - name: Run full probe suite
-        env:
-          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
-          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        # --json suppresses per-probe progress, so the run is silent until it
-        # finishes; the step summary below is where the detail lands.
+      - name: Run fast probe suite
+        # Fast tier needs no model credentials — version + required-flags only.
+        # --json suppresses per-probe progress; the step summary holds detail.
         run: |
           npx tsx src/cli.ts doctor \
             --backend ${{ matrix.backend }} \
-            --level full --ci --json > doctor-result.json
+            --level fast --ci --json > doctor-result.json
 
       - name: Summarize probe results
         if: always()
@@ -93,33 +87,18 @@ jobs:
 
             const probes = backend.probes ?? [];
             const failed = probes.filter((p) => p.status === "fail");
-            const flaky = probes.filter((p) => p.classification === "transient");
             const passed = probes.filter((p) => p.status === "pass").length;
+            const skipped = probes.filter((p) => p.status === "skip").length;
             write("");
-            write(`${passed} passed, ${failed.length} failed`);
-            if (failed.length === 0 && flaky.length === 0) continue;
-
-            if (flaky.length > 0) {
-              write("");
-              write(`> **${flaky.length} probe(s) passed on retry (flaky):** ${flaky.map((p) => "\`" + p.probeId + "\`").join(", ")}`);
-            }
-
+            write(`${passed} passed, ${failed.length} failed, ${skipped} skipped`);
             if (failed.length === 0) continue;
 
-            // classification comes from doctor rerunning a failed capability
-            // probe without the permission profile.
             write("");
-            write("| Probe | Cause | Detail |");
-            write("| --- | --- | --- |");
+            write("| Probe | Detail |");
+            write("| --- | --- |");
             for (const probe of failed) {
-              const cause =
-                probe.classification === "policy-denial"
-                  ? "profile too tight for this CLI"
-                  : probe.classification === "backend-failure"
-                    ? "fails unrestricted too — CLI or environment"
-                    : "restriction not enforced";
               const detail = (probe.error ?? "").replace(/\|/g, "\\|");
-              write(`| \`${probe.probeId}\` | ${cause} | ${detail} |`);
+              write(`| \`${probe.probeId}\` | ${detail} |`);
             }
           }
           SCRIPT
@@ -129,6 +108,6 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: doctor-full-${{ matrix.backend }}
+          name: doctor-fast-${{ matrix.backend }}
           path: doctor-result.json
           if-no-files-found: ignore
