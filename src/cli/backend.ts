@@ -18,17 +18,17 @@ interface BackendModelDefaults {
 
 const DEFAULT_BACKEND_MODELS: Record<Backend, BackendModelDefaults> = {
   cursor: {
-    modelLow: "claude-4.6-sonnet-medium-thinking",
-    modelMedium: "claude-4.6-sonnet-medium-thinking",
+    modelLow: "composer-2.5",
+    modelMedium: "cursor-grok-4.5-high",
     modelHigh: "claude-4.6-opus-high-thinking",
   },
   copilot: {
-    modelLow: "claude-sonnet-4.5",
-    modelMedium: "claude-sonnet-4.5",
-    modelHigh: "claude-sonnet-4.5",
+    modelLow: "claude-haiku-4.5",
+    modelMedium: "claude-sonnet-4.6",
+    modelHigh: "claude-sonnet-4.6",
   },
   claude: {
-    modelLow: "sonnet",
+    modelLow: "haiku",
     modelMedium: "sonnet",
     modelHigh: "opus",
   },
