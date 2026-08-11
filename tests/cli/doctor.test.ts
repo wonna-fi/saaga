@@ -77,10 +77,10 @@ describe("saaga doctor --probe", () => {
 
     const result = await doctorJson([
       "doctor", "--backend", backend,
-      "--probe", "version,unknown-model-fails", "--json",
+      "--probe", "version,unknown-model-fails,required-flags", "--json",
     ]);
     const ids = result.backends[0].probes.map((p) => p.probeId);
-    expect(ids).toEqual(["version", "unknown-model-fails"]);
+    expect(ids).toEqual(["version", "required-flags", "unknown-model-fails"]);
   });
 
   test("accepts a space-separated list", async () => {
@@ -106,6 +106,7 @@ describe("saaga doctor --probe", () => {
     ]);
     const ids = result.backends[0].probes.map((p) => p.probeId);
     expect(ids).toContain("version");
+    expect(ids).toContain("required-flags");
     expect(ids.length).toBeGreaterThan(1);
   });
 });

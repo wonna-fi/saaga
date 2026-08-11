@@ -11,6 +11,10 @@ import {
 import type { BackendModels } from "../cli/config.js";
 import { runFullSideEffectProbes, type FullProbeRunOptions } from "./full-probes.js";
 import { PROBE_CATALOGUE, type ProbeRunResult, type ProbeLevel } from "./probes.js";
+import {
+  findMissingRequiredFlags,
+  REQUIRED_CLI_FLAGS,
+} from "./required-flags.js";
 
 export interface DoctorOptions {
   backend: Backend | "all";
@@ -114,6 +118,8 @@ function runFastProbes(backend: Backend, filterIds?: string[]): ProbeRunResult[]
           error: "version query failed",
         });
       }
+    } else if (probe.id === "required-flags") {
+      results.push(runRequiredFlagsProbe(backend));
     } else if (probe.id === "unknown-model-fails") {
       results.push({
         probeId: probe.id,
@@ -135,6 +141,73 @@ function runFastProbes(backend: Backend, filterIds?: string[]): ProbeRunResult[]
   }
 
   return results;
+}
+
+/**
+ * Ask the backend CLI for its help text and assert every flag Saaga passes
+ * during agent runs is still documented. Catches flag removals/renames
+ * without spending tokens.
+ */
+function runRequiredFlagsProbe(backend: Backend): ProbeRunResult {
+  const bin = backendCliCommand(backend);
+  const t0 = Date.now();
+  const help = readCliHelp(bin);
+  if (help === undefined) {
+    return {
+      probeId: "required-flags",
+      backend,
+      status: "fail",
+      exitCode: 1,
+      elapsed: Date.now() - t0,
+      error: "CLI help query failed (--help and -h)",
+    };
+  }
+
+  const missing = findMissingRequiredFlags(help, REQUIRED_CLI_FLAGS[backend]);
+  if (missing.length > 0) {
+    return {
+      probeId: "required-flags",
+      backend,
+      status: "fail",
+      exitCode: 1,
+      elapsed: Date.now() - t0,
+      error: `missing flags: ${missing.join(", ")}`,
+    };
+  }
+
+  return {
+    probeId: "required-flags",
+    backend,
+    status: "pass",
+    exitCode: 0,
+    elapsed: Date.now() - t0,
+  };
+}
+
+/** Prefer `--help`; fall back to `-h` when the long form is unavailable. */
+function readCliHelp(bin: string): string | undefined {
+  for (const flag of ["--help", "-h"] as const) {
+    try {
+      const out = execFileSync(bin, [flag], { stdio: "pipe", timeout: 10_000 });
+      return out.toString("utf8");
+    } catch (err) {
+      const text = bufferText(
+        (err as { stdout?: Buffer | string }).stdout,
+        (err as { stderr?: Buffer | string }).stderr,
+      );
+      if (text.trim().length > 0) return text;
+    }
+  }
+  return undefined;
+}
+
+function bufferText(...parts: Array<Buffer | string | undefined>): string {
+  return parts
+    .map((p) => {
+      if (p === undefined) return "";
+      return typeof p === "string" ? p : p.toString("utf8");
+    })
+    .join("");
 }
 
 function runUnknownModelProbe(backend: Backend): ProbeRunResult {
@@ -267,7 +340,11 @@ export function formatDoctorResult(result: DoctorResult, opts?: { ci?: boolean }
       const error = p.error ? ` — ${p.error}` : "";
       lines.push(`  ${tag} ${p.probeId}${error}`);
 
-      if (p.classification === "policy-denial") {
+      if (p.classification === "transient") {
+        lines.push(
+          `         Passed on retry (${p.retries} ${p.retries === 1 ? "retry" : "retries"}) — probe is flaky.`,
+        );
+      } else if (p.classification === "policy-denial") {
         lines.push(
           `         Succeeds without the permission profile, so the profile is too tight here.`,
         );

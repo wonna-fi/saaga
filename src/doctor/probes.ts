@@ -10,14 +10,21 @@ export interface ProbeDefinition {
 }
 
 /**
- * Why a probe failed, established by rerunning it without the profile.
+ * Why a probe failed (or was flaky), established by retries and an
+ * unrestricted rerun.
  *
  * - `policy-denial`: it succeeds unrestricted, so our profile caused the
  *   failure and is too tight for this backend or CLI version.
  * - `backend-failure`: it fails either way, so the profile is not implicated
  *   and the CLI, credentials, or environment is at fault.
+ * - `transient`: the probe failed on first attempt but passed on retry
+ *   under the same profile — the failure was LLM non-determinism, not a
+ *   real permission or environment issue.
  */
-export type ProbeClassification = "policy-denial" | "backend-failure";
+export type ProbeClassification =
+  | "policy-denial"
+  | "backend-failure"
+  | "transient";
 
 export interface ProbeRunResult {
   probeId: string;
@@ -27,6 +34,8 @@ export interface ProbeRunResult {
   exitCode: number;
   elapsed: number;
   error?: string;
+  /** Number of retries needed before the probe passed (0 = first attempt). */
+  retries?: number;
 }
 
 /**
@@ -37,6 +46,11 @@ export const PROBE_CATALOGUE: ProbeDefinition[] = [
   {
     id: "version",
     description: "CLI answers a version query; record the string.",
+    level: "fast",
+  },
+  {
+    id: "required-flags",
+    description: "CLI help mentions every flag Saaga passes during agent runs.",
     level: "fast",
   },
   {

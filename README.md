@@ -399,6 +399,14 @@ saaga doctor --json
 saaga doctor --level full --probe write-in-cwd,arbitrary-shell-denied
 ```
 
+The fast tier is deterministic and free: it checks that each backend CLI
+is on `PATH`, answers `--version`, and that its help text still documents
+every flag Saaga passes during agent runs (`required-flags`). Use it
+after upgrading a backend CLI to catch flag removals or renames before
+they break a flow. CI runs the fast suite daily against every backend
+(`.github/workflows/doctor-fast.yml`) and the full suite weekly
+(`.github/workflows/doctor-full.yml`).
+
 Full-tier probes exercise the real permission boundaries: that files
 outside the workspace stay unreadable and unwritable, that a shell
 command the agent cannot otherwise compute the answer to does not run,
@@ -420,7 +428,13 @@ When a full-tier probe fails, the raw agent output for each backend is
 kept under `.saaga-runs/doctor/<timestamp>/<backend>.log` and the
 directory is printed in the summary.
 
-When a capability probe fails, doctor reruns it once with the permission
+When a capability probe fails, doctor retries it up to two more times
+under the same permission profile to rule out transient LLM
+non-determinism. A probe that passes on retry is reported as
+**transient** (flaky) rather than failed — the overall run still
+succeeds, but the flaky probe is called out in the summary.
+
+If all retries fail, doctor reruns the probe once with the permission
 profile removed and reports which side the fault is on:
 
 - **Succeeds without the profile** — the profile is too tight for this
@@ -428,8 +442,22 @@ profile removed and reports which side the fault is on:
 - **Fails without the profile too** — the profile is not implicated; look
   at the CLI, credentials, or environment.
 
-Probes that assert something is *refused* are not rerun, since they are
-meant to fail once the restriction is lifted.
+Probes that assert something is *refused* are not retried or rerun,
+since they are meant to fail once the restriction is lifted.
+
+### Version alignment
+
+Probe results can vary across CLI versions. The install scripts under
+`examples/install-agents/` support a `CLAUDE_CODE_VERSION` environment
+variable to pin a specific Claude Code release:
+
+```bash
+CLAUDE_CODE_VERSION=2.1.220 ./examples/install-agents/install-claude.sh
+```
+
+When unset, the latest version is installed. After upgrading a backend
+CLI, run `saaga doctor --level full` to verify the permission profile
+still holds.
 
 ### Exit codes
 
