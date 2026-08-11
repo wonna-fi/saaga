@@ -53,24 +53,22 @@ describe("resolveModelForTier", () => {
     expect(resolveModelForTier("cursor", "high")).toBe(
       "claude-4.6-opus-high-thinking",
     );
-    expect(resolveModelForTier("copilot", "high")).toBe("claude-sonnet-4.5");
+    expect(resolveModelForTier("copilot", "high")).toBe("claude-sonnet-4.6");
     expect(resolveModelForTier("claude", "high")).toBe("opus");
   });
 
   test("returns built-in medium defaults (former quick models)", () => {
     expect(resolveModelForTier("cursor", "medium")).toBe(
-      "claude-4.6-sonnet-medium-thinking",
+      "cursor-grok-4.5-high",
     );
-    expect(resolveModelForTier("copilot", "medium")).toBe("claude-sonnet-4.5");
+    expect(resolveModelForTier("copilot", "medium")).toBe("claude-sonnet-4.6");
     expect(resolveModelForTier("claude", "medium")).toBe("sonnet");
   });
 
-  test("returns built-in low defaults matching medium for now", () => {
-    expect(resolveModelForTier("cursor", "low")).toBe(
-      "claude-4.6-sonnet-medium-thinking",
-    );
-    expect(resolveModelForTier("copilot", "low")).toBe("claude-sonnet-4.5");
-    expect(resolveModelForTier("claude", "low")).toBe("sonnet");
+  test("returns built-in low defaults (cheaper models for probes)", () => {
+    expect(resolveModelForTier("cursor", "low")).toBe("composer-2.5");
+    expect(resolveModelForTier("copilot", "low")).toBe("claude-haiku-4.5");
+    expect(resolveModelForTier("claude", "low")).toBe("haiku");
   });
 
   test("uses config override for the requested tier", () => {

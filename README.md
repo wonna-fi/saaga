@@ -69,9 +69,9 @@ API keys itself.
 
 | Backend  | CLI              | Default high                    | Default medium                      | Default low                         |
 | -------- | ---------------- | ------------------------------- | ----------------------------------- | ----------------------------------- |
-| cursor   | `cursor-agent`   | `claude-4.6-opus-high-thinking` | `claude-4.6-sonnet-medium-thinking` | `claude-4.6-sonnet-medium-thinking` |
-| copilot  | `copilot`        | `claude-sonnet-4.5`             | `claude-sonnet-4.5`                 | `claude-sonnet-4.5`                 |
-| claude   | `claude`         | `opus`                          | `sonnet`                            | `sonnet`                            |
+| cursor   | `cursor-agent`   | `claude-4.6-opus-high-thinking` | `cursor-grok-4.5-high`              | `composer-2.5`                      |
+| copilot  | `copilot`        | `claude-sonnet-4.6`             | `claude-sonnet-4.6`                 | `claude-haiku-4.5`                  |
+| claude   | `claude`         | `opus`                          | `sonnet`                            | `haiku`                            |
 
 > **Restricted by default** — Saaga restricts each agent backend to the
 > narrow permissions it actually needs. On every backend the agent cannot
