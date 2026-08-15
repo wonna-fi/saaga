@@ -89,6 +89,54 @@ placeholders filled from the flow YAML's `vars:` block.
 > repository itself. First-class support for customizing flows from your
 > own project, without modifying Saaga's source, is planned.
 
+## Scheduled maintenance
+
+Two GitHub Actions keep `saaga-docs/` current using the latest published
+`@wonna/saaga` from npm. Both rely on `.saaga/config.yaml` as the single
+source of truth for backend, model, and approval settings; only `--ci`
+is passed on the command line.
+
+| Workflow | Schedule (UTC) | Commands |
+| -------- | -------------- | -------- |
+| `quick-update-nightly.yml` | 00:00 Sun, Tue–Sat | `saaga quick-update` |
+| `verify-quick-updates-weekly.yml` | 00:00 Mon | `saaga quick-update` then `saaga verify-quick-updates` |
+
+Monday's weekly run replaces the nightly quick-update for that day, so
+every night of the week is covered exactly once.
+
+After Saaga finishes, `.github/scripts/publish-saaga-changes.sh`
+classifies the output:
+
+- **Documentation only** (`saaga-docs/**`): committed and pushed
+  directly to `main` via the Saaga GitHub App.
+- **Mixed changes**: committed on a branch and opened as a PR for human
+  review.
+- **No changes**: exits successfully with nothing to publish.
+
+If `main` advanced while the workflow was running, the publish step
+fails safely with a rerun instruction instead of force-pushing.
+
+Both workflows share a `saaga-maintenance` concurrency group
+(`cancel-in-progress: false`) to avoid overlapping runs.
+
+### Required Actions configuration
+
+| Kind | Name | Purpose |
+| ---- | ---- | ------- |
+| Secret | `CURSOR_API_KEY` | Backend credentials for `cursor-agent` |
+| Secret | `SAAGA_APP_PRIVATE_KEY` | Saaga GitHub App private key (`.pem`) |
+| Variable | `SAAGA_APP_ID` | Saaga GitHub App ID |
+
+The Saaga GitHub App must be installed on the repository with
+**Contents: read/write** and **Pull requests: read/write** permissions,
+and granted bypass on `main` branch protection so it can push
+docs-only commits directly.
+
+### Manual reruns
+
+Both workflows support `workflow_dispatch` for on-demand runs
+independent of the cron schedule.
+
 ## Devcontainer
 
 A Node-only dev container ships under
