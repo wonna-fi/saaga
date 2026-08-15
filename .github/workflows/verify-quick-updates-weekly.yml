@@ -1,0 +1,66 @@
+name: Verify quick updates (weekly)
+
+# Monday maintenance: runs `saaga quick-update` followed by
+# `saaga verify-quick-updates` so the week's accumulated artifacts are
+# consolidated and verified in one pass.
+# The same publish logic applies: docs-only → main, mixed → PR.
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 00:00 UTC every Monday
+    - cron: "0 0 * * 1"
+
+concurrency:
+  group: saaga-maintenance
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install git
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -yqq git
+
+      - name: Install cursor-agent CLI
+        run: |
+          chmod +x examples/install-agents/install-cursor-agent.sh
+          ./examples/install-agents/install-cursor-agent.sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - run: npm install -g @wonna/saaga@latest
+
+      - name: Run quick-update then verify
+        env:
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+        run: |
+          saaga quick-update . --ci
+          saaga verify-quick-updates . --ci
+
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ vars.SAAGA_APP_ID }}
+          private-key: ${{ secrets.SAAGA_APP_PRIVATE_KEY }}
+
+      - name: Publish changes
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          chmod +x .github/scripts/publish-saaga-changes.sh
+          ./.github/scripts/publish-saaga-changes.sh "${{ steps.app-token.outputs.token }}" "${{ steps.app-token.outputs.app-slug }}" "verify-quick-updates"
