@@ -365,3 +365,86 @@ describe("agent step invocation", () => {
     expect(fake.calls[0].permissions).toBeUndefined();
   });
 });
+
+describe("saagaRules injection", () => {
+  test("appends saagaRules to every agent prompt in a multi-step flow", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "saaga-agent-step-"));
+    const runDir = join(dir, "run-abc123");
+    const rules = "Focus on public APIs only.";
+
+    const fake = new FakeAgent({
+      "Document the Architecture": { exitCode: 0 },
+      "Plan": { exitCode: 0 },
+    });
+
+    const flow = parseFlowDefinition({
+      name: "test",
+      steps: [
+        { agent: { prompt: "document-architecture", vars: { app: "myapp" } } },
+        { agent: { prompt: "plan-init", vars: { app: "myapp" } } },
+      ],
+    });
+
+    await runFlow(
+      flow,
+      { app: "myapp", app_path: dir, run_dir: runDir },
+      { agent: fake, cwd: dir, saagaRules: rules },
+    );
+
+    expect(fake.calls).toHaveLength(2);
+    for (const call of fake.calls) {
+      expect(call.prompt).toContain(rules);
+      expect(call.prompt).toContain(".saagarules");
+      expect(call.prompt).toContain("HIGH PRIORITY");
+    }
+  });
+
+  test("original rendered prompt is intact when saagaRules is appended", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "saaga-agent-step-"));
+    const runDir = join(dir, "run-abc123");
+
+    const fake = new FakeAgent({
+      "Document the Architecture": { exitCode: 0 },
+    });
+
+    const flow = parseFlowDefinition({
+      name: "test",
+      steps: [
+        { agent: { prompt: "document-architecture", vars: { app: "myapp" } } },
+      ],
+    });
+
+    await runFlow(
+      flow,
+      { app: "myapp", app_path: dir, run_dir: runDir },
+      { agent: fake, cwd: dir, saagaRules: "Extra instructions." },
+    );
+
+    expect(fake.calls[0].prompt).toContain("Document the Architecture");
+    expect(fake.calls[0].prompt).toContain("Extra instructions.");
+  });
+
+  test("prompt is unchanged when saagaRules is undefined", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "saaga-agent-step-"));
+    const runDir = join(dir, "run-abc123");
+
+    const fake = new FakeAgent({
+      "Document the Architecture": { exitCode: 0 },
+    });
+
+    const flow = parseFlowDefinition({
+      name: "test",
+      steps: [
+        { agent: { prompt: "document-architecture", vars: { app: "myapp" } } },
+      ],
+    });
+
+    await runFlow(
+      flow,
+      { app: "myapp", app_path: dir, run_dir: runDir },
+      { agent: fake, cwd: dir },
+    );
+
+    expect(fake.calls[0].prompt).not.toContain(".saagarules");
+  });
+});

@@ -40,6 +40,7 @@ import { buildProfile, type AgentPermissions } from "./agent/permissions.js";
 import { runDoctor, formatDoctorResult, type DoctorOptions } from "./doctor/index.js";
 import { runPreflight } from "./doctor/preflight.js";
 import { createRunContext } from "./run-context.js";
+import { loadSaagaRules } from "./saaga-rules.js";
 import { installRules, parseRuleTargets } from "./scripts/install-rules.js";
 
 export interface CliOptions {
@@ -635,6 +636,8 @@ async function runFlowSubcommand(input: RunFlowSubcommandInput): Promise<void> {
     );
   }
 
+  const saagaRules = await loadSaagaRules(appPath);
+
   const flow = await loadFlow(flowName);
   try {
     await runFlow(
@@ -656,6 +659,7 @@ async function runFlowSubcommand(input: RunFlowSubcommandInput): Promise<void> {
         verbose,
         permissions,
         auditor,
+        saagaRules,
       },
     );
   } finally {

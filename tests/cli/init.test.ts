@@ -314,4 +314,33 @@ phases:
 
     expect(fake.calls).toHaveLength(0);
   });
+
+  test(".saagarules content is appended to every agent prompt", async () => {
+    const { app } = await tmpAppEnv("withrules");
+    await writeFile(
+      join(app, ".saagarules"),
+      "\n  Always document error handling.\n\n",
+      "utf8",
+    );
+
+    const fake = new FakeAgent({
+      "Document the Architecture": { exitCode: 0 },
+      "Plan Domain Documentation": planInitScenario(SINGLE_PHASE_PLAN).scenario,
+      "Document a Plan Slice": { exitCode: 0 },
+    });
+
+    const exitCode = await runCli(["init", app], { agent: fake });
+    expect(exitCode).toBe(0);
+
+    for (const call of fake.calls) {
+      expect(call.prompt).toContain("Always document error handling.");
+      expect(call.prompt).toContain(".saagarules");
+      expect(call.prompt).toContain("HIGH PRIORITY");
+    }
+
+    // First line of each prompt still matches the original template heading.
+    expect(fake.calls[0].prompt.split(/\r?\n/)[0]).toBe(
+      "# Document the Architecture of an Application",
+    );
+  });
 });

@@ -278,6 +278,45 @@ package-lock.json
 *.map
 ```
 
+### Custom documentation instructions (.saagarules)
+
+Create a `.saagarules` file in your project root to provide additional
+instructions and context that Saaga should take into account when
+documenting. The content is appended to every agent prompt during `init`,
+`update`, `quick-update`, and `verify-quick-updates` workflows.
+
+```markdown
+# .saagarules
+
+Focus on public API boundaries and integration points rather than
+internal implementation details.
+
+Our domain uses "tenant" to mean a billing entity, not a deployment unit.
+Document this distinction in concept files.
+
+Always include error-handling semantics in feature specifications.
+```
+
+**Behavior:**
+
+- The file is read once when a workflow starts; edits during a run have no
+  effect.
+- Content is injected as raw UTF-8 text/Markdown. No `{var}` placeholder
+  expansion is performed inside the file.
+- Missing or whitespace-only files are silently ignored (no error, no
+  injection).
+- Files exceeding 64 KiB or containing invalid UTF-8 cause the command
+  to fail immediately so instructions are never silently omitted.
+- Instructions are marked as high-priority for documentation content but
+  cannot override required output formats, file paths, workflow controls,
+  or safety/permission constraints.
+- `.saagarules` is excluded from BASELINE generation and change detection,
+  so editing it alone will not trigger an `update` run.
+- Under restricted mode, agents are denied permission to modify
+  `.saagarules` (same protection as `AGENTS.md`).
+- Only the target project root is checked; ancestor directories are not
+  searched.
+
 ## Unstable features
 
 > **Do not use unstable features unless you are a Saaga core developer or
@@ -401,7 +440,7 @@ what the refusal means rather than in the order they happened:
 | ----- | ------- |
 | `unexpected` | Refused inside a directory the profile grants. A saaga bug or backend drift — the run silently produced less than it should have. Also printed as a warning. |
 | `out-of-workspace` | The agent wanted a path outside the app tree and run directory. Rerun with `--allow-dir <path>` if it genuinely needs it. |
-| `protected-path` | Refused a path the profile deliberately withholds, such as `src/` or `AGENTS.md`. Working as intended. |
+| `protected-path` | Refused a path the profile deliberately withholds, such as `src/`, `AGENTS.md`, or `.saagarules`. Working as intended. |
 | `shell` | Refused a command. Expected under every profile. |
 | `unknown` | The backend did not report which path was refused. |
 

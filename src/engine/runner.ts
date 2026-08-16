@@ -7,6 +7,7 @@ import { Logger, silentLogger } from "../logger.js";
 import { formatDuration } from "../output.js";
 import { PROMPTS_DIR } from "../paths.js";
 import type { ScriptRegistry } from "../scripts/registry.js";
+import { appendSaagaRules } from "../saaga-rules.js";
 import { renderPromptFile } from "../templates.js";
 import { evaluatePredicate, interpolate, resolveValue } from "./expression.js";
 import { PhaseTracker } from "./phases.js";
@@ -43,6 +44,8 @@ export interface RunFlowDeps {
    * receives JSON rather than prose.
    */
   auditor?: PermissionAuditor;
+  /** Pre-loaded `.saagarules` content snapshot, appended to every agent prompt. */
+  saagaRules?: string;
 }
 
 export async function runFlow(
@@ -253,7 +256,10 @@ async function runAgentStep(
     renderedVars[key] = interpolate(raw, scope);
   }
 
-  const prompt = await renderPromptFile(promptPath, renderedVars);
+  const prompt = appendSaagaRules(
+    await renderPromptFile(promptPath, renderedVars),
+    deps.saagaRules,
+  );
 
   const runDir = typeof scope.run_dir === "string" ? scope.run_dir : undefined;
   const writeRoots = deps.permissions?.writeRoots ?? [];

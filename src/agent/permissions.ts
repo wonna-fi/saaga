@@ -64,6 +64,7 @@ export function buildProfile(input: BuildProfileInput): AgentPermissions {
     resolve(appPath, "CLAUDE.md"),
     resolve(appPath, ".cursor/rules/**"),
     resolve(appPath, ".github/instructions/**"),
+    resolve(appPath, ".saagarules"),
     resolve(docsPath, "BASELINE"),
   ];
 
