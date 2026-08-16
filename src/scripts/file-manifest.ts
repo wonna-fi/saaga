@@ -148,6 +148,7 @@ function isHardExcluded(
     if (relPath === docsDir || relPath.startsWith(docsDir + "/")) return true;
   }
   if (basename(relPath) === ".saagaignore") return true;
+  if (relPath === ".saagarules") return true;
   return false;
 }
 

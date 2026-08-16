@@ -261,4 +261,23 @@ describe("computeManifest — hard excludes", () => {
     const result = paths(await computeManifest(dir, DEFAULT_DOCS_DIR));
     expect(result).not.toContain(".saagaignore");
   });
+
+  test("root .saagarules is excluded from manifest", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "manifest-"));
+    await writeAt(dir, ".saagarules", "Focus on APIs.\n");
+    await writeAt(dir, "src/foo.ts", "x");
+
+    const result = paths(await computeManifest(dir, DEFAULT_DOCS_DIR));
+    expect(result).not.toContain(".saagarules");
+    expect(result).toContain("src/foo.ts");
+  });
+
+  test("nested .saagarules file is NOT excluded from manifest", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "manifest-"));
+    await writeAt(dir, "sub/.saagarules", "nested rules");
+    await writeAt(dir, "src/foo.ts", "x");
+
+    const result = paths(await computeManifest(dir, DEFAULT_DOCS_DIR));
+    expect(result).toContain("sub/.saagarules");
+  });
 });

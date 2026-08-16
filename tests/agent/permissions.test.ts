@@ -28,6 +28,7 @@ describe("buildProfile", () => {
     expect(profile.denyPaths).toContain(
       resolve(appPath, ".github/instructions/**"),
     );
+    expect(profile.denyPaths).toContain(resolve(appPath, ".saagarules"));
     expect(profile.denyPaths).toContain(
       resolve(appPath, docsDir, "BASELINE"),
     );
