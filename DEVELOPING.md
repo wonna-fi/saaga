@@ -91,10 +91,10 @@ placeholders filled from the flow YAML's `vars:` block.
 
 ## Scheduled maintenance
 
-Two GitHub Actions keep `saaga-docs/` current using the latest published
-`@wonna/saaga` from npm. Both rely on `.saaga/config.yaml` as the single
-source of truth for backend, model, and approval settings; only `--ci`
-is passed on the command line.
+Two GitHub Actions keep `saaga-docs/` current by running Saaga from the
+repository source on `main`. Both rely on `.saaga/config.yaml` as the
+single source of truth for backend, model, and approval settings; only
+`--ci` is passed on the command line.
 
 | Workflow | Schedule (UTC) | Commands |
 | -------- | -------------- | -------- |
