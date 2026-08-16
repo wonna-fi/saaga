@@ -94,15 +94,17 @@ Loads and validates project-level configuration from `.saaga/config.yaml`. Retur
 
 Resolves which agent backend to use and constructs the concrete `Agent` instance.
 
-**Exports**: `resolveBackend(input): Backend`, `defaultModelFor(backend): string`, `defaultQuickModelFor(backend): string`, `backendCliCommand(backend): string`, `createAgent(opts): Agent`, `Backend` type, `BackendError`, `ResolveBackendInput`, `CreateAgentOptions`
+**Exports**: `resolveBackend(input): Backend`, `resolveModelForTier(backend, tier, configModels?): string`, `backendCliCommand(backend): string`, `createAgent(opts): Agent`, `Backend` type, `ModelTier` type, `BackendError`, `ResolveBackendInput`, `CreateAgentOptions`
+
+`resolveModelForTier()` returns the model string for a quality tier (`low` / `medium` / `high`), consulting optional per-backend config overrides before falling back to `DEFAULT_BACKEND_MODELS`.
 
 `backendCliCommand()` returns the CLI binary name that Saaga executes for a given backend (e.g. `"cursor-agent"` for cursor, `"copilot"` for copilot, `"claude"` for claude). Used by the CLI to populate the cost notice.
 
-> **Internal constant:** `BACKEND_CLI_COMMANDS` — a `Record<Backend, string>` mapping each backend to its CLI command name.
+> **Internal constants:** `BACKEND_CLI_COMMANDS` — a `Record<Backend, string>` mapping each backend to its CLI command name. `DEFAULT_BACKEND_MODELS` — per-backend `modelLow` / `modelMedium` / `modelHigh` built-in defaults.
 
-**Resolution precedence**: `--backend` flag → `.saaga/config.yaml` `backend` field → error.
+**Resolution precedence**: `--backend` flag → `.saaga/config.yaml` `defaultBackend` field → error.
 
-`ResolveBackendInput` carries `flag?: string` (from CLI `--backend`) and `config?: string` (from `.saaga/config.yaml` `backend` field).
+`ResolveBackendInput` carries `flag?: string` (from CLI `--backend`) and `config?: string` (from `.saaga/config.yaml` `defaultBackend` field).
 
 **Dependencies**: `agent/copilot-agent`, `agent/cursor-agent`, `agent/claude-agent`, `agent/types`
 
@@ -238,7 +240,7 @@ Orchestrates the doctor workflow: checks backend availability, runs fast-tier or
 
 **Exports**: `runDoctor(opts): Promise<DoctorResult>`, `formatDoctorResult(result, opts?): string`, `DoctorOptions` (interface), `DoctorResult` (interface), `DoctorBackendResult` (interface)
 
-`DoctorOptions` fields: `backend: Backend | "all"`, `level: ProbeLevel`, `json?: boolean`, `probe?: string[]`, `model?: string`, `ci?: boolean`, `cwd?: string`.
+`DoctorOptions` fields: `backend: Backend | "all"`, `level: ProbeLevel`, `json?: boolean`, `probe?: string[]`, `model?: string`, `backendModels?: Partial<Record<Backend, BackendModels>>`, `ci?: boolean`, `cwd?: string`.
 
 `DoctorResult` fields: `schemaVersion: 1`, `backends: DoctorBackendResult[]`, `exitCode: number`, `logDir?: string`. Exit codes: 0 = all passed, 1 = at least one failed, 2 = could not run (binary missing).
 
@@ -252,11 +254,19 @@ Defines the probe catalogue as data.
 
 **Exports**: `PROBE_CATALOGUE: ProbeDefinition[]`, `ProbeDefinition` (interface), `ProbeLevel` (type), `ProbeRunResult` (interface), `ProbeClassification` (type)
 
-`ProbeLevel` is `"fast" | "full"`. `ProbeClassification` is `"policy-denial" | "backend-failure"` — established by rerunning a failed capability probe without the profile.
+`ProbeLevel` is `"fast" | "full"`. `ProbeClassification` is `"policy-denial" | "backend-failure" | "transient"` — `transient` means a capability probe failed then passed on retry under the same profile; the other two are established by rerunning a persistently failed capability probe without the profile.
 
-`ProbeRunResult` fields: `probeId: string`, `backend: Backend`, `status: "pass" | "fail" | "skip"`, `classification?: ProbeClassification`, `exitCode: number`, `elapsed: number`, `error?: string`.
+`ProbeRunResult` fields: `probeId: string`, `backend: Backend`, `status: "pass" | "fail" | "skip"`, `classification?: ProbeClassification`, `exitCode: number`, `elapsed: number`, `error?: string`, `retries?: number`.
 
-The catalogue includes fast-tier probes (`version`, `unknown-model-fails`) and full-tier probes (`handshake`, `write-in-cwd`, `read-from-cwd`, `read-gitignored`, `write-run-dir`, `read-outside-workspace-denied`, `write-outside-workspace-denied`, `arbitrary-shell-denied`, `write-source-denied`, `rule-files-denied`, `baseline-denied`, `restricted-shell-utility-allowed`, `read-only-git-allowed`, `git-mutation-denied`, `claude/tool-surface`, `claude/absolute-path-anchoring`, `claude/run-dir-writable`). Some probes are backend-specific (noted in `backends` field).
+The catalogue includes fast-tier probes (`version`, `required-flags`, `unknown-model-fails`) and full-tier probes (`handshake`, `write-in-cwd`, `read-from-cwd`, `read-gitignored`, `write-run-dir`, `read-outside-workspace-denied`, `write-outside-workspace-denied`, `arbitrary-shell-denied`, `write-source-denied`, `rule-files-denied`, `baseline-denied`, `restricted-shell-utility-allowed`, `read-only-git-allowed`, `git-mutation-denied`, `claude/tool-surface`, `claude/absolute-path-anchoring`, `claude/run-dir-writable`). Some probes are backend-specific (noted in `backends` field).
+
+#### Required Flags (`src/doctor/required-flags.ts`)
+
+Fast-tier probe data and helpers that assert each backend CLI still documents every flag Saaga passes during agent runs.
+
+**Exports**: `REQUIRED_CLI_FLAGS: Record<Backend, readonly string[]>`, `findMissingRequiredFlags(help, required): string[]`
+
+`REQUIRED_CLI_FLAGS` lists the flags each adapter's `buildArgs` / `run()` path uses (excluding `--version`, which the `version` probe already covers). `findMissingRequiredFlags()` performs token-aware matching so short flags like `-p` do not false-positive against longer ones like `--print`.
 
 #### Full Probes (`src/doctor/full-probes.ts`)
 
@@ -264,7 +274,7 @@ Full-tier probe runner that invokes a real agent in a scratch repository.
 
 **Exports**: `runFullSideEffectProbes(opts): Promise<ProbeRunResult[]>`, `FullProbeRunOptions` (interface)
 
-Each probe defines a `buildPrompt()` and an `assert()`. Probes are classified as `capability` (asserts something works) or `restriction` (asserts something is denied). When a capability probe fails, it is automatically rerun without the permission profile to produce a `ProbeClassification` distinguishing `policy-denial` from `backend-failure`.
+Each probe defines a `buildPrompt()` and an `assert()`. Probes are classified as `capability` (asserts something works) or `restriction` (asserts something is denied). Failed capability probes are retried up to `CAPABILITY_RETRIES` (2) times under the same profile; a pass on retry is recorded as `classification: "transient"`. Persistent failures are rerun without the permission profile to produce `policy-denial` vs `backend-failure`.
 
 #### Scratch Repo (`src/doctor/scratch-repo.ts`)
 
@@ -547,6 +557,7 @@ flowchart BT
     doctor[doctor/index]
     preflight[doctor/preflight]
     probes[doctor/probes]
+    reqflags[doctor/required-flags]
     fullprobes[doctor/full-probes]
     scratch[doctor/scratch-repo]
     cli[cli]
@@ -612,6 +623,7 @@ flowchart BT
 
     doctor --> backend
     doctor --> probes
+    doctor --> reqflags
     doctor --> fullprobes
     fullprobes --> probes
     fullprobes --> scratch
@@ -622,6 +634,7 @@ flowchart BT
     fullprobes --> output
     fullprobes --> backend
     probes --> backend
+    reqflags --> backend
     preflight --> doctor
     preflight --> backend
 

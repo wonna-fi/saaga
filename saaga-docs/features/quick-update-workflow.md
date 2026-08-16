@@ -8,7 +8,7 @@ The quick-update workflow performs a fast, single-session documentation update u
 
 Before working with this feature, understand these concepts:
 
-- [Backend Resolution](../concepts/backend-resolution.md) — how the quick model is selected (`config.quickModel` / `defaultQuickModelFor()`)
+- [Backend Resolution](../concepts/backend-resolution.md) — how the medium-tier model is selected (`--model-medium` / `backends.<backend>.modelMedium` / built-in default)
 - [Baseline and Change Detection](../concepts/baseline-and-change-detection.md) — how `detect-changes` produces the changes report
 - [Flow Definitions](../concepts/flow-definitions.md) — the `quick-update.flow.yaml` step sequence
 - [Script Registry](../concepts/script-registry.md) — the `archive-quick-update`, `cleanup-quick-update-dir`, and `generate-baseline` scripts used in this flow
@@ -56,8 +56,8 @@ When status is `UPDATED`, two files are written under the app's `<docs_dir>/meta
 | No changes since BASELINE | `detect-changes` returns count 0; flow exits early; no agent call, no metadata directory created |
 | Agent writes `SKIPPED` | Metadata folder is pre-created, then removed by `cleanup-quick-update-dir`; baseline is still regenerated |
 | Agent writes `UPDATED` but `summary.md` is missing | `archive-quick-update` throws; flow fails before baseline is regenerated |
-| `config.quickModel` set in `.saaga/config.yaml` | That model is used instead of `defaultQuickModelFor(backend)` |
-| `--model` flag provided | Overrides all model defaults including quick model |
+| `config.backends.<backend>.modelMedium` set in `.saaga/config.yaml` | That model is used instead of the built-in medium-tier default |
+| `--model-medium` flag provided | Overrides the medium-tier model for quick-update |
 
 ## Technical Implementation
 
@@ -84,7 +84,7 @@ Step sequence:
 | `src/scripts/cleanup-quick-update-dir.ts` | `cleanupQuickUpdateDir()` | Removes the pre-created quick-update metadata folder when status is not UPDATED; validates path safety |
 | `src/scripts/generate-baseline.ts` | `generateBaseline()` | Regenerates `<docs_dir>/BASELINE` after the update |
 | `src/engine/runner.ts` | `runAgentStep()` | Pre-creates directories for agent output paths that are under write-permitted roots (run directory or `permissions.writeRoots`) |
-| `src/cli/backend.ts` | `defaultQuickModelFor()` | Returns the faster/cheaper default model for quick-update |
+| `src/cli/backend.ts` | `resolveModelForTier()` | Returns the medium-tier model for quick-update (`resolveModelForTier(backend, "medium", ...)`) |
 | `src/cli.ts` | `runCli()` | Entry point; dispatches `quick-update` subcommand with `useQuickModel: true` |
 
 ## Integration Points

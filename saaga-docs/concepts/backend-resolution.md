@@ -47,9 +47,9 @@ Tier assignment by subcommand:
 
 | Backend | `low` | `medium` | `high` |
 |---------|-------|----------|--------|
-| `cursor` | `claude-4.6-sonnet-medium-thinking` | `claude-4.6-sonnet-medium-thinking` | `claude-4.6-opus-high-thinking` |
-| `copilot` | `claude-sonnet-4.5` | `claude-sonnet-4.5` | `claude-sonnet-4.5` |
-| `claude` | `sonnet` | `sonnet` | `opus` |
+| `cursor` | `composer-2.5` | `cursor-grok-4.5-high` | `claude-4.6-opus-high-thinking` |
+| `copilot` | `claude-haiku-4.5` | `claude-sonnet-4.6` | `claude-sonnet-4.6` |
+| `claude` | `haiku` | `sonnet` | `opus` |
 
 ## Data Storage
 
