@@ -20,6 +20,14 @@ import {
   loadConfig,
 } from "./cli/config.js";
 import {
+  findUnknownFeature,
+  getEnabledUnstableFeatures,
+  initUnstableFeatures,
+  resolveUnstableFeatures,
+  resetUnstableFeatures,
+  UNSTABLE_FEATURES,
+} from "./unstable-features.js";
+import {
   ConfirmationDeclinedError,
   buildCostSummary,
   confirmAgentCosts,
@@ -60,6 +68,7 @@ interface GlobalCliFlags {
   verbose?: boolean;
   yes?: boolean;
   allowDir?: string[];
+  unstableFeature?: string[];
   dangerouslyAllowAll?: boolean;
   auditPermissions?: boolean;
 }
@@ -84,6 +93,62 @@ function resolveRuleTargets(
 
 function resolveDocsDir(config: SaagaConfig): string {
   return config.docsDir ?? DEFAULT_DOCS_DIR;
+}
+
+async function validateDirectory(appPath: string, dirArg: string): Promise<void> {
+  let stats: Awaited<ReturnType<typeof stat>>;
+  try {
+    stats = await stat(appPath);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+      throw new Error(`Directory not found: ${dirArg}`, { cause: err });
+    }
+    throw err;
+  }
+  if (!stats.isDirectory()) {
+    throw new Error(`Not a directory: ${dirArg}`);
+  }
+}
+
+/**
+ * Centralized bootstrap for unstable features. Validates the project
+ * directory, loads config, validates all feature names (config + CLI),
+ * initializes the process-wide registry, and emits a single warning
+ * when any features are enabled.
+ *
+ * Returns the loaded config so subcommand handlers can reuse it
+ * without a second disk read.
+ */
+async function bootstrapUnstableFeatures(
+  projectDir: string,
+  dirArg: string,
+  globals: GlobalCliFlags,
+  options: CliOptions,
+): Promise<SaagaConfig> {
+  await validateDirectory(projectDir, dirArg);
+  const config = await loadConfig(projectDir);
+
+  const cliFeatures = globals.unstableFeature ?? [];
+  const unknown = findUnknownFeature(cliFeatures);
+  if (unknown !== undefined) {
+    throw new UnstableFeatureError(unknown);
+  }
+
+  const resolved = resolveUnstableFeatures(
+    config.unstableFeatures ?? [],
+    cliFeatures,
+  );
+  initUnstableFeatures(resolved);
+
+  const enabled = getEnabledUnstableFeatures();
+  if (enabled.length > 0) {
+    const stream = options.stderr ?? process.stderr;
+    stream.write(
+      `[WARN] Unstable features enabled: ${enabled.join(", ")}\n`,
+    );
+  }
+
+  return config;
 }
 
 async function readPackageVersion(): Promise<string> {
@@ -151,6 +216,12 @@ export async function runCli(
       [] as string[],
     )
     .option(
+      "--unstable-feature <name>",
+      "Enable an unstable feature (repeatable)",
+      (val: string, prev: string[]) => [...prev, val],
+      [] as string[],
+    )
+    .option(
       "--dangerously-allow-all",
       "Run without permission restrictions (reproduces legacy behavior)",
     )
@@ -171,6 +242,8 @@ export async function runCli(
     )
     .action(async (dir: string, cmdOpts: RuleTargetFlags, cmd: Command) => {
       const globals = cmd.optsWithGlobals<GlobalCliFlags>();
+      const baseCwd = options.cwd ?? process.cwd();
+      const config = await bootstrapUnstableFeatures(resolve(baseCwd, dir), dir, globals, options);
       await runFlowSubcommand({
         dir,
         flowName: "init",
@@ -178,6 +251,7 @@ export async function runCli(
         globals,
         options,
         ruleTargetFlag: cmdOpts.ruleTargets,
+        config,
       });
     });
 
@@ -195,11 +269,14 @@ export async function runCli(
     )
     .action(async (dir: string, cmdOpts: RuleTargetFlags, cmd: Command) => {
       const globals = cmd.optsWithGlobals<GlobalCliFlags>();
+      const baseCwd = options.cwd ?? process.cwd();
+      const config = await bootstrapUnstableFeatures(resolve(baseCwd, dir), dir, globals, options);
       await runInstallRulesSubcommand({
         dir,
         ruleTargetFlag: cmdOpts.ruleTargets,
         globals,
         options,
+        config,
       });
     });
 
@@ -212,12 +289,15 @@ export async function runCli(
     .argument("[dir]", "Path to the application directory (default: cwd)", ".")
     .action(async (dir: string, _cmdOpts: unknown, cmd: Command) => {
       const globals = cmd.optsWithGlobals<GlobalCliFlags>();
+      const baseCwd = options.cwd ?? process.cwd();
+      const config = await bootstrapUnstableFeatures(resolve(baseCwd, dir), dir, globals, options);
       await runFlowSubcommand({
         dir,
         flowName: "update",
         subcommand: "update",
         globals,
         options,
+        config,
       });
     });
 
@@ -231,6 +311,8 @@ export async function runCli(
     .argument("[dir]", "Path to the application directory (default: cwd)", ".")
     .action(async (dir: string, _cmdOpts: unknown, cmd: Command) => {
       const globals = cmd.optsWithGlobals<GlobalCliFlags>();
+      const baseCwd = options.cwd ?? process.cwd();
+      const config = await bootstrapUnstableFeatures(resolve(baseCwd, dir), dir, globals, options);
       await runFlowSubcommand({
         dir,
         flowName: "quick-update",
@@ -238,6 +320,7 @@ export async function runCli(
         globals,
         options,
         useQuickModel: true,
+        config,
       });
     });
 
@@ -252,12 +335,15 @@ export async function runCli(
     .argument("[dir]", "Path to the application directory (default: cwd)", ".")
     .action(async (dir: string, _cmdOpts: unknown, cmd: Command) => {
       const globals = cmd.optsWithGlobals<GlobalCliFlags>();
+      const baseCwd = options.cwd ?? process.cwd();
+      const config = await bootstrapUnstableFeatures(resolve(baseCwd, dir), dir, globals, options);
       await runFlowSubcommand({
         dir,
         flowName: "verify-quick-updates",
         subcommand: "verify-quick-updates",
         globals,
         options,
+        config,
       });
     });
 
@@ -293,7 +379,7 @@ export async function runCli(
     .action(async (cmdOpts: DoctorFlags, cmd: Command) => {
       const globals = cmd.optsWithGlobals<GlobalCliFlags>();
       const baseCwd = options.cwd ?? process.cwd();
-      const config = await loadConfig(baseCwd);
+      const config = await bootstrapUnstableFeatures(baseCwd, baseCwd, globals, options);
       const doctorOpts: DoctorOptions = {
         backend: (globals.backend ?? "all") as DoctorOptions["backend"],
         level: (cmdOpts.level ?? "fast") as DoctorOptions["level"],
@@ -318,6 +404,8 @@ export async function runCli(
       }
     });
 
+  resetUnstableFeatures();
+
   try {
     await program.parseAsync(argv, { from: "user" });
   } catch (err) {
@@ -326,6 +414,10 @@ export async function runCli(
     }
     if (err instanceof ConfirmationDeclinedError) {
       (options.stderr ?? process.stderr).write(`${err.message}\n`);
+      return err.exitCode;
+    }
+    if (err instanceof UnstableFeatureError) {
+      (options.stderr ?? process.stderr).write(`[ERROR] ${err.message}\n`);
       return err.exitCode;
     }
     if (err instanceof DoctorError) {
@@ -407,6 +499,8 @@ interface RunFlowSubcommandInput {
   ruleTargetFlag?: string;
   /** Additional variables merged into the initial flow scope. */
   extraScope?: Record<string, unknown>;
+  /** Pre-loaded config from bootstrap (avoids double disk read). */
+  config?: SaagaConfig;
 }
 
 async function runFlowSubcommand(input: RunFlowSubcommandInput): Promise<void> {
@@ -414,20 +508,11 @@ async function runFlowSubcommand(input: RunFlowSubcommandInput): Promise<void> {
   const baseCwd = options.cwd ?? process.cwd();
   const appPath = resolve(baseCwd, dir);
 
-  let stats: Awaited<ReturnType<typeof stat>>;
-  try {
-    stats = await stat(appPath);
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-      throw new Error(`Directory not found: ${dir}`, { cause: err });
-    }
-    throw err;
-  }
-  if (!stats.isDirectory()) {
-    throw new Error(`Not a directory: ${dir}`);
+  if (!input.config) {
+    await validateDirectory(appPath, dir);
   }
 
-  const config = await loadConfig(appPath);
+  const config = input.config ?? await loadConfig(appPath);
   const appName = basename(appPath);
   const resolved = resolveAgent(globals, options, {
     useQuickModel: input.useQuickModel,
@@ -619,6 +704,8 @@ interface RunInstallRulesSubcommandInput {
   ruleTargetFlag?: string;
   globals: GlobalCliFlags;
   options: CliOptions;
+  /** Pre-loaded config from bootstrap (avoids double disk read). */
+  config?: SaagaConfig;
 }
 
 /**
@@ -633,20 +720,11 @@ async function runInstallRulesSubcommand(
   const baseCwd = options.cwd ?? process.cwd();
   const appPath = resolve(baseCwd, dir);
 
-  let stats: Awaited<ReturnType<typeof stat>>;
-  try {
-    stats = await stat(appPath);
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-      throw new Error(`Directory not found: ${dir}`, { cause: err });
-    }
-    throw err;
-  }
-  if (!stats.isDirectory()) {
-    throw new Error(`Not a directory: ${dir}`);
+  if (!input.config) {
+    await validateDirectory(appPath, dir);
   }
 
-  const config = await loadConfig(appPath);
+  const config = input.config ?? await loadConfig(appPath);
   const ruleTargets = resolveRuleTargets(input.ruleTargetFlag, config);
   const docsDir = resolveDocsDir(config);
   const appName = basename(appPath);
@@ -686,6 +764,17 @@ async function isFile(path: string): Promise<boolean> {
     return s.isFile();
   } catch {
     return false;
+  }
+}
+
+class UnstableFeatureError extends Error {
+  readonly exitCode = 1;
+
+  constructor(name: string) {
+    super(
+      `Unknown unstable feature '${name}' (available: ${UNSTABLE_FEATURES.join(", ")})`,
+    );
+    this.name = "UnstableFeatureError";
   }
 }
 

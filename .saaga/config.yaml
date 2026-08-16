@@ -1,3 +1,4 @@
 defaultBackend: cursor
 ruleTargets: [agentsmd]
 autoApprove: true
+unstableFeatures: [none]

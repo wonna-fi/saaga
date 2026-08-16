@@ -66,6 +66,38 @@ The domain docs include step-by-step patterns for common extensions:
 - [Testing with FakeAgent](./saaga-docs/patterns/testing-with-fake-agent.md)
 - [Customizing the verify/fix loop](./saaga-docs/patterns/customizing-verify-fix-loop.md)
 
+## Unstable features
+
+Unstable features are gated behind a typed registry in
+`src/unstable-features.ts`. The `UNSTABLE_FEATURES` tuple is the single
+source of truth for available feature names; adding an entry there
+automatically makes it available in `.saaga/config.yaml` and via the
+`--unstable-feature` CLI flag.
+
+### Querying in code
+
+Use the typed helper anywhere in the codebase:
+
+```typescript
+import { isUnstableFeatureEnabled } from "./unstable-features.js";
+
+if (isUnstableFeatureEnabled("none")) {
+  // feature-gated behavior
+}
+```
+
+The argument is typed as `UnstableFeature`, so the compiler rejects
+unknown names. The process-wide set is initialized once per `runCli()`
+invocation and reset between calls, preventing state leakage in tests.
+
+### Adding a new unstable feature
+
+1. Add the feature name to the `UNSTABLE_FEATURES` tuple in
+   `src/unstable-features.ts`.
+2. Gate runtime behavior behind `isUnstableFeatureEnabled("your-feature")`.
+3. Update the "Available unstable features" table in `README.md`.
+4. Add tests that enable the feature and verify the gated behavior.
+
 ## Flows and prompts
 
 The orchestration logic ships as YAML, not code. Each subcommand maps to
