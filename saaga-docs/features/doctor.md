@@ -19,9 +19,9 @@ Before working with this feature, understand these concepts:
 3. For each backend, the system checks CLI availability by looking up the binary on `PATH` and querying `--version`
 4. If the backend is unavailable, it is reported as `NOT AVAILABLE` with a reason and no probes run
 5. If available, probes applicable to the selected level and backend are executed:
-   - **Fast tier** (default): runs the `version` probe (calls `<cli> --version`); skips probes that require model calls
+   - **Fast tier** (default): runs the `version` probe (calls `<cli> --version`) and the `required-flags` probe (checks CLI `--help`/`-h` for every flag Saaga passes); skips probes that require model calls
    - **Full tier**: runs all fast probes plus the full-tier probes that invoke the real agent in a scratch repository
-6. For full-tier runs, failed capability probes are automatically **diagnosed** by rerunning without the permission profile to distinguish `policy-denial` (the profile is too restrictive) from `backend-failure` (the CLI or environment is at fault)
+6. For full-tier runs, failed **capability** probes are retried up to twice under the same profile to filter LLM flakiness (`transient` if a retry passes). Persistent failures are **diagnosed** by rerunning without the permission profile to distinguish `policy-denial` (the profile is too restrictive) from `backend-failure` (the CLI or environment is at fault)
 7. Results are formatted as human-readable colored output or versioned JSON (with `--json`)
 8. The process exits with code 0 (all passed), 1 (at least one probe failed), or 2 (no backend available)
 
@@ -44,6 +44,7 @@ Probes are defined as data in `PROBE_CATALOGUE`. Each probe has a stable `id` us
 | Probe ID | Level | Backends | Kind | Description |
 |----------|-------|----------|------|-------------|
 | `version` | fast | all | capability | CLI answers a version query |
+| `required-flags` | fast | all | capability | CLI help mentions every flag Saaga passes during agent runs |
 | `unknown-model-fails` | fast | all | capability | Invoking with a bogus model returns non-zero exit |
 | `handshake` | full | all | capability | Reply with a nonce; asserts exit 0 |
 | `write-in-cwd` | full | all | capability | Create a file in the docs tree containing a nonce |
@@ -67,10 +68,12 @@ Probes are defined as data in `PROBE_CATALOGUE`. Each probe has a stable `id` us
 
 Full-tier probes have a `kind` field that determines failure diagnosis behavior:
 
-- **`capability`** probes assert that something works under the restricted profile. When a capability probe fails, the system reruns it without the profile to determine classification:
-  - `policy-denial`: succeeds unrestricted, so the profile is too tight
-  - `backend-failure`: fails either way, so the CLI/environment is at fault
-- **`restriction`** probes assert that something is correctly denied. These are never rerun unrestricted (they are expected to succeed without restrictions).
+- **`capability`** probes assert that something works under the restricted profile. When a capability probe fails:
+  1. It is retried up to `CAPABILITY_RETRIES` (2) times under the same profile. If a retry passes, the result is `status: "pass"` with `classification: "transient"` and a `retries` count — not treated as a failure.
+  2. If all retries fail, the system reruns the probe without the profile to determine classification:
+     - `policy-denial`: succeeds unrestricted, so the profile is too tight
+     - `backend-failure`: fails either way, so the CLI/environment is at fault
+- **`restriction`** probes assert that something is correctly denied. These are never retried for flakiness and never rerun unrestricted (they are expected to succeed without restrictions).
 
 ### Exit Code Semantics
 
@@ -101,9 +104,9 @@ Full-tier probes have a `kind` field that determines failure diagnosis behavior:
 | `DoctorResult` | `schemaVersion`, `backends`, `exitCode`, `logDir` | Top-level result container (schema version is always `1`) |
 | `DoctorBackendResult` | `backend`, `available`, `reason`, `version`, `probes` | Per-backend availability and probe results |
 | `ProbeDefinition` | `id`, `description`, `level`, `backends` | Static probe metadata in the catalogue |
-| `ProbeRunResult` | `probeId`, `backend`, `status`, `classification`, `exitCode`, `elapsed`, `error` | Runtime result of a single probe execution |
+| `ProbeRunResult` | `probeId`, `backend`, `status`, `classification`, `exitCode`, `elapsed`, `error`, `retries` | Runtime result of a single probe execution (`retries` set when a transient pass needed retries) |
 | `ProbeLevel` | — | `"fast" \| "full"` |
-| `ProbeClassification` | — | `"policy-denial" \| "backend-failure"` |
+| `ProbeClassification` | — | `"policy-denial" \| "backend-failure" \| "transient"` |
 | `FullProbeRunOptions` | `backend`, `agent`, `filterIds`, `quiet`, `ci`, `logFile` | Options for the full-tier probe runner |
 | `ScratchRepo` | `appDir`, `runDir`, `docsDir`, `buildNonce`, `srcNonce`, `outsideDir`, `outsideNonce`, `cleanup` | Isolated disposable repository for full-tier probes |
 | `PreflightResult` | `passed`, `doctorResult` | Fast-tier check result for flow gating |
@@ -121,7 +124,9 @@ Full-tier probes have a `kind` field that determines failure diagnosis behavior:
 | `src/doctor/probes.ts` | `ProbeDefinition` (interface) | Shape of a probe definition: id, description, level, optional backend scope |
 | `src/doctor/probes.ts` | `ProbeRunResult` (interface) | Shape of a probe execution result |
 | `src/doctor/probes.ts` | `ProbeLevel` (type) | `"fast" \| "full"` |
-| `src/doctor/probes.ts` | `ProbeClassification` (type) | `"policy-denial" \| "backend-failure"` |
+| `src/doctor/probes.ts` | `ProbeClassification` (type) | `"policy-denial" \| "backend-failure" \| "transient"` |
+| `src/doctor/required-flags.ts` | `REQUIRED_CLI_FLAGS` (constant) | Per-backend list of CLI flags Saaga passes during agent runs |
+| `src/doctor/required-flags.ts` | `findMissingRequiredFlags()` | Return flags from `required` that do not appear as tokens in CLI help text |
 | `src/doctor/full-probes.ts` | `runFullSideEffectProbes()` | Runs all full-tier probes in a scratch repo; creates and tears down the repo automatically |
 | `src/doctor/full-probes.ts` | `FullProbeRunOptions` (interface) | Options for the full-tier runner |
 | `src/doctor/scratch-repo.ts` | `createScratchRepo()` | Creates a temporary git repository with seeded files for probes |
@@ -149,12 +154,14 @@ Full-tier probes run inside a disposable scratch repository to avoid side effect
 
 ### Diagnosis Flow for Failed Capability Probes
 
-When a full-tier capability probe fails:
+When a full-tier capability probe fails under the restricted profile:
 
-1. The probe is rerun with `permissions: undefined` (unrestricted)
-2. If the unrestricted run **passes**: classified as `policy-denial` — the permission profile is too tight for this backend/CLI version
-3. If the unrestricted run **fails**: classified as `backend-failure` — the CLI, credentials, or environment is at fault
-4. Restriction probes are never diagnosed (they are expected to pass unrestricted)
+1. The probe is retried up to 2 times (`CAPABILITY_RETRIES`) under the same profile
+2. If any retry **passes**: reported as `status: "pass"` with `classification: "transient"` and `retries` set to the retry count that succeeded — not a failure
+3. If all retries fail, the probe is rerun with `permissions: undefined` (unrestricted):
+   - If the unrestricted run **passes**: classified as `policy-denial` — the permission profile is too tight for this backend/CLI version
+   - If the unrestricted run **fails**: classified as `backend-failure` — the CLI, credentials, or environment is at fault
+4. Restriction probes are never retried for flakiness and never diagnosed (they are expected to pass unrestricted)
 
 ### Probe Model Selection
 
@@ -162,7 +169,7 @@ Full-tier probes require a model for agent invocations. Doctor always uses the *
 
 1. CLI `--model-low` flag override (passed to `DoctorOptions.model`)
 2. `backends.<backend>.modelLow` from `.saaga/config.yaml` (passed to `DoctorOptions.backendModels`)
-3. Built-in low-tier defaults: `claude-4.6-sonnet-medium-thinking` (cursor), `claude-sonnet-4.5` (copilot), `sonnet` (claude)
+3. Built-in low-tier defaults: `composer-2.5` (cursor), `claude-haiku-4.5` (copilot), `haiku` (claude)
 
 ### Log Files
 
@@ -204,5 +211,6 @@ When a new agent backend is added to Saaga, extend the doctor system:
 
 1. Ensure the backend's CLI binary name is returned by `backendCliCommand()` (already required by the agent interface)
 2. Add the backend's built-in model defaults to `DEFAULT_BACKEND_MODELS` in `src/cli/backend.ts` (doctor uses the `modelLow` tier entry)
-3. Add the backend's bogus-model CLI arguments to `runUnknownModelProbe()` in `src/doctor/index.ts`
-4. Review existing full-tier probes — most are backend-agnostic, but some may need `backends` scoping adjustments
+3. Add the flags Saaga passes for that backend to `REQUIRED_CLI_FLAGS` in `src/doctor/required-flags.ts`
+4. Add the backend's bogus-model CLI arguments to `runUnknownModelProbe()` in `src/doctor/index.ts`
+5. Review existing full-tier probes — most are backend-agnostic, but some may need `backends` scoping adjustments

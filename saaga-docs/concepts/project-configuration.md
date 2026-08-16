@@ -37,7 +37,7 @@ defaultBackend: cursor
 backends:
   cursor:
     modelHigh: claude-4.6-opus-high-thinking
-    modelMedium: claude-4.6-sonnet-medium-thinking
+    modelMedium: cursor-grok-4.5-high
   claude:
     modelHigh: opus
 ruleTargets: agentsmd,cursor

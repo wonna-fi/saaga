@@ -1,11 +1,15 @@
-# Generated: 2026-08-09T19:38:43.215Z
-eb5f87a2e9609984545f103fad86945898ed6be8 .github/workflows/backend-drift.yml
+# Generated: 2026-08-16T08:19:08.059Z
+dc5db626c0687243063280d4a5282a5260abf4f3 .github/scripts/publish-saaga-changes.sh
 d7e08a188b70e03d7663a8cc06b48d27a812ca95 .github/workflows/ci.yml
+de4bc82ba2995f5752fe1c2f2420dfa8ae9d63ea .github/workflows/doctor-fast.yml
+aa88e5e7f928ed78425e9046a0c7d8410daa795e .github/workflows/doctor-full.yml
+aab930382535faf26b8f91e63b4f1afdcc61a98a .github/workflows/quick-update-nightly.yml
+ceedb0313ad8960312a7b6c3ec5f9804816cf203 .github/workflows/verify-quick-updates-weekly.yml
 207ce2b0b21e99567a5b41e1c60c8426b10f29a2 .npmrc
 112a0ad4efe1a08976f929d4d93604f939cf53d4 .saaga/config.yaml
-b8df2be7068a3d124ae7210656f2f4f3bbae507c AGENTS.md
-581f22ed0b141aabdd94b0cfd355c29fa9699335 DEVELOPING.md
-9544c5ef1346e0656ab9b652faab9935b289a3fa README.md
+d5b2cde4547abb4a1f3ae23999965822f3767cbc AGENTS.md
+bced2e81800bb685a1d1bcd8db13b30dcc14a399 DEVELOPING.md
+9402c23ffc104f38d7281309523473543d29bd02 README.md
 c09a02e5db75ca8d5ccd829d75a3c118531c80dd eslint.config.js
 ce9b2880bb9fe486a39e354f6d006d15a7374968 flows/init.flow.yaml
 63b2a9b82800094af4e37900cb7c146037282bab flows/quick-update.flow.yaml
@@ -34,13 +38,14 @@ c3465d374dc7b68ccb9d2aaf2a83d4315a9e44f0 src/agent/permissions.ts
 7cc46464fa980a3fa71880275c57d68aaadab950 src/agent/stdio.ts
 67efaeabbdb4a1b61c28940267eabb1991caf267 src/agent/types.ts
 65285a6d13906a60f4f85cd3483f07569584493e src/cli.ts
-37b5da599835134bf79bcbc1d67cceeba6c8013f src/cli/backend.ts
+da4cde7253baed7f9a570bc5c9c73782e70c7a7a src/cli/backend.ts
 bcb687709b41a803ac9261084cf477345eba304a src/cli/config.ts
 e057a0ab092231332969a0c7afaf8afa5e5374b3 src/cli/confirm.ts
-61848a5539eec6ba483fca06610e6c0ef3b7789f src/doctor/full-probes.ts
-55bcb94cd24159d6780ad91ab379f34654e0bcbf src/doctor/index.ts
+03ee66565808ab145be61526f29300e73a688b94 src/doctor/full-probes.ts
+99d911936a4fab33c63953a0b9febba37a311e13 src/doctor/index.ts
 cf0a24b72748012a7502e17a2a088e5af5fa2370 src/doctor/preflight.ts
-e535de4cea86f2df44a0416af1b500c667f29e27 src/doctor/probes.ts
+518ac6dad1855e089ab71ef83f54ee059abb6bf4 src/doctor/probes.ts
+194f554d8202c64497f7280c2641cccc8126b07e src/doctor/required-flags.ts
 498ec568917ed49ed67b4285bf55fd2966010de9 src/doctor/scratch-repo.ts
 2bf6d9539ed687bd4fe20563ed9d531e5bd84e2c src/engine/expression.ts
 e778fc0ccd01af6c5299effd9170c175f1148a89 src/engine/loader.ts
@@ -75,11 +80,11 @@ cc8695cdd823dc31d303d9b79b568774f230ae6e tests/agent/audit.test.ts
 0fffdaa10e1ac3f99363f51be22b874af3bcdcc9 tests/agent/events.test.ts
 66962ce481c7a15301efbbe0de9f835220c77fc0 tests/agent/fake-agent.test.ts
 24cf242bac6c0f61769ca429043187486ce7a75f tests/agent/permissions.test.ts
-dd9c60d55c662db26a39243bbde5b8422005f03b tests/cli/backend.test.ts
+f825e11e448d1c3de1dbce1c79f4d65aab2eb444 tests/cli/backend.test.ts
 eddf670cc930b90fd7af667cba3f528496c2a3ef tests/cli/config-integration.test.ts
 b954002b3dc7537399e87701459917ab4a46f10f tests/cli/config.test.ts
 0aaab138c09ccc140f198f45427ed27f1aac6fb4 tests/cli/cost-confirmation.test.ts
-59909285bc0dc3ed1e6dfe2a24d864d19fd424de tests/cli/doctor.test.ts
+39dd9c53ebb9cee0dd632aff6cba9c93be160cac tests/cli/doctor.test.ts
 44b73b98c78f82e43c44e2846df6fabe42ff720d tests/cli/help-version.test.ts
 7e8ecd0b3ae462a17e17ddaf41c16663bfaa0406 tests/cli/init.test.ts
 50fcd6caa03e7795d57f8b9195c7be7e57dcdfd4 tests/cli/install-rules.test.ts
@@ -87,7 +92,8 @@ b954002b3dc7537399e87701459917ab4a46f10f tests/cli/config.test.ts
 58ebba458da1dc751f5335fd7b717c0425a564de tests/cli/update.test.ts
 84229d1bc339a9823bf35c5776b9ef4801437f6b tests/cli/verify-quick-updates.test.ts
 7e2feb54d2d385e7380acfe5acceeb9ca84f5a2c tests/devcontainer/devcontainer.test.ts
-be9e7f28752c808ea426b7b62de75242dc35ea96 tests/doctor/full-probes.test.ts
+26ff4a1e4cda1e194dce048fd0b958be5b1ed279 tests/doctor/full-probes.test.ts
+8b432fc9377464a657c08638104ee897d925f7ba tests/doctor/required-flags.test.ts
 4fc197f9105a009b6719d876bfd8a2b5a7ce31da tests/engine/agent-step.test.ts
 54279361d339682b4c1b4605d59704a748c5c820 tests/engine/expect-file.test.ts
 685152d2a94503f942e45f49ef78d08c8d5819c2 tests/engine/expression.test.ts
@@ -97,6 +103,7 @@ a2a59bafc91320a848adeb4710ecf0a169feddc8 tests/engine/if.test.ts
 0abc7c969b4025a22c3880f60b271d78fa83f69b tests/engine/phases.test.ts
 ecad7d5036c3decb763f7d4751c5c134a33de738 tests/engine/read-file.test.ts
 5551e05068a25e7a5dffaa33fc69d2623c73ef58 tests/engine/script.test.ts
+ec8856f106e195e66bd106b917b28f5ec2ca875e tests/github/scheduled-workflows.test.ts
 a68cba8ca2aa61e2c0c14267a9b95306bdae25c8 tests/logger.test.ts
 9d2c6f16c273c50b23e58a5f341aaf967216ef7e tests/output.test.ts
 f6c8c14783e89ad2f6e2789abc42db5ae7c7d421 tests/placeholder.test.ts

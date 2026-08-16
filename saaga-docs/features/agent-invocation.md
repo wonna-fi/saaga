@@ -23,10 +23,10 @@ Before working with this feature, understand these concepts:
    - `--backend` flag (highest priority)
    - `.saaga/config.yaml` `backend` field (fallback)
    - Error if neither is set
-3. The CLI resolves the AI model via:
-   - `--model` flag (highest priority)
-   - `.saaga/config.yaml` `model` field (fallback)
-   - Per-backend default: `cursor` → `claude-4.6-opus-high-thinking`, `copilot` → `claude-sonnet-4.5`, `claude` → `opus`
+3. The CLI resolves the AI model via a quality tier (`high` for `init`/`update`/`verify-quick-updates`, `medium` for `quick-update`):
+   - `--model-high` / `--model-medium` flag for the selected tier (highest priority)
+   - `.saaga/config.yaml` `backends.<backend>.modelHigh` / `modelMedium` (fallback)
+   - Built-in per-backend defaults: high — `cursor` → `claude-4.6-opus-high-thinking`, `copilot` → `claude-sonnet-4.6`, `claude` → `opus`; medium — `cursor` → `cursor-grok-4.5-high`, `copilot` → `claude-sonnet-4.6`, `claude` → `sonnet`
 4. A concrete `Agent` instance is constructed (`CursorAgent`, `CopilotAgent`, or `ClaudeAgent`)
 5. A permission profile is built via `buildProfile()` (unless `--dangerously-allow-all` is passed, which skips the profile entirely). The profile is written to `permissions.json` in the run directory
 6. If `--audit-permissions` is set, a `PermissionAuditor` is created to collect denial events during the run
@@ -65,8 +65,9 @@ Before working with this feature, understand these concepts:
 
 ### Precedence Chain (Model Resolution)
 
+Each quality tier is resolved independently (`high` for most flow subcommands, `medium` for `quick-update`):
 ```
---model flag  →  config.model (.saaga/config.yaml)  →  defaultModelFor(backend)
+--model-<tier> flag  →  config.backends.<backend>.model<Tier>  →  resolveModelForTier(backend, tier)
 ```
 
 ### Edge Cases
@@ -123,7 +124,7 @@ The internal `runAgentStep()` function handles each agent step:
 |--------|-----------------|---------|
 | `src/cli.ts` | `runCli()` | CLI entry point — parses args, dispatches to subcommands |
 | `src/cli/backend.ts` | `resolveBackend()` | Resolve backend name from flag → config → error |
-| `src/cli/backend.ts` | `defaultModelFor()` | Return the default model string for a backend |
+| `src/cli/backend.ts` | `resolveModelForTier()` | Return the model string for a quality tier (config override → built-in default) |
 | `src/cli/backend.ts` | `createAgent()` | Construct a `CursorAgent`, `CopilotAgent`, or `ClaudeAgent` |
 | `src/cli/backend.ts` | `BackendError` (class) | Error for backend resolution failures |
 | `src/engine/runner.ts` | `runFlow()` | Execute a flow definition — iterates steps, dispatches by type |
@@ -153,6 +154,6 @@ The internal `runAgentStep()` function handles each agent step:
 
 - **Add a new backend**: follow the [Adding Agent Backends](../patterns/adding-agent-backends.md) pattern — backends must now handle both unrestricted and restricted modes
 - **Add a new prompt**: follow the [Creating Prompt Templates](../patterns/creating-prompt-templates.md) pattern
-- **Modify model defaults**: edit the `DEFAULT_MODELS` record in `src/cli/backend.ts`
+- **Modify model defaults**: edit the `DEFAULT_BACKEND_MODELS` record in `src/cli/backend.ts`
 - **Credential handling**: backends handle their own authentication; Saaga does not manage credential env vars
 - **Adjust permission profile**: modify `buildProfile()` in `src/agent/permissions.ts` to change read/write roots, deny paths, or shell policy

@@ -88,10 +88,10 @@ export function createMyAgentEventParser(): EventParser {
 
 // 3. Register in src/cli/backend.ts — five changes required:
 //    a) Add to the Backend type union
-//    b) Add default model to DEFAULT_MODELS
-//    c) Add default quick model to DEFAULT_QUICK_MODELS
-//    d) Add CLI command mapping to BACKEND_CLI_COMMANDS
-//    e) Add construction branch in createAgent()
+//    b) Add modelLow / modelMedium / modelHigh entries to DEFAULT_BACKEND_MODELS
+//    c) Add CLI command mapping to BACKEND_CLI_COMMANDS
+//    d) Add construction branch in createAgent()
+//    e) Add the flags Saaga passes to REQUIRED_CLI_FLAGS in src/doctor/required-flags.ts
 // 4. Add "my-agent" to the ALLOWED_BACKENDS array
 ````
 
@@ -105,8 +105,8 @@ export function createMyAgentEventParser(): EventParser {
 - Use `execa` with `reject: false` so the engine receives exit codes instead of exceptions — the runner checks `exitCode` and throws `AgentStepFailedError` on non-zero
 - Forward `opts.signal` to enable cancellation support via `AbortSignal`
 - Wrap the `execa()` call in try/catch to handle spawn failures (e.g., CLI binary not found) — return `{ exitCode: 1 }` as a fallback
-- Register default models in both `DEFAULT_MODELS` (standard subcommands) and `DEFAULT_QUICK_MODELS` (quick-update subcommand)
-- Accept a `model` parameter — never hard-code models; the CLI/env resolution chain determines the model
+- Register default models for all three tiers in `DEFAULT_BACKEND_MODELS` (`modelLow`, `modelMedium`, `modelHigh`)
+- Accept a `model` parameter — never hard-code models; the CLI/config tier resolution chain determines the model
 
 ## Reference Implementations
 
