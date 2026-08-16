@@ -74,18 +74,19 @@ describe("quick-update-nightly.yml", () => {
     expect(wf.on.workflow_dispatch).toBeDefined();
   });
 
-  test("uses @wonna/saaga@latest via npm", async () => {
+  test("runs from repository source via tsx", async () => {
     const wf = await loadWorkflow("quick-update-nightly.yml");
     const job = Object.values(wf.jobs)[0];
     const runs = allRunCommands(job);
-    expect(runs).toContain("@wonna/saaga@latest");
+    expect(runs).toContain("npx tsx src/cli.ts");
+    expect(runs).not.toContain("@wonna/saaga@latest");
   });
 
   test("passes --ci to saaga", async () => {
     const wf = await loadWorkflow("quick-update-nightly.yml");
     const job = Object.values(wf.jobs)[0];
     const runs = allRunCommands(job);
-    expect(runs).toMatch(/saaga quick-update .* --ci/);
+    expect(runs).toMatch(/quick-update .* --ci/);
   });
 
   test("does not pass --backend or --yes (config is source of truth)", async () => {
@@ -100,7 +101,7 @@ describe("quick-update-nightly.yml", () => {
     const wf = await loadWorkflow("quick-update-nightly.yml");
     const job = Object.values(wf.jobs)[0];
     const saagaStep = job.steps.find((s) =>
-      s.run?.includes("saaga quick-update"),
+      s.run?.includes("quick-update"),
     );
     expect(saagaStep?.env?.CURSOR_API_KEY).toBe(
       "${{ secrets.CURSOR_API_KEY }}",
@@ -172,8 +173,8 @@ describe("verify-quick-updates-weekly.yml", () => {
     const wf = await loadWorkflow("verify-quick-updates-weekly.yml");
     const job = Object.values(wf.jobs)[0];
     const runs = allRunCommands(job);
-    const quickIdx = runs.indexOf("saaga quick-update");
-    const verifyIdx = runs.indexOf("saaga verify-quick-updates");
+    const quickIdx = runs.indexOf("quick-update");
+    const verifyIdx = runs.indexOf("verify-quick-updates");
     expect(quickIdx).toBeGreaterThan(-1);
     expect(verifyIdx).toBeGreaterThan(quickIdx);
   });
@@ -182,22 +183,23 @@ describe("verify-quick-updates-weekly.yml", () => {
     const wf = await loadWorkflow("verify-quick-updates-weekly.yml");
     const job = Object.values(wf.jobs)[0];
     const runs = allRunCommands(job);
-    expect(runs).toMatch(/saaga quick-update .* --ci/);
-    expect(runs).toMatch(/saaga verify-quick-updates .* --ci/);
+    expect(runs).toMatch(/quick-update .* --ci/);
+    expect(runs).toMatch(/verify-quick-updates .* --ci/);
   });
 
-  test("uses @wonna/saaga@latest via npm", async () => {
+  test("runs from repository source via tsx", async () => {
     const wf = await loadWorkflow("verify-quick-updates-weekly.yml");
     const job = Object.values(wf.jobs)[0];
     const runs = allRunCommands(job);
-    expect(runs).toContain("@wonna/saaga@latest");
+    expect(runs).toContain("npx tsx src/cli.ts");
+    expect(runs).not.toContain("@wonna/saaga@latest");
   });
 
   test("provides CURSOR_API_KEY", async () => {
     const wf = await loadWorkflow("verify-quick-updates-weekly.yml");
     const job = Object.values(wf.jobs)[0];
     const saagaStep = job.steps.find((s) =>
-      s.run?.includes("saaga quick-update"),
+      s.run?.includes("quick-update"),
     );
     expect(saagaStep?.env?.CURSOR_API_KEY).toBe(
       "${{ secrets.CURSOR_API_KEY }}",

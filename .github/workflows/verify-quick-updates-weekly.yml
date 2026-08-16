@@ -27,9 +27,13 @@ jobs:
         with:
           persist-credentials: false
 
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
 
       - name: Install git
         run: |
@@ -42,14 +46,12 @@ jobs:
           ./examples/install-agents/install-cursor-agent.sh
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
-      - run: npm install -g @wonna/saaga@latest
-
       - name: Run quick-update then verify
         env:
           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
         run: |
-          saaga quick-update . --ci
-          saaga verify-quick-updates . --ci
+          npx tsx src/cli.ts quick-update . --ci
+          npx tsx src/cli.ts verify-quick-updates . --ci
 
       - name: Generate GitHub App token
         id: app-token

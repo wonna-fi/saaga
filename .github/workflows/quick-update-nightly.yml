@@ -1,6 +1,6 @@
 name: Quick update (nightly)
 
-# Runs `saaga quick-update` against the latest published @wonna/saaga.
+# Runs `saaga quick-update` from the repository source on main.
 # Documentation-only changes are committed straight to main; anything else
 # goes into a PR for human review.
 # Monday nights are handled by the weekly verify workflow instead.
@@ -27,9 +27,13 @@ jobs:
         with:
           persist-credentials: false
 
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
 
       - name: Install git
         run: |
@@ -42,12 +46,10 @@ jobs:
           ./examples/install-agents/install-cursor-agent.sh
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
-      - run: npm install -g @wonna/saaga@latest
-
       - name: Run quick-update
         env:
           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
-        run: saaga quick-update . --ci
+        run: npx tsx src/cli.ts quick-update . --ci
 
       - name: Generate GitHub App token
         id: app-token
