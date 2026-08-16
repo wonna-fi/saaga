@@ -40,6 +40,7 @@ describe("saaga --version", () => {
     expect(text).toContain("--backend");
     expect(text).toContain("--ci");
     expect(text).toContain("--yes");
+    expect(text).toContain("--unstable-feature");
   });
 
   test("init --help lists the rule target flag with its default", async () => {

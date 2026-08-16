@@ -156,6 +156,7 @@ saaga doctor                    Check backend CLI availability and
 | `--ci` | | Plain (non-color) log output, suitable for CI pipelines |
 | `--yes` | `-y` | Skip the cost confirmation prompt (see [Runtime and cost](#runtime-and-cost)) |
 | `--allow-dir <path>` | | Grant additional read/write access to a directory (repeatable; see [Permissions](#permissions)) |
+| `--unstable-feature <name>` | | Enable an unstable feature (repeatable; see [Unstable features](#unstable-features)) |
 | `--dangerously-allow-all` | | Run without permission restrictions, reproducing legacy unrestricted behavior |
 | `--audit-permissions` | | Scan agent output for permission denials and log a summary to `<run_dir>/permission-audit.log` |
 | `--version` | `-v` | Print the version and exit |
@@ -240,6 +241,7 @@ backends:                  # per-backend model overrides (all optional)
 ruleTargets: [agentsmd]    # agentsmd | cursor | claude | copilot | none
 docsDir: saaga-docs        # name of the generated docs folder (default: saaga-docs)
 autoApprove: false         # true skips the cost confirmation prompt (same as --yes)
+unstableFeatures: []      # list of unstable features to enable (see below)
 ```
 
 Each backend supports three model tiers: `modelLow` (doctor probes),
@@ -275,6 +277,45 @@ package-lock.json
 *.min.js
 *.map
 ```
+
+## Unstable features
+
+> **Do not use unstable features unless you are a Saaga core developer or
+> you explicitly accept the maintenance burden described below.**
+>
+> Unstable features are under heavy development and target a future stable
+> release of Saaga. They are **exempt from semantic-versioning guarantees**
+> and may introduce breaking changes in any release, including patch
+> releases. Your setup **will** most likely break multiple times before the
+> feature stabilizes, and you are responsible for fixing it yourself.
+> Breaking changes that only affect unstable features will **not** appear
+> in the release notes of stable Saaga releases.
+
+Saaga lets you opt in to experimental behavior via the `unstableFeatures`
+config key or the repeatable `--unstable-feature` CLI flag. Both sources
+are unioned and deduplicated: config entries are applied first, then CLI
+additions.
+
+```yaml
+# .saaga/config.yaml
+unstableFeatures:
+  - none
+```
+
+```bash
+saaga update --unstable-feature none
+```
+
+When any unstable feature is enabled, a `[WARN]` line listing the active
+features is printed to stderr before any other work (including the cost
+confirmation prompt). If a configured or CLI-specified feature name is
+not recognized, the program exits immediately with an error.
+
+### Available unstable features
+
+| Name   | Description |
+| ------ | ----------- |
+| `none` | No-op feature for verifying the unstable-feature plumbing |
 
 ## Permissions
 

@@ -252,6 +252,69 @@ describe("loadConfig", () => {
     expect(config).toEqual({ defaultBackend: "claude" });
   });
 
+  test("parses unstableFeatures array", async () => {
+    const dir = await tmpDir();
+    await mkdir(join(dir, ".saaga"), { recursive: true });
+    await writeFile(
+      join(dir, ".saaga", "config.yaml"),
+      "unstableFeatures:\n  - none\n",
+      "utf8",
+    );
+    const config = await loadConfig(dir);
+    expect(config.unstableFeatures).toEqual(["none"]);
+  });
+
+  test("parses empty unstableFeatures array", async () => {
+    const dir = await tmpDir();
+    await mkdir(join(dir, ".saaga"), { recursive: true });
+    await writeFile(
+      join(dir, ".saaga", "config.yaml"),
+      "unstableFeatures: []\n",
+      "utf8",
+    );
+    const config = await loadConfig(dir);
+    expect(config.unstableFeatures).toEqual([]);
+  });
+
+  test("throws ConfigError when unstableFeatures is not an array", async () => {
+    const dir = await tmpDir();
+    await mkdir(join(dir, ".saaga"), { recursive: true });
+    await writeFile(
+      join(dir, ".saaga", "config.yaml"),
+      "unstableFeatures: none\n",
+      "utf8",
+    );
+    await expect(loadConfig(dir)).rejects.toThrow(
+      /'unstableFeatures' must be an array/,
+    );
+  });
+
+  test("throws ConfigError when unstableFeatures contains non-string items", async () => {
+    const dir = await tmpDir();
+    await mkdir(join(dir, ".saaga"), { recursive: true });
+    await writeFile(
+      join(dir, ".saaga", "config.yaml"),
+      "unstableFeatures:\n  - 123\n",
+      "utf8",
+    );
+    await expect(loadConfig(dir)).rejects.toThrow(
+      /unstableFeatures.*must be strings/,
+    );
+  });
+
+  test("throws ConfigError when unstableFeatures contains unknown feature", async () => {
+    const dir = await tmpDir();
+    await mkdir(join(dir, ".saaga"), { recursive: true });
+    await writeFile(
+      join(dir, ".saaga", "config.yaml"),
+      "unstableFeatures:\n  - bogus\n",
+      "utf8",
+    );
+    await expect(loadConfig(dir)).rejects.toThrow(
+      /unknown feature 'bogus'/,
+    );
+  });
+
   test("ignores legacy backend/model/quickModel keys", async () => {
     const dir = await tmpDir();
     await mkdir(join(dir, ".saaga"), { recursive: true });

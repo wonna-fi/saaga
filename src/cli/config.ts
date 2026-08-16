@@ -2,6 +2,9 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { parse as parseYaml } from "yaml";
 import type { Backend } from "./backend.js";
+import { UNSTABLE_FEATURES, isUnstableFeature } from "../unstable-features.js";
+
+const UNSTABLE_FEATURES_LIST = UNSTABLE_FEATURES.join(", ");
 
 export const CONFIG_DIR = ".saaga";
 export const CONFIG_FILE = "config.yaml";
@@ -28,6 +31,7 @@ export interface SaagaConfig {
   ruleTargets?: string;
   docsDir?: string;
   autoApprove?: boolean;
+  unstableFeatures?: string[];
 }
 
 /**
@@ -105,6 +109,10 @@ export async function loadConfig(projectDir: string): Promise<SaagaConfig> {
     config.autoApprove = obj.autoApprove;
   }
 
+  if (obj.unstableFeatures !== undefined) {
+    config.unstableFeatures = parseUnstableFeatures(obj.unstableFeatures);
+  }
+
   return config;
 }
 
@@ -154,6 +162,27 @@ function parseBackendModels(backend: string, value: unknown): BackendModels {
   }
 
   return models;
+}
+
+function parseUnstableFeatures(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    throw new ConfigError(
+      `${CONFIG_DIR}/${CONFIG_FILE}: 'unstableFeatures' must be an array of strings`,
+    );
+  }
+  for (const item of value) {
+    if (typeof item !== "string") {
+      throw new ConfigError(
+        `${CONFIG_DIR}/${CONFIG_FILE}: 'unstableFeatures' array items must be strings`,
+      );
+    }
+    if (!isUnstableFeature(item)) {
+      throw new ConfigError(
+        `${CONFIG_DIR}/${CONFIG_FILE}: 'unstableFeatures' contains unknown feature '${item}' (available: ${UNSTABLE_FEATURES_LIST})`,
+      );
+    }
+  }
+  return value as string[];
 }
 
 /**
