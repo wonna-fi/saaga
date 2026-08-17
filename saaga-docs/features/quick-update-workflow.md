@@ -83,7 +83,7 @@ Step sequence:
 | `src/scripts/archive-quick-update.ts` | `archiveQuickUpdate()` | Copies the changes report into the quick-update metadata folder |
 | `src/scripts/cleanup-quick-update-dir.ts` | `cleanupQuickUpdateDir()` | Removes the pre-created quick-update metadata folder when status is not UPDATED; validates path safety |
 | `src/scripts/generate-baseline.ts` | `generateBaseline()` | Regenerates `<docs_dir>/BASELINE` after the update |
-| `src/engine/runner.ts` | `runAgentStep()` | Pre-creates directories for agent output paths that are under write-permitted roots (run directory or `permissions.writeRoots`) |
+| `src/engine/runner.ts` | `runFlow()` | Executes the flow; agent steps internally pre-create directories for output paths under write-permitted roots (`run_dir` or `permissions.writeRoots`) |
 | `src/cli/backend.ts` | `resolveModelForTier()` | Returns the medium-tier model for quick-update (`resolveModelForTier(backend, "medium", ...)`) |
 | `src/cli.ts` | `runCli()` | Entry point; dispatches `quick-update` subcommand with `useQuickModel: true` |
 
@@ -95,7 +95,7 @@ Step sequence:
 
 ## Extension Guide
 
-- **Adjust the quick model**: set `quickModel` in `.saaga/config.yaml` or pass `--model` flag
+- **Adjust the quick model**: set `backends.<backend>.modelMedium` in `.saaga/config.yaml` or pass `--model-medium` flag
 - **Change the agent instructions**: edit `prompts/quick-update.md`
 - **Add post-update steps**: add steps to `flows/quick-update.flow.yaml` after `generate-baseline`
 - **Customize metadata layout**: the `summary_path` variable in the flow YAML controls where the summary is written

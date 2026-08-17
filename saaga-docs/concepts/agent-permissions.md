@@ -46,7 +46,7 @@ When `buildProfile()` is called with standard inputs, the resulting profile gran
 
 - **Read**: entire app tree (the run dir is inside the app tree since it lives at `<appPath>/.saaga-runs/`)
 - **Write**: `<appPath>/<docsDir>/**` and the run directory
-- **Deny**: `AGENTS.md`, `CLAUDE.md`, `.cursor/rules/**`, `.github/instructions/**`, `<docsDir>/BASELINE`
+- **Deny**: `AGENTS.md`, `CLAUDE.md`, `.cursor/rules/**`, `.github/instructions/**`, `.saagarules`, `<docsDir>/BASELINE`
 - **Shell**: restricted (utilities + read-only git subcommands)
 
 ## Backend Translation
@@ -109,3 +109,4 @@ Claude uses `--permission-mode dontAsk` with a `--settings` JSON payload:
 
 - [Agent Interface](./agent-interface.md) — the `AgentRunOpts.permissions` field that carries the profile to backends
 - [Agent Events and Denial Parsing](./agent-events.md) — structured reporting and auditing of permission denials
+- [Saaga Rules](./saaga-rules.md) — `.saagarules` is on the default deny list

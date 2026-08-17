@@ -13,6 +13,7 @@ Before working with this feature, understand these concepts:
 - [Agent Interface](../concepts/agent-interface.md)
 - [Templates and Prompt Rendering](../concepts/templates-and-prompt-rendering.md)
 - [Output and Progress Display](../concepts/output-and-progress.md)
+- [Saaga Rules](../concepts/saaga-rules.md)
 
 ## Functional Specification
 
@@ -43,10 +44,11 @@ Before working with this feature, understand these concepts:
 1. Resolves prompt file path: `<PROMPTS_DIR>/<step.prompt>.md`
 2. Interpolates each `vars` value using `interpolate(raw, scope)` — resolves `${expr}` references
 3. Renders the prompt template file: `renderPromptFile(path, renderedVars)` — substitutes `{key}` placeholders
-4. Pre-creates directories for agent output paths: for any prompt var value that starts with a write-permitted root (`scope.run_dir` or `deps.permissions.writeRoots`), the parent directory is created recursively; this ensures the agent can write to expected paths without directory-not-found errors
-5. Constructs `additionalDirs` from `scope.run_dir` (if it is a string); constructs `onEvent` callback from `deps.auditor` (if present — calls `auditor.record(event)` for each event); calls `deps.agent.run(prompt, { cwd: deps.cwd, additionalDirs, permissions: deps.permissions, logFile: deps.logFile, echo: deps.verbose, onEvent })`
-6. If exit code is non-zero, throws `AgentStepFailedError`; before re-throwing, calls `printFailureTail()` to show the last lines from the log file
-7. If `expect_file` is defined, interpolates the path and asserts the file exists — throws `ExpectFileMissingError` if missing
+4. Appends pre-loaded `.saagarules` content via `appendSaagaRules(rendered, deps.saagaRules)` when present (see [Saaga Rules](../concepts/saaga-rules.md))
+5. Pre-creates directories for agent output paths: for any prompt var value or `expect_file` path that starts with a write-permitted root (`scope.run_dir` or `deps.permissions.writeRoots`), the parent directory is created recursively; this ensures the agent can write to expected paths without directory-not-found errors
+6. Constructs `additionalDirs` from `scope.run_dir` (if it is a string); constructs `onEvent` callback from `deps.auditor` (if present — calls `auditor.record(event)` for each event); calls `deps.agent.run(prompt, { cwd: deps.cwd, additionalDirs, permissions: deps.permissions, logFile: deps.logFile, echo: deps.verbose, onEvent })`
+7. If exit code is non-zero, throws `AgentStepFailedError`; before re-throwing, calls `printFailureTail()` to show the last lines from the log file
+8. If `expect_file` is defined, interpolates the path and asserts the file exists — throws `ExpectFileMissingError` if missing
 
 ### Edge Cases
 
@@ -81,6 +83,7 @@ interface RunFlowDeps {
   verbose?: boolean;                  // Mirror agent output to terminal (--verbose)
   permissions?: AgentPermissions;     // Permission profile for agent steps; absent means unrestricted
   auditor?: PermissionAuditor;        // Collects/classifies denial events; switches agent to structured output
+  saagaRules?: string;                // Pre-loaded `.saagarules` snapshot appended to every agent prompt
 }
 ```
 
@@ -89,7 +92,7 @@ interface RunFlowDeps {
 | Module | Function/Method | Purpose |
 |--------|-----------------|---------|
 | `src/engine/runner.ts` | `runFlow()` | Main entry point: executes a flow definition with given scope and dependencies |
-| `src/engine/runner.ts` | `RunFlowDeps` (interface) | Configuration for the execution environment: `agent`, `cwd`, optional `scripts`, `logger`, `logFile`, `verbose`, `permissions`, `auditor` |
+| `src/engine/runner.ts` | `RunFlowDeps` (interface) | Configuration for the execution environment: `agent`, `cwd`, optional `scripts`, `logger`, `logFile`, `verbose`, `permissions`, `auditor`, `saagaRules` |
 | `src/engine/runner.ts` | `ExpectFileMissingError` (class) | Thrown when `expect_file` assertion fails |
 | `src/engine/runner.ts` | `AgentStepFailedError` (class) | Thrown when an agent step exits with non-zero code |
 | `src/engine/phases.ts` | `PhaseTracker` (class) | Tracks the flat phase index and dynamically computes the total for `Phase N/M` progress display |
@@ -114,7 +117,7 @@ interface RunFlowDeps {
 > - `runStep()` — dispatches a single step by type, manages phase tracking and phase-line emission based on `StepContext`
 > - `runForeachWithPhases()` — wraps `runForeachStep()` with phase-tracker advancement (once per iteration, on the first child step)
 > - `runLoopWithPhases()` — wraps `runLoopStep()` with loop iteration context (iteration number and max) for phase-line suffixes
-> - `runAgentStep()` — resolves the prompt template, renders it, constructs `additionalDirs` from `scope.run_dir`, passes `permissions` and `onEvent` (from auditor) to the agent, invokes with `logFile`/`echo`, and asserts `expect_file`
+> - `runAgentStep()` — resolves the prompt template, renders it, appends `deps.saagaRules` via `appendSaagaRules()`, constructs `additionalDirs` from `scope.run_dir`, passes `permissions` and `onEvent` (from auditor) to the agent, invokes with `logFile`/`echo`, and asserts `expect_file`
 > - `resolveLabel()` — resolves the step's `label` field via interpolation, falling back to the step name with hyphens replaced by spaces
 > - `buildPhaseLine()` — constructs the phase line string from counter, label, and iteration suffix
 > - `formatIterSuffix()` — produces the `(iteration N/M)` suffix for steps inside a loop, or empty string otherwise

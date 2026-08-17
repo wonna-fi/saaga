@@ -13,6 +13,8 @@ Before working with this feature, understand these concepts:
 - [Agent Interface](../concepts/agent-interface.md) — the `Agent` contract that backends implement
 - [Agent Permissions](../concepts/agent-permissions.md) — the permission profile that restricts agent access
 - [Cost Confirmation](../concepts/cost-confirmation.md) — the interactive cost disclaimer shown before agent-backed commands
+- [Unstable Features](../concepts/unstable-features.md) — opt-in experimental feature flags
+- [Saaga Rules](../concepts/saaga-rules.md) — project-root `.saagarules` instructions appended to agent prompts
 - [Flow DSL](../concepts/flow-dsl.md) — the step types and scope model used by flows
 
 ## Functional Specification
@@ -40,6 +42,7 @@ Before working with this feature, understand these concepts:
 | `--verbose` | — | Show detailed step output and live agent output on terminal |
 | `--yes` | `-y` | Skip the cost confirmation prompt for agent-backed commands |
 | `--allow-dir <path>` | — | Grant additional read/write access to a directory (repeatable) |
+| `--unstable-feature <name>` | — | Enable an unstable feature (repeatable; see [Unstable Features](../concepts/unstable-features.md)) |
 | `--dangerously-allow-all` | — | Run without permission restrictions (reproduces legacy behavior) |
 | `--audit-permissions` | — | Scan agent output for permission denials and log a summary |
 | `--version` | `-v` | Print version and exit |
@@ -49,7 +52,7 @@ Before working with this feature, understand these concepts:
 
 1. User runs `saaga install-rules [dir] [--rule-targets <targets>]` (dir defaults to the current working directory)
 2. CLI validates the `dir` argument (must exist and be a directory)
-3. CLI loads config via `loadConfig(appPath)` (see [Project Configuration](../concepts/project-configuration.md))
+3. CLI bootstraps unstable features via `bootstrapUnstableFeatures()` (loads config, validates `--unstable-feature`, initializes the registry, may warn) and reuses the returned config
 4. CLI resolves rule targets from `--rule-targets` flag → `config.ruleTargets` → default `"agentsmd"` via `resolveRuleTargets()`
 5. CLI calls `installRules()` directly (no backend resolution, no run context)
 6. For each rule target: installs the rule stub (rendered from `rules/rule-stub.md`). Targets `agentsmd` and `claude` use managed-block markers (`<!-- saaga:begin --> … <!-- saaga:end -->`) for upsert into shared files. Targets `cursor` and `copilot` write a full owned file from their respective templates (`rules/cursor-rule.mdc` and `rules/copilot-rule.md`)
@@ -60,7 +63,7 @@ Before working with this feature, understand these concepts:
 2. CLI validates the `dir` argument:
    - Must exist on disk (otherwise: `Error: "Directory not found: <dir>"`)
    - Must be a directory (otherwise: `Error: "Not a directory: <dir>"`)
-3. CLI loads config via `loadConfig(appPath)` (see [Project Configuration](../concepts/project-configuration.md))
+3. CLI bootstraps unstable features via `bootstrapUnstableFeatures()` (loads config, validates CLI feature names, initializes the process-wide registry, emits `[WARN]` when any are enabled) and reuses the returned config
 4. CLI extracts the app name as `basename(appPath)` and resolves the agent via the backend resolution chain, passing config (see [Backend Resolution](../concepts/backend-resolution.md))
 5. CLI calls `confirmAgentCosts()` with the resolved backend/model info, the `--yes` flag, `config.autoApprove`, `--ci` mode, and stdin/stderr streams. If the user declines, throws `ConfirmationDeclinedError` (see [Cost Confirmation](../concepts/cost-confirmation.md))
 6. CLI runs a preflight check via `runPreflight(backend)` — verifies the backend CLI is available and functioning. If it fails, writes a message to stderr and throws `PreflightError`. Skipped when a test agent is injected via `CliOptions.agent`.
@@ -76,23 +79,25 @@ Before working with this feature, understand these concepts:
     - Writes `permissions.json` to the run directory (records mode `"restricted"` or `"unrestricted"` and the profile)
 14. CLI checks for a legacy `docs/` directory: if `config.docsDir` is not set, `docs/BASELINE` exists, and `<docsDir>/BASELINE` does not exist, it logs a warning suggesting the user set `docsDir: docs` in `.saaga/config.yaml` or migrate contents
 15. CLI creates a `PermissionAuditor` if `--audit-permissions` is set and a permission profile exists. The auditor collects denial events and writes a report to `<runDir>/permission-audit.log` after the flow completes. If `--audit-permissions` is set without a profile (i.e., with `--dangerously-allow-all`), a warning is logged and the flag is ignored.
-16. CLI loads the flow definition: `loadFlow(flowName)` reads `flows/<flowName>.flow.yaml`
-17. CLI executes the flow: `runFlow(flow, initialScope, deps)` with scope `{ app, app_path, docs_dir, run_id, run_dir, date }` and deps `{ agent, cwd: appPath, logger, logFile, verbose, permissions, auditor }`
-18. After flow completion (in a `finally` block): if an auditor is active, calls `reportAudit()` which flushes the audit log and surfaces unexpected denials as warnings
-19. CLI calls `logger.dispose()` to clean up spinner intervals
+16. CLI loads `.saagarules` via `loadSaagaRules(appPath)` (see [Saaga Rules](../concepts/saaga-rules.md)); missing/empty yields `undefined`
+17. CLI loads the flow definition: `loadFlow(flowName)` reads `flows/<flowName>.flow.yaml`
+18. CLI executes the flow: `runFlow(flow, initialScope, deps)` with scope `{ app, app_path, docs_dir, run_id, run_dir, date }` and deps `{ agent, cwd: appPath, logger, logFile, verbose, permissions, auditor, saagaRules }`
+19. After flow completion (in a `finally` block): if an auditor is active, calls `reportAudit()` which flushes the audit log and surfaces unexpected denials as warnings
+20. CLI calls `logger.dispose()` to clean up spinner intervals
 
 ### User Flow: quick-update Subcommand
 
-The `quick-update` subcommand follows the same flow as standard subcommands (steps 1–19 above) with one difference: the agent is resolved using the **medium** quality tier — `--model-medium` flag → `config.backends.<backend>.modelMedium` → built-in medium default — instead of the high tier used by standard subcommands.
+The `quick-update` subcommand follows the same flow as standard subcommands (steps 1–20 above) with one difference: the agent is resolved using the **medium** quality tier — `--model-medium` flag → `config.backends.<backend>.modelMedium` → built-in medium default — instead of the high tier used by standard subcommands.
 
 ### User Flow: doctor Subcommand
 
 1. User runs `saaga doctor [--backend <name>] [--level fast|full] [--json] [--probe <ids...>]`
-2. CLI resolves `backend` from `--backend` flag or defaults to `"all"` (checks all backends)
-3. CLI constructs `DoctorOptions`: `{ backend, level, json, probe, model: globals.modelLow, backendModels: config.backends, ci }`
-4. CLI calls `runDoctor(doctorOpts)` — runs probes at the specified level and returns a `DoctorResult`
-5. If `--json` is set, writes the result as formatted JSON to stdout; otherwise writes human-readable output via `formatDoctorResult()`
-6. If `result.exitCode !== 0`, throws `DoctorError` (exit code 1 = probes failed, 2 = probes could not run)
+2. CLI bootstraps unstable features for the cwd (same as other subcommands) and loads config
+3. CLI resolves `backend` from `--backend` flag or defaults to `"all"` (checks all backends)
+4. CLI constructs `DoctorOptions`: `{ backend, level, json, probe, model: globals.modelLow, backendModels: config.backends, ci }`
+5. CLI calls `runDoctor(doctorOpts)` — runs probes at the specified level and returns a `DoctorResult`
+6. If `--json` is set, writes the result as formatted JSON to stdout; otherwise writes human-readable output via `formatDoctorResult()`
+7. If `result.exitCode !== 0`, throws `DoctorError` (exit code 1 = probes failed, 2 = probes could not run)
 
 ### Edge Cases
 
@@ -106,6 +111,7 @@ The `quick-update` subcommand follows the same flow as standard subcommands (ste
 | `--help` flag | Prints help text listing all subcommands/flags and exits with code 0 |
 | `CliOptions.agent` provided (test mode) | Skips backend resolution and preflight check entirely |
 | Invalid `--rule-targets` value | Throws `Error: install-rules: invalid rule target '<val>' (allowed: agentsmd, cursor, claude, copilot, none)` before any agent steps run |
+| Unknown `--unstable-feature` value | Throws `UnstableFeatureError`; CLI writes `[ERROR]` and returns exit code 1 |
 | User declines cost confirmation | `ConfirmationDeclinedError`: exits with code 1, prints `"aborted: cost confirmation declined"` to stderr |
 | Non-interactive terminal (piped stdin, `--ci`) | Cost notice printed, continues without waiting for confirmation |
 | `--yes` flag or `autoApprove: true` | Cost notice printed with `"Confirmation auto-approved."`, continues without prompting |
@@ -130,6 +136,7 @@ The program uses Commander's `exitOverride()` to prevent Commander from calling 
 
 - `AgentStepFailedError` is caught and its `exitCode` is returned
 - `ConfirmationDeclinedError` is caught, its message is written to stderr, and its `exitCode` (1) is returned
+- `UnstableFeatureError` is caught, its message is written to stderr with `[ERROR]` prefix, and its `exitCode` (1) is returned
 - `DoctorError` is caught and its `exitCode` (1 or 2) is returned
 - `PreflightError` is caught and its `exitCode` (1) is returned
 - Commander info exits (version/help display) are detected by their error codes (`commander.version`, `commander.helpDisplayed`) and return 0
@@ -142,9 +149,12 @@ The program uses Commander's `exitOverride()` to prevent Commander from calling 
 | `src/cli.ts` | `runCli()` | CLI entry point — parses args, dispatches to subcommand handlers, returns exit code |
 | `src/cli.ts` | `CliOptions` (interface) | Options for `runCli()`: optional `agent`, `cwd`, `stdout`, `stderr`, `stdin` overrides |
 | `src/cli/config.ts` | `loadConfig()` | Load project config from `.saaga/config.yaml`; returns `SaagaConfig` |
-| `src/cli/config.ts` | `SaagaConfig` (interface) | Shape of the parsed config: `defaultBackend?`, `backends?`, `ruleTargets?`, `docsDir?`, `autoApprove?` |
+| `src/cli/config.ts` | `SaagaConfig` (interface) | Shape of the parsed config: `defaultBackend?`, `backends?`, `ruleTargets?`, `docsDir?`, `autoApprove?`, `unstableFeatures?` |
 | `src/cli/config.ts` | `DEFAULT_DOCS_DIR` (constant) | Default documentation directory name: `"saaga-docs"` |
 | `src/cli/config.ts` | `ConfigError` (class) | Error for malformed config YAML or invalid field types |
+| `src/saaga-rules.ts` | `loadSaagaRules()` | Load and validate `.saagarules` from the app root |
+| `src/unstable-features.ts` | `initUnstableFeatures()` | Initialize the process-wide unstable feature set |
+| `src/unstable-features.ts` | `UNSTABLE_FEATURES` (constant) | Known unstable feature names |
 | `src/cli/backend.ts` | `resolveBackend()` | Resolve backend name from flag → config → error |
 | `src/cli/backend.ts` | `resolveModelForTier()` | Return the model string for a quality tier; consults per-backend config overrides before built-in defaults |
 | `src/cli/backend.ts` | `ModelTier` (type) | String union: `"low" \| "medium" \| "high"` |
@@ -174,6 +184,8 @@ The program uses Commander's `exitOverride()` to prevent Commander from calling 
 |--------|----------|---------|
 | `src/cli.ts` | `readPackageVersion()` | Read version from `package.json` (not exported) |
 | `src/cli.ts` | `isCommanderInfoExit()` | Detect Commander version/help exit codes (not exported) |
+| `src/cli.ts` | `bootstrapUnstableFeatures()` | Validates dir, loads config, resolves/initializes unstable features, emits enablement warning; returns config (not exported) |
+| `src/cli.ts` | `UnstableFeatureError` (class) | Error thrown for unknown `--unstable-feature` names (exit code 1) (not exported) |
 | `src/cli.ts` | `resolveAgent()` | Orchestrate backend resolution → tier selection (medium for quick-update, high otherwise) → `resolveModelForTier()` → agent construction; returns `ResolvedAgent` (with optional `backend` and `model` fields) (not exported) |
 | `src/cli/confirm.ts` | `isInteractive()` | Determines if the terminal supports interactive prompt by checking `--ci`, stdin existence, and `isTTY` (not exported) |
 | `src/cli.ts` | `runFlowSubcommand()` | Shared handler for `init`, `update`, `quick-update`, `verify-quick-updates`: validates dir, creates run context, executes flow (not exported) |

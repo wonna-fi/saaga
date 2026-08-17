@@ -8,8 +8,8 @@ The Agent interface defines how Saaga communicates with external AI coding agent
 
 | Source | Description |
 |--------|-------------|
-| `--backend` flag / `.saaga/config.yaml` `backend` field | Selects which agent backend to use (`cursor`, `copilot`, or `claude`) |
-| `--model` flag / `.saaga/config.yaml` `model` field | Overrides the per-backend default model |
+| `--backend` flag / `.saaga/config.yaml` `defaultBackend` field | Selects which agent backend to use (`cursor`, `copilot`, or `claude`) |
+| `--model-low`/`--model-medium`/`--model-high` flags / `.saaga/config.yaml` `backends.<backend>.modelLow/modelMedium/modelHigh` fields | Overrides the per-backend default model for a given quality tier |
 | Backend-specific credentials | Authentication is handled by each backend individually; Saaga does not manage credential env vars |
 
 **How to access:**

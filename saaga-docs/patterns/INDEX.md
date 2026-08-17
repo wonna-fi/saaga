@@ -12,3 +12,4 @@
 | [Using .saagaignore](./using-saagaignore.md) | How to exclude paths from documentation scope using gitignore-syntax patterns |
 | [Extending Workflows](./extending-workflows.md) | How to add steps, swap prompts, adjust iteration caps, or wire in custom scripts by editing flow YAML |
 | [Customizing the Verify/Fix Loop](./customizing-verify-fix-loop.md) | How the `loop` + `read-file` + `if` pattern implements quality verification and how to adjust it |
+| [Adding Unstable Features](./adding-unstable-features.md) | How to register a new opt-in experimental feature in `UNSTABLE_FEATURES` and gate runtime behavior |

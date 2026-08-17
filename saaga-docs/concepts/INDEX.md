@@ -16,5 +16,7 @@
 | [Flow Definitions](./flow-definitions.md) | The four flow YAML files, their step sequences, and how they compose agent steps, scripts, and control flow |
 | [Output and Progress Display](./output-and-progress.md) | `OutputSink`, `PhaseTracker`, `Marker` type, `formatDuration()`, TTY spinner, column-aligned markers, log-file capture, and `--verbose` mode |
 | [Prompt Templates](./prompt-templates.md) | The eight prompt template files, their `{var}` placeholders, and their role in each workflow |
-| [Agent Permissions and Restriction](./agent-permissions.md) | `AgentPermissions` interface, `buildProfile()`, `enumerateExcludedPaths()`, `READ_ONLY_GIT`, and how backends translate the profile |
+| [Agent Permissions and Restriction](./agent-permissions.md) | `AgentPermissions` interface, `buildProfile()`, `enumerateExcludedPaths()`, `ALLOWED_SHELL_COMMANDS`, and how backends translate the profile |
 | [Agent Events and Denial Parsing](./agent-events.md) | `AgentEvent` union, `EventParser`, `LineSplitter`, `consumeEvents()`, per-backend parsers, `PermissionAuditor`, and `classifyDenial()` |
+| [Saaga Rules](./saaga-rules.md) | `.saagarules` project instructions: load/validate, append to agent prompts, baseline exclusion, and permission deny |
+| [Unstable Features](./unstable-features.md) | Opt-in experimental feature registry: `UNSTABLE_FEATURES`, config/`--unstable-feature` resolution, and process-wide enablement |

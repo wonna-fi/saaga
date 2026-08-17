@@ -43,7 +43,9 @@ Both `generateBaseline` and `detectChanges` use `computeManifest()` from `src/sc
 **Hard exclusions (regardless of ignore files):**
 1. All paths under `<docsDir>/` are excluded (top-level only — documentation output, not source)
 2. The `.git/` directory is excluded (top-level only)
-3. Any file named `.saagaignore` at any depth is excluded
+3. The `.saaga-runs/` directory is excluded (top-level only — run artifacts)
+4. Any file named `.saagaignore` at any depth is excluded
+5. The project-root file `.saagarules` is excluded (custom documentation instructions; see [Saaga Rules](./saaga-rules.md))
 
 **Pattern-based exclusions with nested support:**
 4. At each directory level, `.gitignore` and `.saagaignore` files are read and merged into a layer. The deepest layer that has an opinion (ignore or explicitly un-ignore) about a path determines the outcome ("deepest match wins" semantics).

@@ -34,9 +34,10 @@ Before working with this feature, understand these concepts:
    a. The prompt template path is resolved: `<PROMPTS_DIR>/<step.prompt>.md`
    b. Step `vars` are interpolated against the flow scope (`${var}` expressions)
    c. The prompt file is rendered with `renderPromptFile()` (`{var}` placeholders)
-   d. `Agent.run(prompt, { cwd, additionalDirs, permissions, logFile, echo, onEvent })` is called — `additionalDirs` is constructed from `scope.run_dir`, `permissions` and `onEvent` (from auditor) are forwarded from `RunFlowDeps`, `logFile` and `echo` are forwarded from `RunFlowDeps`
-   e. If `exitCode !== 0`, the runner throws `AgentStepFailedError` (after printing the last lines from the log file)
-   f. If `expect_file` is declared, the runner verifies the file exists on disk
+   d. Pre-loaded `.saagarules` content is appended via `appendSaagaRules()` when `deps.saagaRules` is set
+   e. `Agent.run(prompt, { cwd, additionalDirs, permissions, logFile, echo, onEvent })` is called — `additionalDirs` is constructed from `scope.run_dir`, `permissions` and `onEvent` (from auditor) are forwarded from `RunFlowDeps`, `logFile` and `echo` are forwarded from `RunFlowDeps`
+   f. If `exitCode !== 0`, the runner throws `AgentStepFailedError` (after printing the last lines from the log file)
+   g. If `expect_file` is declared, the runner verifies the file exists on disk
 
 ### Execution Modes
 
@@ -99,11 +100,12 @@ The internal `runAgentStep()` function handles each agent step:
 1. Resolve prompt path: `resolve(PROMPTS_DIR, step.prompt + ".md")`
 2. Interpolate `step.vars` values through `interpolate()` (flow expression engine)
 3. Call `renderPromptFile(promptPath, renderedVars)` to produce the final prompt string
-4. Ensure directories exist for any rendered vars or `expect_file` paths that fall under `run_dir`
-5. Construct `additionalDirs` from `scope.run_dir` (if it is a string)
-6. Call `deps.agent.run(prompt, { cwd: deps.cwd, additionalDirs, permissions: deps.permissions, logFile: deps.logFile, echo: deps.verbose, onEvent })` — `onEvent` is derived from `deps.auditor`: when present, it wraps `auditor.record()` as the sink
-7. Check `result.exitCode !== 0` → throw `AgentStepFailedError` (after printing the last lines from the log file via `printFailureTail()`)
-8. If `step.expect_file` is set, interpolate the path and verify the file exists
+4. Call `appendSaagaRules(prompt, deps.saagaRules)` to append project-specific documentation instructions when loaded
+5. Ensure directories exist for any rendered vars or `expect_file` paths that fall under `run_dir`
+6. Construct `additionalDirs` from `scope.run_dir` (if it is a string)
+7. Call `deps.agent.run(prompt, { cwd: deps.cwd, additionalDirs, permissions: deps.permissions, logFile: deps.logFile, echo: deps.verbose, onEvent })` — `onEvent` is derived from `deps.auditor`: when present, it wraps `auditor.record()` as the sink
+8. Check `result.exitCode !== 0` → throw `AgentStepFailedError` (after printing the last lines from the log file via `printFailureTail()`)
+9. If `step.expect_file` is set, interpolate the path and verify the file exists
 
 ### RunFlowDeps Interface
 
@@ -117,6 +119,7 @@ The internal `runAgentStep()` function handles each agent step:
 | `verbose` | `boolean` (optional) | Mirror agent output to terminal |
 | `permissions` | `AgentPermissions` (optional) | Permission profile for agent steps; absent means unrestricted |
 | `auditor` | `PermissionAuditor` (optional) | Collects and classifies denial events; its presence switches agent steps to structured JSON output |
+| `saagaRules` | `string` (optional) | Pre-loaded `.saagarules` content snapshot appended to every agent prompt |
 
 ### Services/Functions
 
@@ -128,10 +131,11 @@ The internal `runAgentStep()` function handles each agent step:
 | `src/cli/backend.ts` | `createAgent()` | Construct a `CursorAgent`, `CopilotAgent`, or `ClaudeAgent` |
 | `src/cli/backend.ts` | `BackendError` (class) | Error for backend resolution failures |
 | `src/engine/runner.ts` | `runFlow()` | Execute a flow definition — iterates steps, dispatches by type |
-| `src/engine/runner.ts` | `RunFlowDeps` (interface) | Dependencies for flow execution, including `permissions` and `auditor` |
+| `src/engine/runner.ts` | `RunFlowDeps` (interface) | Dependencies for flow execution, including `permissions`, `auditor`, and `saagaRules` |
 | `src/engine/runner.ts` | `AgentStepFailedError` (class) | Error for non-zero agent exit codes |
 | `src/engine/runner.ts` | `ExpectFileMissingError` (class) | Error when `expect_file` is not produced |
 | `src/templates.ts` | `renderPromptFile()` | Read and render a prompt template file |
+| `src/saaga-rules.ts` | `appendSaagaRules()` | Append `.saagarules` content to a rendered prompt |
 | `src/agent/permissions.ts` | `buildProfile()` | Build the default restricted permission profile from app path, docs dir, run dir, and optional extra dirs |
 | `src/agent/audit.ts` | `PermissionAuditor` (class) | Collect denial events and produce a classified summary |
 
@@ -141,7 +145,7 @@ The internal `runAgentStep()` function handles each agent step:
 |--------|----------|---------|
 | `src/cli.ts` | `resolveAgent()` | Orchestrates backend resolution, model selection, and agent construction (not exported) |
 | `src/cli.ts` | `runFlowSubcommand()` | Shared logic for `init`, `update`, `quick-update`, and `verify-quick-updates` subcommands (not exported) |
-| `src/engine/runner.ts` | `runAgentStep()` | Renders prompt and invokes agent for a single step, forwarding `permissions` and `onEvent` (not exported) |
+| `src/engine/runner.ts` | `runAgentStep()` | Renders prompt, appends `saagaRules`, and invokes agent for a single step, forwarding `permissions` and `onEvent` (not exported) |
 | `src/engine/runner.ts` | `assertFileExists()` | Checks `expect_file` existence (not exported) |
 
 ## Integration Points

@@ -56,11 +56,13 @@ flowchart TD
 
 Entry point. Defines six subcommands (`init`, `install-rules`, `update`, `quick-update`, `verify-quick-updates`, `doctor`) using `commander`. Four of these (`init`, `update`, `quick-update`, `verify-quick-updates`) resolve the agent, run a preflight check, create a run context, construct a permission profile, load the corresponding flow, and call the engine. The `install-rules` subcommand is standalone: it runs the rule installer directly without an agent backend. The `doctor` subcommand checks backend CLI availability and runs diagnostic probes without a flow.
 
-Global flags include `--backend`, `--model`, `--ci`, `--verbose`, `--yes` (`-y`), `--allow-dir <path>` (repeatable), `--dangerously-allow-all`, and `--audit-permissions`. The `--verbose` flag enables detailed step output and live agent output on the terminal. The `--yes` flag skips the cost confirmation prompt for agent-backed commands. `--allow-dir` grants additional read/write access to a directory and can be repeated. `--dangerously-allow-all` disables permission restrictions entirely (reproduces legacy behavior). `--audit-permissions` scans agent output for permission denials and logs a classified summary.
+Global flags include `--backend`, `--model-low` / `--model-medium` / `--model-high`, `--ci`, `--verbose`, `--yes` (`-y`), `--allow-dir <path>` (repeatable), `--unstable-feature <name>` (repeatable), `--dangerously-allow-all`, and `--audit-permissions`. The `--verbose` flag enables detailed step output and live agent output on the terminal. The `--yes` flag skips the cost confirmation prompt for agent-backed commands. `--allow-dir` grants additional read/write access to a directory and can be repeated. `--unstable-feature` enables opt-in experimental features (unioned with `config.unstableFeatures`). `--dangerously-allow-all` disables permission restrictions entirely (reproduces legacy behavior). `--audit-permissions` scans agent output for permission denials and logs a classified summary.
+
+Each subcommand bootstraps unstable features via `bootstrapUnstableFeatures()` before other work: it validates the directory, loads config, validates CLI feature names, initializes the process-wide registry, and warns on stderr when any features are enabled. Unknown CLI feature names throw `UnstableFeatureError` (exit code 1).
 
 `runFlowSubcommand()` calls `confirmAgentCosts()` before creating the run context. The cost notice uses `backendCliCommand()` to determine the CLI binary name, or falls back to the agent's `name` when the agent was injected directly. After cost confirmation and before run context creation, it runs a preflight check via `runPreflight()` for the resolved backend (skipped when the agent is injected for tests). A `PreflightError` is thrown on failure, directing the user to `saaga doctor` for details.
 
-After creating the run context, it constructs a permission profile via `buildProfile()` (unless `--dangerously-allow-all` is set) and writes `permissions.json` to the run directory. When `--audit-permissions` is set and a profile exists, a `PermissionAuditor` is created. Both `permissions` and `auditor` are passed to `runFlow()` via `RunFlowDeps`. After flow completion, `reportAudit()` flushes the audit log and warns about denials inside granted paths.
+After creating the run context, it constructs a permission profile via `buildProfile()` (unless `--dangerously-allow-all` is set) and writes `permissions.json` to the run directory. When `--audit-permissions` is set and a profile exists, a `PermissionAuditor` is created. It loads `.saagarules` via `loadSaagaRules()` and passes `permissions`, `auditor`, and `saagaRules` to `runFlow()` via `RunFlowDeps`. After flow completion, `reportAudit()` flushes the audit log and warns about denials inside granted paths.
 
 `createLogger()` accepts an optional `logFile` parameter and the `verbose` flag, forwarding them to the `Logger` constructor (which delegates to `OutputSink`).
 
@@ -68,17 +70,18 @@ After creating the run context, it constructs a permission profile via `buildPro
 
 `CliOptions` fields: `agent?: Agent` (injected agent for tests), `cwd?: string`, `stdout?: NodeJS.WritableStream`, `stderr?: NodeJS.WritableStream`, `stdin?: NodeJS.ReadableStream` (used by cost confirmation prompt in tests).
 
-Error handling catches `AgentStepFailedError` (returns exit code), `ConfirmationDeclinedError` (writes message to stderr, returns exit code 1), `DoctorError` (returns the doctor exit code), `PreflightError` (returns exit code 1), and Commander info exits (version/help, returns 0).
+Error handling catches `AgentStepFailedError` (returns exit code), `ConfirmationDeclinedError` (writes message to stderr, returns exit code 1), `UnstableFeatureError` (writes `[ERROR]` message to stderr, returns exit code 1), `DoctorError` (returns the doctor exit code), `PreflightError` (returns exit code 1), and Commander info exits (version/help, returns 0).
 
 > **Internal implementation:**
 >
+> - `bootstrapUnstableFeatures()` validates the project directory, loads config, resolves config+CLI unstable features, initializes the registry, and emits a single enablement warning.
 > - `resolveAgent()` returns a `ResolvedAgent` containing the `Agent` plus optional `backend` and `model` fields (absent when the agent was injected via `CliOptions.agent`). These resolution details are passed to `confirmAgentCosts()` for the cost notice.
 > - `isInteractive()` is not in this module — it lives in `cli/confirm.ts`.
 > - `reportAudit()` flushes the auditor, logs total denial count and the audit log path, and emits a warning for each `unexpected` denial (inside a granted path).
 > - `splitProbeIds()` normalizes comma- and space-separated `--probe` values for the doctor subcommand.
-> - `PreflightError` and `DoctorError` are error classes with `exitCode` fields.
+> - `UnstableFeatureError`, `PreflightError`, and `DoctorError` are error classes with `exitCode` fields.
 
-**Dependencies**: `cli/config`, `cli/backend`, `cli/confirm`, `engine/loader`, `engine/runner`, `run-context`, `logger`, `paths`, `scripts/install-rules`, `agent/permissions`, `agent/audit`, `doctor/index`, `doctor/preflight`
+**Dependencies**: `cli/config`, `cli/backend`, `cli/confirm`, `engine/loader`, `engine/runner`, `run-context`, `logger`, `paths`, `scripts/install-rules`, `agent/permissions`, `agent/audit`, `doctor/index`, `doctor/preflight`, `saaga-rules`, `unstable-features`
 
 ### Config (`src/cli/config.ts`)
 
@@ -86,9 +89,9 @@ Loads and validates project-level configuration from `.saaga/config.yaml`. Retur
 
 **Exports**: `loadConfig(projectDir): Promise<SaagaConfig>`, `SaagaConfig` interface, `ConfigError` class, `CONFIG_DIR` (constant: `".saaga"`), `CONFIG_FILE` (constant: `"config.yaml"`), `DEFAULT_DOCS_DIR` (constant: `"saaga-docs"`)
 
-**`SaagaConfig` fields**: `backend?: string`, `model?: string`, `quickModel?: string`, `ruleTargets?: string`, `docsDir?: string`, `autoApprove?: boolean`
+**`SaagaConfig` fields**: `defaultBackend?: string`, `backends?: Partial<Record<Backend, BackendModels>>`, `ruleTargets?: string`, `docsDir?: string`, `autoApprove?: boolean`, `unstableFeatures?: string[]`
 
-**Dependencies**: `yaml` (npm package)
+**Dependencies**: `yaml` (npm package), `unstable-features`
 
 ### Backend (`src/cli/backend.ts`)
 
@@ -148,15 +151,15 @@ interface Agent {
 
 Defines the declarative permission profile that restricts what agent backends can access during runs.
 
-**Exports**: `AgentPermissions` (interface), `buildProfile(input): AgentPermissions`, `enumerateExcludedPaths(keepPaths): Promise<string[]>`, `BuildProfileInput` (interface), `READ_ONLY_GIT` (constant)
+**Exports**: `AgentPermissions` (interface), `buildProfile(input): AgentPermissions`, `enumerateExcludedPaths(keepPaths): Promise<string[]>`, `BuildProfileInput` (interface), `ALLOWED_SHELL_COMMANDS` (constant)
 
-`AgentPermissions` fields: `readRoots: string[]`, `writeRoots: string[]`, `denyPaths: string[]`, `shell: "none" | "read-only-git"`.
+`AgentPermissions` fields: `readRoots: string[]`, `writeRoots: string[]`, `denyPaths: string[]`, `shell: "none" | "restricted"`.
 
-`buildProfile()` constructs the default restricted profile: read access to the entire app tree, write access to `<app>/<docsDir>` and the run directory, deny list covering rule files (`AGENTS.md`, `CLAUDE.md`, `.cursor/rules/**`, `.github/instructions/**`) and `BASELINE`, shell policy of `read-only-git`. Additional directories from `--allow-dir` are appended to both `readRoots` and `writeRoots`.
+`buildProfile()` constructs the default restricted profile: read access to the entire app tree, write access to `<app>/<docsDir>` and the run directory, deny list covering rule files (`AGENTS.md`, `CLAUDE.md`, `.cursor/rules/**`, `.github/instructions/**`), `.saagarules`, and `BASELINE`, shell policy of `"restricted"`. Additional directories from `--allow-dir` are appended to both `readRoots` and `writeRoots`.
 
 `enumerateExcludedPaths()` walks the ancestor chain of each keep path and lists every sibling not on the path, producing the deny list needed by backends that honour deny rules but not allow rules.
 
-`READ_ONLY_GIT` lists the git subcommands allowed under the `read-only-git` shell policy: `log`, `show`, `diff`, `blame`, `status`, `ls-files`, `cat-file`, `rev-parse`.
+`ALLOWED_SHELL_COMMANDS` contains the commands permitted under the `"restricted"` shell policy, organized into two keys: `utilities` (`cd`, `ls`, `pwd`, `grep`, `head`, `tail`, `wc`, `dirname`, `basename`) and `git` read-only subcommands (`log`, `show`, `diff`, `blame`, `status`, `ls-files`, `cat-file`, `rev-parse`). Each backend translates these into its native permission syntax (Cursor `Shell(...)`, Copilot `shell(...)`, Claude `Bash(...)`).
 
 #### Events (`src/agent/events.ts`)
 
@@ -332,7 +335,7 @@ Executes a `FlowDefinition` by iterating its steps. Creates a `PhaseTracker` at 
 
 **Exports**: `runFlow(flow, initialScope, deps)`, `RunFlowDeps`, `AgentStepFailedError`, `ExpectFileMissingError`
 
-`RunFlowDeps` bundles the `Agent`, working directory, optional script registry override, an optional `logger?: Logger`, `logFile?: string` (absolute path to the run log file for agent output capture), `verbose?: boolean` (mirror agent output to terminal), `permissions?: AgentPermissions` (permission profile for agent steps; absent means unrestricted), and `auditor?: PermissionAuditor` (collects and classifies permission denials; its presence switches agent steps to structured JSON output). When `logger` is omitted, a silent logger (no-op sink) is used so library callers and tests don't get noise.
+`RunFlowDeps` bundles the `Agent`, working directory, optional script registry override, an optional `logger?: Logger`, `logFile?: string` (absolute path to the run log file for agent output capture), `verbose?: boolean` (mirror agent output to terminal), `permissions?: AgentPermissions` (permission profile for agent steps; absent means unrestricted), `auditor?: PermissionAuditor` (collects and classifies permission denials; its presence switches agent steps to structured JSON output), and `saagaRules?: string` (pre-loaded `.saagarules` snapshot appended to every agent prompt). When `logger` is omitted, a silent logger (no-op sink) is used so library callers and tests don't get noise.
 
 #### Expression (`src/engine/expression.ts`)
 
@@ -387,7 +390,7 @@ Ensures a given pattern (e.g. `.saaga-runs/`) is present in the project's `.giti
 
 #### file-manifest (`src/scripts/file-manifest.ts`)
 
-Shared utility used by `detect-changes` and `generate-baseline`. Recursively walks an application directory, honoring nested `.gitignore` and `.saagaignore` files at every directory level with "deepest match wins" semantics (via the `ignore` npm package). Accepts `(appDir, docsDir)` parameters to know which top-level directory to hard-exclude. Hard-excludes `.saaga-runs/` at the top level (run artifacts are never part of the manifest). Returns a sorted `FileEntry[]` with SHA-1 git blob hashes computed locally. No git CLI required.
+Shared utility used by `detect-changes` and `generate-baseline`. Recursively walks an application directory, honoring nested `.gitignore` and `.saagaignore` files at every directory level with "deepest match wins" semantics (via the `ignore` npm package). Accepts `(appDir, docsDir)` parameters to know which top-level directory to hard-exclude. Hard-excludes `.saaga-runs/` at the top level (run artifacts are never part of the manifest) and the project-root `.saagarules` file. Returns a sorted `FileEntry[]` with SHA-1 git blob hashes computed locally. No git CLI required.
 
 Symlinks are included as manifest entries and hashed git-style (hash of the link target path string, not the linked file's content). Symlinked directories are not traversed.
 
@@ -446,6 +449,22 @@ Resolves package-root-relative directory constants.
 **Exports**: `PACKAGE_ROOT`, `FLOWS_DIR`, `PROMPTS_DIR`, `RULES_DIR`
 
 Works identically whether running from `src/` (via `tsx`) or `dist/` (compiled).
+
+### Saaga Rules (`src/saaga-rules.ts`)
+
+Loads optional project-root `.saagarules` instructions and appends them to agent prompts with an explicit bounded-priority wrapper.
+
+**Exports**: `loadSaagaRules(projectRoot): Promise<string | undefined>`, `appendSaagaRules(prompt, rules): string`, `SaagaRulesError`, `SAAGA_RULES_FILE` (constant: `".saagarules"`)
+
+Missing or whitespace-only files return `undefined`. Files over 64 KiB or with invalid UTF-8 throw `SaagaRulesError`. The CLI loads once per flow run and passes the snapshot as `RunFlowDeps.saagaRules`; the runner appends on every agent step.
+
+### Unstable Features (`src/unstable-features.ts`)
+
+Typed registry and process-wide enablement for opt-in experimental features.
+
+**Exports**: `UNSTABLE_FEATURES`, `UnstableFeature`, `isUnstableFeature()`, `findUnknownFeature()`, `resolveUnstableFeatures()`, `initUnstableFeatures()`, `isUnstableFeatureEnabled()`, `getEnabledUnstableFeatures()`, `resetUnstableFeatures()`
+
+`UNSTABLE_FEATURES` is the single source of truth for valid names (currently `none`). Config and CLI values are unioned (config first), validated, and initialized once per CLI invocation.
 
 ### Logger (`src/logger.ts`)
 
@@ -525,6 +544,8 @@ flowchart BT
     logger[logger]
     templates[templates]
     runctx[run-context]
+    saagarules[saaga-rules]
+    unstable[unstable-features]
     agtypes[agent/types]
     agperms[agent/permissions]
     agevents[agent/events]
@@ -607,6 +628,7 @@ flowchart BT
     runner --> agaudit
     runner --> agperms
     runner --> agtypes
+    runner --> saagarules
 
     scripts --> parsep
     scripts --> detect
@@ -651,6 +673,9 @@ flowchart BT
     cli --> agaudit
     cli --> doctor
     cli --> preflight
+    cli --> saagarules
+    cli --> unstable
+    config --> unstable
 
     style cli fill:#4A90D9,color:#fff
     style runner fill:#7B68EE,color:#fff
