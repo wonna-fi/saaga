@@ -13,6 +13,15 @@ that tell agents to read those docs *before* they touch source code.
 The result is an agent that already understands your system before it
 writes a single line.
 
+> **Alpha stage disclaimer** — Saaga is currently in alpha stage and
+> under heavy development. The features are still unstable and the produced
+> documentation is still searching for it's final form. Therefore it can
+> only be recommended for curious minds at this point in time. If you
+> decide to use it, you need to be prepared for backward-incompatible
+> changes and the fact that you will probably need to re-initialize your
+> documentation when Saaga becomes stable. Consider yourself warned and
+> travel safely.
+
 ## How it works
 
 Saaga orchestrates a headless coding agent (Cursor, GitHub Copilot, or
