@@ -6,9 +6,10 @@ import {
   createAgent,
   type Backend,
   backendCliCommand,
-  resolveModelForTier,
+  mergeModelOverrides,
+  resolveModel,
 } from "../cli/backend.js";
-import type { BackendModels } from "../cli/config.js";
+import type { BackendConfig } from "../cli/config.js";
 import { runFullSideEffectProbes, type FullProbeRunOptions } from "./full-probes.js";
 import { PROBE_CATALOGUE, type ProbeRunResult, type ProbeLevel } from "./probes.js";
 import {
@@ -21,10 +22,10 @@ export interface DoctorOptions {
   level: ProbeLevel;
   json?: boolean;
   probe?: string[];
-  /** Model override for full-tier probes (uses modelLow when absent). */
-  model?: string;
-  /** Per-backend model config from `.saaga/config.yaml` (optional). */
-  backendModels?: Partial<Record<Backend, BackendModels>>;
+  /** CLI `--model <key>=<model>` overrides, applied to every backend probed. */
+  modelOverrides?: Record<string, string>;
+  /** Per-backend config from `.saaga/config.yaml` (optional). */
+  backendModels?: Partial<Record<Backend, BackendConfig>>;
   /** CI mode — plain output without spinners or colors. */
   ci?: boolean;
   /** Working directory; logs are placed under `<cwd>/.saaga-runs/doctor/`. */
@@ -243,16 +244,6 @@ function runUnknownModelProbe(backend: Backend): ProbeRunResult {
   }
 }
 
-/** Doctor probes always use the low-tier model. */
-function probeModelFor(
-  backend: Backend,
-  override?: string,
-  configModels?: BackendModels,
-): string {
-  if (override && override.length > 0) return override;
-  return resolveModelForTier(backend, "low", configModels);
-}
-
 export async function runDoctor(opts: DoctorOptions): Promise<DoctorResult> {
   const backends: Backend[] =
     opts.backend === "all" ? ["cursor", "copilot", "claude"] : [opts.backend];
@@ -292,7 +283,15 @@ export async function runDoctor(opts: DoctorOptions): Promise<DoctorResult> {
         return r;
       });
 
-      const model = probeModelFor(backend, opts.model, opts.backendModels?.[backend]);
+      // Doctor probes always use the `low` model key.
+      const model = resolveModel(
+        backend,
+        "low",
+        mergeModelOverrides(
+          opts.backendModels?.[backend]?.models,
+          opts.modelOverrides,
+        ),
+      );
       const agent = createAgent({ backend, model });
       const runOpts: FullProbeRunOptions = {
         backend,

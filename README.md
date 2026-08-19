@@ -159,9 +159,7 @@ saaga doctor                    Check backend CLI availability and
 | Flag | Short | Description |
 | ---- | ----- | ----------- |
 | `--backend <name>` | `-b` | Agent backend: `cursor`, `copilot`, or `claude` |
-| `--model-low <name>` | | Override the low-tier model for this invocation |
-| `--model-medium <name>` | | Override the medium-tier model for this invocation |
-| `--model-high <name>` | | Override the high-tier model for this invocation |
+| `--model <key>=<model>` | | Set the model for a model key, e.g. `--model high=opus` (repeatable; see [Model keys](#model-keys)) |
 | `--ci` | | Plain (non-color) log output, suitable for CI pipelines |
 | `--yes` | `-y` | Skip the cost confirmation prompt (see [Runtime and cost](#runtime-and-cost)) |
 | `--allow-dir <path>` | | Grant additional read/write access to a directory (repeatable; see [Permissions](#permissions)) |
@@ -202,7 +200,7 @@ guidance below as relative expectations, not fixed numbers.
 > substantial number of tokens, since it reads across your entire
 > codebase and runs several agent phases including a verify/fix loop.
 > Costs depend on your chosen backend and model. If you want to keep the
-> initial spend down, point `--model-high` at a cheaper model or scope
+> initial spend down, point `--model high=<cheaper-model>` at a cheaper model or scope
 > what gets documented with [`.saagaignore`](#excluding-files-saagaignore).
 
 ### Cost confirmation prompt
@@ -242,22 +240,44 @@ defaults. All keys are optional; CLI flags always take precedence.
 defaultBackend: cursor     # cursor | copilot | claude
 backends:                  # per-backend model overrides (all optional)
   cursor:
-    modelLow: claude-4.6-sonnet-medium-thinking
-    modelMedium: claude-4.6-sonnet-medium-thinking
-    modelHigh: claude-4.6-opus-high-thinking
+    models:
+      low: claude-4.6-sonnet-medium-thinking
+      medium: claude-4.6-sonnet-medium-thinking
+      high: claude-4.6-opus-high-thinking
+      triage: composer-2.5   # custom key, for your own flows
   claude:
-    modelHigh: opus
+    models:
+      high: opus
 ruleTargets: [agentsmd]    # agentsmd | cursor | claude | copilot | none
 docsDir: saaga-docs        # name of the generated docs folder (default: saaga-docs)
 autoApprove: false         # true skips the cost confirmation prompt (same as --yes)
 unstableFeatures: []      # list of unstable features to enable (see below)
 ```
 
-Each backend supports three model tiers: `modelLow` (doctor probes),
-`modelMedium` (quick-update), and `modelHigh` (init, update,
-verify-quick-updates). Any absent tier falls back to a built-in default.
+#### Model keys
 
-Resolution order: **CLI flag (`--model-low` / `--model-medium` / `--model-high`) -> `backends.<name>.model*` in `.saaga/config.yaml` -> built-in default**.
+`backends.<name>.models` is an open map of **model key** -> model name. Three keys
+are built in and used by the bundled flows:
+
+| Key | Used by | Falls back to |
+| --- | ------- | ------------- |
+| `low` | `doctor` probes | a built-in default per backend |
+| `medium` | `quick-update` | a built-in default per backend |
+| `high` | `init`, `update`, `verify-quick-updates` | a built-in default per backend |
+
+Any absent built-in key falls back to its default, so you can override just one.
+
+You may also define keys of your own — `triage`, `review_2`, `fast-plan` — for use by
+custom flows and extensions. Custom keys have **no** default: asking for one that is
+not configured is an error naming the key and the keys that are available. Keys must be
+lowercase, start with a letter, and otherwise contain only `a-z`, `0-9`, `-` and `_`.
+
+Resolution order: **`--model <key>=<model>` -> `backends.<name>.models.<key>` in `.saaga/config.yaml` -> built-in default (`low`/`medium`/`high` only) -> error**.
+
+> **Migration** — the `modelLow`, `modelMedium` and `modelHigh` config fields and the
+> `--model-low` / `--model-medium` / `--model-high` flags were removed. Move them under
+> `models:` as `low` / `medium` / `high`; a config still using the old fields fails with a
+> `ConfigError` naming the replacement.
 
 ### Excluding files (.saagaignore)
 
@@ -509,7 +529,7 @@ tier takes several minutes and spends tokens.
 | ---- | ----------- |
 | `--backend <name>` | Backend to check: `cursor`, `copilot`, `claude`, or `all` (default: `all`) |
 | `--level <level>` | Probe tier: `fast` (default, zero tokens) or `full` (makes model calls) |
-| `--model-low <name>` | Model override for full-tier probes (defaults to the low-tier model per backend) |
+| `--model low=<model>` | Model override for full-tier probes — the global `--model` flag; doctor uses the `low` key. Not backend-scoped, so under the default `--backend all` it applies to every backend probed |
 | `--json` | Output versioned JSON instead of human-readable text |
 | `--probe <ids...>` | Run only the specified probe IDs |
 

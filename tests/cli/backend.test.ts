@@ -1,9 +1,12 @@
 import { describe, expect, test } from "vitest";
 import {
+  BUILTIN_MODEL_KEYS,
   BackendError,
   backendCliCommand,
+  mergeModelOverrides,
+  parseModelOverrides,
   resolveBackend,
-  resolveModelForTier,
+  resolveModel,
 } from "../../src/cli/backend.js";
 
 describe("resolveBackend", () => {
@@ -48,51 +51,173 @@ describe("resolveBackend", () => {
   });
 });
 
-describe("resolveModelForTier", () => {
+describe("parseModelOverrides", () => {
+  test("returns an empty map for no entries", () => {
+    expect(parseModelOverrides([])).toEqual({});
+  });
+
+  test("parses key=value pairs", () => {
+    expect(parseModelOverrides(["high=opus", "medium=sonnet"])).toEqual({
+      high: "opus",
+      medium: "sonnet",
+    });
+  });
+
+  test("keeps everything after the first '=' as the model name", () => {
+    expect(parseModelOverrides(["high=vendor/model=v2"])).toEqual({
+      high: "vendor/model=v2",
+    });
+  });
+
+  test("trims whitespace around key and value", () => {
+    expect(parseModelOverrides(["  high = opus  "])).toEqual({ high: "opus" });
+  });
+
+  test("last occurrence of a duplicate key wins", () => {
+    expect(parseModelOverrides(["high=a", "high=b"])).toEqual({ high: "b" });
+  });
+
+  test("accepts digits, hyphens and underscores in keys", () => {
+    expect(parseModelOverrides(["plan_v2-1=x"])).toEqual({ "plan_v2-1": "x" });
+  });
+
+  test("throws when the entry has no '='", () => {
+    expect(() => parseModelOverrides(["high"])).toThrow(BackendError);
+    expect(() => parseModelOverrides(["high"])).toThrow(
+      /expected '<key>=<model>'/,
+    );
+  });
+
+  test("throws when the key is empty", () => {
+    expect(() => parseModelOverrides(["=opus"])).toThrow(
+      /model key must not be empty/,
+    );
+  });
+
+  test("throws when the model is empty", () => {
+    expect(() => parseModelOverrides(["high="])).toThrow(
+      /model must not be empty/,
+    );
+    expect(() => parseModelOverrides(["high=   "])).toThrow(
+      /model must not be empty/,
+    );
+  });
+
+  test("rejects keys that do not start with a lowercase letter", () => {
+    for (const entry of ["High=x", "1low=x", "-low=x", "_low=x", "__proto__=x"]) {
+      expect(() => parseModelOverrides([entry])).toThrow(BackendError);
+    }
+  });
+
+  test("rejects keys with characters outside a-z0-9_-", () => {
+    expect(() => parseModelOverrides(["low.tier=x"])).toThrow(BackendError);
+    expect(() => parseModelOverrides(["low tier=x"])).toThrow(BackendError);
+  });
+});
+
+describe("mergeModelOverrides", () => {
+  test("returns an empty object when both sides are absent", () => {
+    expect(mergeModelOverrides()).toEqual({});
+  });
+
+  test("returns config models when there are no CLI overrides", () => {
+    expect(mergeModelOverrides({ high: "opus" })).toEqual({ high: "opus" });
+  });
+
+  test("returns CLI overrides when there is no config", () => {
+    expect(mergeModelOverrides(undefined, { high: "opus" })).toEqual({
+      high: "opus",
+    });
+  });
+
+  test("CLI overrides win per key and leave other keys intact", () => {
+    expect(
+      mergeModelOverrides(
+        { low: "haiku", high: "opus" },
+        { high: "sonnet" },
+      ),
+    ).toEqual({ low: "haiku", high: "sonnet" });
+  });
+
+  test("does not mutate its inputs", () => {
+    const config = { high: "opus" };
+    const cli = { high: "sonnet" };
+    mergeModelOverrides(config, cli);
+    expect(config).toEqual({ high: "opus" });
+    expect(cli).toEqual({ high: "sonnet" });
+  });
+});
+
+describe("resolveModel", () => {
   test("returns built-in high defaults", () => {
-    expect(resolveModelForTier("cursor", "high")).toBe(
+    expect(resolveModel("cursor", "high")).toBe(
       "claude-4.6-opus-high-thinking",
     );
-    expect(resolveModelForTier("copilot", "high")).toBe("claude-sonnet-4.6");
-    expect(resolveModelForTier("claude", "high")).toBe("opus");
+    expect(resolveModel("copilot", "high")).toBe("claude-sonnet-4.6");
+    expect(resolveModel("claude", "high")).toBe("opus");
   });
 
   test("returns built-in medium defaults (former quick models)", () => {
-    expect(resolveModelForTier("cursor", "medium")).toBe(
-      "cursor-grok-4.5-high",
-    );
-    expect(resolveModelForTier("copilot", "medium")).toBe("claude-sonnet-4.6");
-    expect(resolveModelForTier("claude", "medium")).toBe("sonnet");
+    expect(resolveModel("cursor", "medium")).toBe("cursor-grok-4.5-high");
+    expect(resolveModel("copilot", "medium")).toBe("claude-sonnet-4.6");
+    expect(resolveModel("claude", "medium")).toBe("sonnet");
   });
 
   test("returns built-in low defaults (cheaper models for probes)", () => {
-    expect(resolveModelForTier("cursor", "low")).toBe("composer-2.5");
-    expect(resolveModelForTier("copilot", "low")).toBe("claude-haiku-4.5");
-    expect(resolveModelForTier("claude", "low")).toBe("haiku");
+    expect(resolveModel("cursor", "low")).toBe("composer-2.5");
+    expect(resolveModel("copilot", "low")).toBe("claude-haiku-4.5");
+    expect(resolveModel("claude", "low")).toBe("haiku");
   });
 
-  test("uses config override for the requested tier", () => {
-    expect(
-      resolveModelForTier("cursor", "high", { modelHigh: "custom-high" }),
-    ).toBe("custom-high");
-    expect(
-      resolveModelForTier("cursor", "medium", { modelMedium: "custom-med" }),
-    ).toBe("custom-med");
-    expect(
-      resolveModelForTier("cursor", "low", { modelLow: "custom-low" }),
-    ).toBe("custom-low");
-  });
-
-  test("falls back to defaults when config tier is absent", () => {
-    expect(resolveModelForTier("claude", "high", { modelLow: "haiku" })).toBe(
-      "opus",
+  test("uses the resolved map over the built-in default", () => {
+    expect(resolveModel("cursor", "high", { high: "custom-high" })).toBe(
+      "custom-high",
+    );
+    expect(resolveModel("cursor", "medium", { medium: "custom-med" })).toBe(
+      "custom-med",
+    );
+    expect(resolveModel("cursor", "low", { low: "custom-low" })).toBe(
+      "custom-low",
     );
   });
 
-  test("treats empty config values as absent", () => {
-    expect(resolveModelForTier("claude", "high", { modelHigh: "" })).toBe(
-      "opus",
+  test("falls back to defaults when the key is absent from the map", () => {
+    expect(resolveModel("claude", "high", { low: "haiku" })).toBe("opus");
+  });
+
+  test("treats empty values as absent", () => {
+    expect(resolveModel("claude", "high", { high: "" })).toBe("opus");
+  });
+
+  test("resolves a custom key that only exists in the map", () => {
+    expect(resolveModel("claude", "plan", { plan: "opus" })).toBe("opus");
+  });
+
+  test("throws naming the key, the backend and the available keys", () => {
+    expect(() => resolveModel("claude", "plan")).toThrow(BackendError);
+    expect(() => resolveModel("claude", "plan")).toThrow(
+      /Unknown model key 'plan'/,
     );
+    expect(() => resolveModel("claude", "plan")).toThrow(/backend 'claude'/);
+    expect(() => resolveModel("claude", "plan")).toThrow(/low, medium, high/);
+  });
+
+  test("lists custom map keys among the available keys", () => {
+    expect(() => resolveModel("claude", "nope", { plan: "opus" })).toThrow(
+      /low, medium, high, plan/,
+    );
+  });
+
+  test("does not resolve inherited Object.prototype keys", () => {
+    expect(() => resolveModel("claude", "constructor", {})).toThrow(
+      BackendError,
+    );
+  });
+});
+
+describe("BUILTIN_MODEL_KEYS", () => {
+  test("exposes low, medium and high", () => {
+    expect(BUILTIN_MODEL_KEYS).toEqual(["low", "medium", "high"]);
   });
 });
 
