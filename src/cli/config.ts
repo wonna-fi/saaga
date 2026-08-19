@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { parse as parseYaml } from "yaml";
-import type { Backend } from "./backend.js";
+import { type Backend, isValidModelKey } from "./backend.js";
 import { UNSTABLE_FEATURES, isUnstableFeature } from "../unstable-features.js";
 
 const UNSTABLE_FEATURES_LIST = UNSTABLE_FEATURES.join(", ");
@@ -12,6 +12,13 @@ export const DEFAULT_DOCS_DIR = "saaga-docs";
 
 const ALLOWED_BACKENDS: readonly Backend[] = ["cursor", "copilot", "claude"];
 
+/** Removed fields, mapped to the model key that replaced them. */
+const LEGACY_MODEL_FIELDS: Record<string, string> = {
+  modelLow: "low",
+  modelMedium: "medium",
+  modelHigh: "high",
+};
+
 export class ConfigError extends Error {
   constructor(message: string) {
     super(message);
@@ -19,15 +26,14 @@ export class ConfigError extends Error {
   }
 }
 
-export interface BackendModels {
-  modelLow?: string;
-  modelMedium?: string;
-  modelHigh?: string;
+export interface BackendConfig {
+  /** Model key -> model name. Keys are free-form; see `MODEL_KEY_PATTERN`. */
+  models?: Record<string, string>;
 }
 
 export interface SaagaConfig {
   defaultBackend?: string;
-  backends?: Partial<Record<Backend, BackendModels>>;
+  backends?: Partial<Record<Backend, BackendConfig>>;
   ruleTargets?: string;
   docsDir?: string;
   autoApprove?: boolean;
@@ -118,7 +124,7 @@ export async function loadConfig(projectDir: string): Promise<SaagaConfig> {
 
 function parseBackends(
   value: unknown,
-): Partial<Record<Backend, BackendModels>> {
+): Partial<Record<Backend, BackendConfig>> {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new ConfigError(
       `${CONFIG_DIR}/${CONFIG_FILE}: 'backends' must be a YAML mapping`,
@@ -126,7 +132,7 @@ function parseBackends(
   }
 
   const raw = value as Record<string, unknown>;
-  const result: Partial<Record<Backend, BackendModels>> = {};
+  const result: Partial<Record<Backend, BackendConfig>> = {};
 
   for (const [key, entry] of Object.entries(raw)) {
     if (!ALLOWED_BACKENDS.includes(key as Backend)) {
@@ -134,13 +140,13 @@ function parseBackends(
         `${CONFIG_DIR}/${CONFIG_FILE}: 'backends.${key}' is not a valid backend (must be 'cursor', 'copilot', or 'claude')`,
       );
     }
-    result[key as Backend] = parseBackendModels(key, entry);
+    result[key as Backend] = parseBackendConfig(key, entry);
   }
 
   return result;
 }
 
-function parseBackendModels(backend: string, value: unknown): BackendModels {
+function parseBackendConfig(backend: string, value: unknown): BackendConfig {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new ConfigError(
       `${CONFIG_DIR}/${CONFIG_FILE}: 'backends.${backend}' must be a YAML mapping`,
@@ -148,17 +154,57 @@ function parseBackendModels(backend: string, value: unknown): BackendModels {
   }
 
   const obj = value as Record<string, unknown>;
-  const models: BackendModels = {};
+  const config: BackendConfig = {};
 
-  for (const field of ["modelLow", "modelMedium", "modelHigh"] as const) {
-    if (obj[field] !== undefined) {
-      if (typeof obj[field] !== "string") {
-        throw new ConfigError(
-          `${CONFIG_DIR}/${CONFIG_FILE}: 'backends.${backend}.${field}' must be a string`,
-        );
-      }
-      models[field] = obj[field];
+  for (const key of Object.keys(obj)) {
+    if (key === "models") {
+      continue;
     }
+    // Check the removed fields first, so a stale config gets the migration
+    // hint rather than a generic unknown-field error.
+    const replacement = LEGACY_MODEL_FIELDS[key];
+    if (replacement !== undefined) {
+      throw new ConfigError(
+        `${CONFIG_DIR}/${CONFIG_FILE}: 'backends.${backend}.${key}' is no longer supported — use 'backends.${backend}.models.${replacement}' instead`,
+      );
+    }
+    throw new ConfigError(
+      `${CONFIG_DIR}/${CONFIG_FILE}: 'backends.${backend}.${key}' is not a valid field (expected 'models')`,
+    );
+  }
+
+  if (obj.models !== undefined) {
+    config.models = parseModelsMap(backend, obj.models);
+  }
+
+  return config;
+}
+
+function parseModelsMap(
+  backend: string,
+  value: unknown,
+): Record<string, string> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new ConfigError(
+      `${CONFIG_DIR}/${CONFIG_FILE}: 'backends.${backend}.models' must be a YAML mapping`,
+    );
+  }
+
+  const raw = value as Record<string, unknown>;
+  const models: Record<string, string> = {};
+
+  for (const [key, entry] of Object.entries(raw)) {
+    if (!isValidModelKey(key)) {
+      throw new ConfigError(
+        `${CONFIG_DIR}/${CONFIG_FILE}: 'backends.${backend}.models.${key}' is not a valid model key (keys must be lowercase and start with a letter; allowed: a-z, 0-9, '-', '_')`,
+      );
+    }
+    if (typeof entry !== "string") {
+      throw new ConfigError(
+        `${CONFIG_DIR}/${CONFIG_FILE}: 'backends.${backend}.models.${key}' must be a string`,
+      );
+    }
+    models[key] = entry;
   }
 
   return models;

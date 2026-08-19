@@ -250,6 +250,44 @@ describe("saaga cost confirmation (end to end)", () => {
     expect(await runDirCount(app)).toBe(0);
   });
 
+  // No injected agent here: CliOptions.agent short-circuits resolveAgent(),
+  // so these are the only tests that exercise real backend/model resolution.
+  // ttyStdin + "n" is deliberate — piped stdin (and --ci) count as
+  // non-interactive, which would continue past the notice into preflight and
+  // could start a real, billed agent run on a machine with the CLI installed.
+  test("the cost notice names the model resolved from .saaga/config.yaml", async () => {
+    const { app } = await tmpUnchangedApp(
+      "modelconfig",
+      "defaultBackend: claude\nbackends:\n  claude:\n    models:\n      medium: config-medium\n",
+    );
+    const err = new StringWritable();
+
+    const exitCode = await runCli(["quick-update", app], {
+      stderr: err,
+      stdin: ttyStdin("n\n"),
+    });
+
+    expect(exitCode).toBe(1);
+    expect(err.text).toContain("backend claude");
+    expect(err.text).toContain("model config-medium");
+  });
+
+  test("--model overrides the configured model", async () => {
+    const { app } = await tmpUnchangedApp(
+      "modeloverride",
+      "defaultBackend: claude\nbackends:\n  claude:\n    models:\n      medium: config-medium\n",
+    );
+    const err = new StringWritable();
+
+    const exitCode = await runCli(
+      ["quick-update", app, "--model", "medium=cli-medium"],
+      { stderr: err, stdin: ttyStdin("n\n") },
+    );
+
+    expect(exitCode).toBe(1);
+    expect(err.text).toContain("model cli-medium");
+  });
+
   test("accepting proceeds with the run", async () => {
     const { app } = await tmpUnchangedApp("accepted");
     const fake = new FakeAgent({});
