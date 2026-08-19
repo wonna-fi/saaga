@@ -1,4 +1,4 @@
-# Generated: 2026-08-17T11:28:29.896Z
+# Generated: 2026-08-19T01:04:47.513Z
 dc5db626c0687243063280d4a5282a5260abf4f3 .github/scripts/publish-saaga-changes.sh
 d7e08a188b70e03d7663a8cc06b48d27a812ca95 .github/workflows/ci.yml
 de4bc82ba2995f5752fe1c2f2420dfa8ae9d63ea .github/workflows/doctor-fast.yml
@@ -9,7 +9,7 @@ e9255662dca1553516ce8e23ecb0c49d8028cc72 .github/workflows/verify-quick-updates-
 7ec316a8f3888893d96a4e1ff7b7d8678e25ebd8 .saaga/config.yaml
 d5b2cde4547abb4a1f3ae23999965822f3767cbc AGENTS.md
 b33ed401a299469d2d1f611a2baa02d9c45454f8 DEVELOPING.md
-2ad2e41455be36369aaea06d9c6e7a7dd8193ff8 README.md
+a1ee64c0d138ddc909ab5f68a8898b7814b6f6b3 README.md
 c09a02e5db75ca8d5ccd829d75a3c118531c80dd eslint.config.js
 ce9b2880bb9fe486a39e354f6d006d15a7374968 flows/init.flow.yaml
 63b2a9b82800094af4e37900cb7c146037282bab flows/quick-update.flow.yaml
