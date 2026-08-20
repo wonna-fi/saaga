@@ -21,12 +21,12 @@ Before working with this feature, understand these concepts:
 1. User runs a CLI subcommand (e.g., `saaga init <dir> --backend cursor`)
 2. The CLI resolves which backend to use via the precedence chain:
    - `--backend` flag (highest priority)
-   - `.saaga/config.yaml` `backend` field (fallback)
+   - `.saaga/config.yaml` `defaultBackend` field (fallback)
    - Error if neither is set
-3. The CLI resolves the AI model via a quality tier (`high` for `init`/`update`/`verify-quick-updates`, `medium` for `quick-update`):
-   - `--model-high` / `--model-medium` flag for the selected tier (highest priority)
-   - `.saaga/config.yaml` `backends.<backend>.modelHigh` / `modelMedium` (fallback)
-   - Built-in per-backend defaults: high — `cursor` → `claude-4.6-opus-high-thinking`, `copilot` → `claude-sonnet-4.6`, `claude` → `opus`; medium — `cursor` → `cursor-grok-4.5-high`, `copilot` → `claude-sonnet-4.6`, `claude` → `sonnet`
+3. The CLI resolves the AI model via a model key (`high` for `init`/`update`/`verify-quick-updates`, `medium` for `quick-update`):
+   - `--model <key>=<model>` CLI overrides (highest priority per key)
+   - `.saaga/config.yaml` `backends.<backend>.models.<key>` (fallback)
+   - Built-in per-backend defaults for `low`/`medium`/`high` only: high — `cursor` → `claude-4.6-opus-high-thinking`, `copilot` → `claude-sonnet-4.6`, `claude` → `opus`; medium — `cursor` → `cursor-grok-4.5-high`, `copilot` → `claude-sonnet-4.6`, `claude` → `sonnet`
 4. A concrete `Agent` instance is constructed (`CursorAgent`, `CopilotAgent`, or `ClaudeAgent`)
 5. A permission profile is built via `buildProfile()` (unless `--dangerously-allow-all` is passed, which skips the profile entirely). The profile is written to `permissions.json` in the run directory
 6. If `--audit-permissions` is set, a `PermissionAuditor` is created to collect denial events during the run
@@ -66,11 +66,11 @@ Before working with this feature, understand these concepts:
 
 ### Precedence Chain (Model Resolution)
 
-Each quality tier is resolved independently (`high` for most flow subcommands, `medium` for `quick-update`):
+Each model key is resolved independently (`high` for most flow subcommands, `medium` for `quick-update`):
 ```
---model-<tier> flag  →  config.backends.<backend>.model<Tier>  →  resolveModelForTier(backend, tier)
+--model <key>=<model>  →  config.backends.<backend>.models.<key>  →  resolveModel(backend, key, models)
 ```
-
+(`resolveModel` falls back to built-in defaults for `low`/`medium`/`high` only; custom keys require a configured value.)
 ### Edge Cases
 
 | Scenario | Behavior |
@@ -127,7 +127,7 @@ The internal `runAgentStep()` function handles each agent step:
 |--------|-----------------|---------|
 | `src/cli.ts` | `runCli()` | CLI entry point — parses args, dispatches to subcommands |
 | `src/cli/backend.ts` | `resolveBackend()` | Resolve backend name from flag → config → error |
-| `src/cli/backend.ts` | `resolveModelForTier()` | Return the model string for a quality tier (config override → built-in default) |
+| `src/cli/backend.ts` | `resolveModel()` | Return the model string for a model key (merged map → built-in default → error) |
 | `src/cli/backend.ts` | `createAgent()` | Construct a `CursorAgent`, `CopilotAgent`, or `ClaudeAgent` |
 | `src/cli/backend.ts` | `BackendError` (class) | Error for backend resolution failures |
 | `src/engine/runner.ts` | `runFlow()` | Execute a flow definition — iterates steps, dispatches by type |

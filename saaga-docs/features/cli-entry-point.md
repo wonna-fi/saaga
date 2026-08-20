@@ -35,9 +35,7 @@ Before working with this feature, understand these concepts:
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--backend <name>` | `-b` | Agent backend (`cursor`, `copilot`, or `claude`) |
-| `--model-low <name>` | — | Override the low-tier model (used by `doctor` probes) |
-| `--model-medium <name>` | — | Override the medium-tier model (used by `quick-update`) |
-| `--model-high <name>` | — | Override the high-tier model (used by `init`, `update`, `verify-quick-updates`) |
+| `--model <key>=<model>` | — | Set the model for a model key (repeatable), e.g. `--model high=opus`; built-in keys are `low` (doctor), `medium` (quick-update), `high` (init/update/verify-quick-updates) |
 | `--ci` | — | CI mode: plain (non-color) log output |
 | `--verbose` | — | Show detailed step output and live agent output on terminal |
 | `--yes` | `-y` | Skip the cost confirmation prompt for agent-backed commands |
@@ -71,7 +69,7 @@ Before working with this feature, understand these concepts:
 8. CLI creates a log file path: `logFile = resolve(runCtx.runDir, "run.log")`
 9. CLI resolves `verbose` from `globals.verbose ?? false`
 10. CLI creates a `Logger` via internal `createLogger(globals, options, logFile)` — passes `ci`, `stream`, `logFile`, and `verbose` to `LoggerOptions`
-11. Logger logs startup info: `saaga <subcommand> <path> (backend=<name>)` with optional conditional segment `, model=<model>` when a tier-specific model flag (`--model-high` or `--model-medium`) is explicitly provided. Also logs run ID and run directory. Logs `buildCostSummary()` as a detail line.
+11. Logger logs startup info: `saaga <subcommand> <path> (backend=<name>, model=<model>)` when a model was resolved (omits the model segment when the agent was injected via `CliOptions.agent`). Also logs run ID and run directory. Logs `buildCostSummary()` as a detail line.
 12. CLI resolves the effective documentation directory via `resolveDocsDir(config)` (falls back to `DEFAULT_DOCS_DIR` = `"saaga-docs"`)
 13. CLI constructs the permission profile:
     - If `--dangerously-allow-all` is set: skips profile construction, writes a warning to stderr, and `permissions` remains `undefined`
@@ -87,14 +85,14 @@ Before working with this feature, understand these concepts:
 
 ### User Flow: quick-update Subcommand
 
-The `quick-update` subcommand follows the same flow as standard subcommands (steps 1–20 above) with one difference: the agent is resolved using the **medium** quality tier — `--model-medium` flag → `config.backends.<backend>.modelMedium` → built-in medium default — instead of the high tier used by standard subcommands.
+The `quick-update` subcommand follows the same flow as standard subcommands (steps 1–20 above) with one difference: the agent is resolved using the **`medium`** model key — `--model medium=<model>` → `config.backends.<backend>.models.medium` → built-in medium default — instead of the `high` key used by standard subcommands.
 
 ### User Flow: doctor Subcommand
 
 1. User runs `saaga doctor [--backend <name>] [--level fast|full] [--json] [--probe <ids...>]`
 2. CLI bootstraps unstable features for the cwd (same as other subcommands) and loads config
 3. CLI resolves `backend` from `--backend` flag or defaults to `"all"` (checks all backends)
-4. CLI constructs `DoctorOptions`: `{ backend, level, json, probe, model: globals.modelLow, backendModels: config.backends, ci }`
+4. CLI constructs `DoctorOptions`: `{ backend, level, json, probe, modelOverrides: parseModelOverrides(globals.model), backendModels: config.backends, ci }`
 5. CLI calls `runDoctor(doctorOpts)` — runs probes at the specified level and returns a `DoctorResult`
 6. If `--json` is set, writes the result as formatted JSON to stdout; otherwise writes human-readable output via `formatDoctorResult()`
 7. If `result.exitCode !== 0`, throws `DoctorError` (exit code 1 = probes failed, 2 = probes could not run)
@@ -156,8 +154,10 @@ The program uses Commander's `exitOverride()` to prevent Commander from calling 
 | `src/unstable-features.ts` | `initUnstableFeatures()` | Initialize the process-wide unstable feature set |
 | `src/unstable-features.ts` | `UNSTABLE_FEATURES` (constant) | Known unstable feature names |
 | `src/cli/backend.ts` | `resolveBackend()` | Resolve backend name from flag → config → error |
-| `src/cli/backend.ts` | `resolveModelForTier()` | Return the model string for a quality tier; consults per-backend config overrides before built-in defaults |
-| `src/cli/backend.ts` | `ModelTier` (type) | String union: `"low" \| "medium" \| "high"` |
+| `src/cli/backend.ts` | `resolveModel()` | Return the model string for a model key; consults merged models map then built-in defaults |
+| `src/cli/backend.ts` | `parseModelOverrides()` | Parse repeatable `--model <key>=<model>` CLI values into a map |
+| `src/cli/backend.ts` | `mergeModelOverrides()` | Merge config models with CLI overrides (CLI wins per key) |
+| `src/cli/backend.ts` | `ModelKey` / `BuiltinModelKey` (types) | Model key string; built-in keys are `"low" \| "medium" \| "high"` |
 | `src/cli/backend.ts` | `createAgent()` | Construct a `CursorAgent`, `CopilotAgent`, or `ClaudeAgent` |
 | `src/cli/backend.ts` | `backendCliCommand()` | Return the CLI binary name for a given backend |
 | `src/cli/backend.ts` | `BackendError` (class) | Error for backend resolution failures |
@@ -186,7 +186,7 @@ The program uses Commander's `exitOverride()` to prevent Commander from calling 
 | `src/cli.ts` | `isCommanderInfoExit()` | Detect Commander version/help exit codes (not exported) |
 | `src/cli.ts` | `bootstrapUnstableFeatures()` | Validates dir, loads config, resolves/initializes unstable features, emits enablement warning; returns config (not exported) |
 | `src/cli.ts` | `UnstableFeatureError` (class) | Error thrown for unknown `--unstable-feature` names (exit code 1) (not exported) |
-| `src/cli.ts` | `resolveAgent()` | Orchestrate backend resolution → tier selection (medium for quick-update, high otherwise) → `resolveModelForTier()` → agent construction; returns `ResolvedAgent` (with optional `backend` and `model` fields) (not exported) |
+| `src/cli.ts` | `resolveAgent()` | Orchestrate backend resolution → model key selection (`medium` for quick-update, `high` otherwise) → `mergeModelOverrides` + `resolveModel()` → agent construction; returns `ResolvedAgent` (with optional `backend` and `model` fields) (not exported) |
 | `src/cli/confirm.ts` | `isInteractive()` | Determines if the terminal supports interactive prompt by checking `--ci`, stdin existence, and `isTTY` (not exported) |
 | `src/cli.ts` | `runFlowSubcommand()` | Shared handler for `init`, `update`, `quick-update`, `verify-quick-updates`: validates dir, creates run context, executes flow (not exported) |
 | `src/cli.ts` | `runInstallRulesSubcommand()` | Handler for `install-rules`: validates dir, calls `installRules()` directly without backend/run context (not exported) |

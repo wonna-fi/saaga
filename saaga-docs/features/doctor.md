@@ -35,7 +35,7 @@ The `doctor` subcommand is registered on the root `saaga` program with these sub
 | `--json` | off | Output results as versioned JSON (`schemaVersion: 1`) |
 | `--probe <ids...>` | all | Run only the specified probe IDs (comma- or space-separated) |
 
-The global `-b, --backend`, `--model-low`, and `--ci` flags also apply. When `--backend` is omitted, doctor defaults to `"all"` (unlike flow subcommands which require a backend). Doctor probes always use the **low** tier model, so `--model-low` is the relevant model override for doctor.
+The global `-b, --backend`, `--model`, and `--ci` flags also apply. When `--backend` is omitted, doctor defaults to `"all"` (unlike flow subcommands which require a backend). Doctor probes always use the **`low`** model key, so `--model low=<model>` is the relevant override for doctor.
 
 ### Probe Catalogue
 
@@ -165,11 +165,11 @@ When a full-tier capability probe fails under the restricted profile:
 
 ### Probe Model Selection
 
-Full-tier probes require a model for agent invocations. Doctor always uses the **low** quality tier. The model is selected in order of precedence:
+Full-tier probes require a model for agent invocations. Doctor always uses the **`low`** model key. The model is selected in order of precedence:
 
-1. CLI `--model-low` flag override (passed to `DoctorOptions.model`)
-2. `backends.<backend>.modelLow` from `.saaga/config.yaml` (passed to `DoctorOptions.backendModels`)
-3. Built-in low-tier defaults: `composer-2.5` (cursor), `claude-haiku-4.5` (copilot), `haiku` (claude)
+1. CLI `--model low=<model>` override (folded into `DoctorOptions.modelOverrides`)
+2. `backends.<backend>.models.low` from `.saaga/config.yaml` (passed via `DoctorOptions.backendModels`)
+3. Built-in low-key defaults: `composer-2.5` (cursor), `claude-haiku-4.5` (copilot), `haiku` (claude)
 
 ### Log Files
 
@@ -210,7 +210,7 @@ Before any flow subcommand (`init`, `update`, `quick-update`, `verify-quick-upda
 When a new agent backend is added to Saaga, extend the doctor system:
 
 1. Ensure the backend's CLI binary name is returned by `backendCliCommand()` (already required by the agent interface)
-2. Add the backend's built-in model defaults to `DEFAULT_BACKEND_MODELS` in `src/cli/backend.ts` (doctor uses the `modelLow` tier entry)
+2. Add the backend's built-in model defaults to `DEFAULT_BACKEND_MODELS` in `src/cli/backend.ts` (doctor uses the `low` key entry)
 3. Add the flags Saaga passes for that backend to `REQUIRED_CLI_FLAGS` in `src/doctor/required-flags.ts`
 4. Add the backend's bogus-model CLI arguments to `runUnknownModelProbe()` in `src/doctor/index.ts`
 5. Review existing full-tier probes — most are backend-agnostic, but some may need `backends` scoping adjustments

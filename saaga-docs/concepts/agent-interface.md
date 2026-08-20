@@ -9,7 +9,7 @@ The Agent interface defines how Saaga communicates with external AI coding agent
 | Source | Description |
 |--------|-------------|
 | `--backend` flag / `.saaga/config.yaml` `defaultBackend` field | Selects which agent backend to use (`cursor`, `copilot`, or `claude`) |
-| `--model-low`/`--model-medium`/`--model-high` flags / `.saaga/config.yaml` `backends.<backend>.modelLow/modelMedium/modelHigh` fields | Overrides the per-backend default model for a given quality tier |
+| `--model <key>=<model>` flag / `.saaga/config.yaml` `backends.<backend>.models` map | Overrides the model for a model key (`low` / `medium` / `high` or a custom key) |
 | Backend-specific credentials | Authentication is handled by each backend individually; Saaga does not manage credential env vars |
 
 **How to access:**
@@ -39,7 +39,7 @@ The Agent interface defines how Saaga communicates with external AI coding agent
 | `src/agent/types.ts` | `AgentRunOpts` (interface) | Options passed to `Agent.run()`: `cwd`, optional `signal`, `additionalDirs`, `permissions`, `logFile`, `echo`, `onEvent` |
 | `src/agent/types.ts` | `AgentRunResult` (interface) | Result of `Agent.run()`: contains `exitCode` |
 | `src/cli/backend.ts` | `resolveBackend()` | Resolve backend from `--backend` flag → `.saaga/config.yaml` → error |
-| `src/cli/backend.ts` | `resolveModelForTier()` | Return the model string for a quality tier (config override → built-in default) |
+| `src/cli/backend.ts` | `resolveModel()` | Return the model string for a model key (config/CLI map → built-in default for `low`/`medium`/`high` → error) |
 | `src/cli/backend.ts` | `createAgent()` | Construct a concrete `CursorAgent`, `CopilotAgent`, or `ClaudeAgent` instance |
 | `src/agent/stdio.ts` | `buildStdio()` | Build execa stdio options for standard agent output routing (inherit, log file, or tee) |
 | `src/agent/stdio.ts` | `buildPipedStdio()` | Build execa stdio options that pipe stdout for event stream parsing while routing stderr to log file |

@@ -8,7 +8,7 @@ The quick-update workflow performs a fast, single-session documentation update u
 
 Before working with this feature, understand these concepts:
 
-- [Backend Resolution](../concepts/backend-resolution.md) — how the medium-tier model is selected (`--model-medium` / `backends.<backend>.modelMedium` / built-in default)
+- [Backend Resolution](../concepts/backend-resolution.md) — how the medium model key is selected (`--model medium=<model>` / `backends.<backend>.models.medium` / built-in default)
 - [Baseline and Change Detection](../concepts/baseline-and-change-detection.md) — how `detect-changes` produces the changes report
 - [Flow Definitions](../concepts/flow-definitions.md) — the `quick-update.flow.yaml` step sequence
 - [Script Registry](../concepts/script-registry.md) — the `archive-quick-update`, `cleanup-quick-update-dir`, and `generate-baseline` scripts used in this flow
@@ -56,8 +56,8 @@ When status is `UPDATED`, two files are written under the app's `<docs_dir>/meta
 | No changes since BASELINE | `detect-changes` returns count 0; flow exits early; no agent call, no metadata directory created |
 | Agent writes `SKIPPED` | Metadata folder is pre-created, then removed by `cleanup-quick-update-dir`; baseline is still regenerated |
 | Agent writes `UPDATED` but `summary.md` is missing | `archive-quick-update` throws; flow fails before baseline is regenerated |
-| `config.backends.<backend>.modelMedium` set in `.saaga/config.yaml` | That model is used instead of the built-in medium-tier default |
-| `--model-medium` flag provided | Overrides the medium-tier model for quick-update |
+| `config.backends.<backend>.models.medium` set in `.saaga/config.yaml` | That model is used instead of the built-in medium-key default |
+| `--model medium=<model>` flag provided | Overrides the medium model key for quick-update |
 
 ## Technical Implementation
 
@@ -84,7 +84,7 @@ Step sequence:
 | `src/scripts/cleanup-quick-update-dir.ts` | `cleanupQuickUpdateDir()` | Removes the pre-created quick-update metadata folder when status is not UPDATED; validates path safety |
 | `src/scripts/generate-baseline.ts` | `generateBaseline()` | Regenerates `<docs_dir>/BASELINE` after the update |
 | `src/engine/runner.ts` | `runFlow()` | Executes the flow; agent steps internally pre-create directories for output paths under write-permitted roots (`run_dir` or `permissions.writeRoots`) |
-| `src/cli/backend.ts` | `resolveModelForTier()` | Returns the medium-tier model for quick-update (`resolveModelForTier(backend, "medium", ...)`) |
+| `src/cli/backend.ts` | `resolveModel()` | Returns the medium-key model for quick-update (`resolveModel(backend, "medium", ...)`) |
 | `src/cli.ts` | `runCli()` | Entry point; dispatches `quick-update` subcommand with `useQuickModel: true` |
 
 ## Integration Points
@@ -95,7 +95,7 @@ Step sequence:
 
 ## Extension Guide
 
-- **Adjust the quick model**: set `backends.<backend>.modelMedium` in `.saaga/config.yaml` or pass `--model-medium` flag
+- **Adjust the quick model**: set `backends.<backend>.models.medium` in `.saaga/config.yaml` or pass `--model medium=<model>`
 - **Change the agent instructions**: edit `prompts/quick-update.md`
 - **Add post-update steps**: add steps to `flows/quick-update.flow.yaml` after `generate-baseline`
 - **Customize metadata layout**: the `summary_path` variable in the flow YAML controls where the summary is written

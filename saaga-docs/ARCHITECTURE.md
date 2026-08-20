@@ -56,7 +56,7 @@ flowchart TD
 
 Entry point. Defines six subcommands (`init`, `install-rules`, `update`, `quick-update`, `verify-quick-updates`, `doctor`) using `commander`. Four of these (`init`, `update`, `quick-update`, `verify-quick-updates`) resolve the agent, run a preflight check, create a run context, construct a permission profile, load the corresponding flow, and call the engine. The `install-rules` subcommand is standalone: it runs the rule installer directly without an agent backend. The `doctor` subcommand checks backend CLI availability and runs diagnostic probes without a flow.
 
-Global flags include `--backend`, `--model-low` / `--model-medium` / `--model-high`, `--ci`, `--verbose`, `--yes` (`-y`), `--allow-dir <path>` (repeatable), `--unstable-feature <name>` (repeatable), `--dangerously-allow-all`, and `--audit-permissions`. The `--verbose` flag enables detailed step output and live agent output on the terminal. The `--yes` flag skips the cost confirmation prompt for agent-backed commands. `--allow-dir` grants additional read/write access to a directory and can be repeated. `--unstable-feature` enables opt-in experimental features (unioned with `config.unstableFeatures`). `--dangerously-allow-all` disables permission restrictions entirely (reproduces legacy behavior). `--audit-permissions` scans agent output for permission denials and logs a classified summary.
+Global flags include `--backend`, `--model <key>=<model>` (repeatable), `--ci`, `--verbose`, `--yes` (`-y`), `--allow-dir <path>` (repeatable), `--unstable-feature <name>` (repeatable), `--dangerously-allow-all`, and `--audit-permissions`. The `--verbose` flag enables detailed step output and live agent output on the terminal. The `--yes` flag skips the cost confirmation prompt for agent-backed commands. `--allow-dir` grants additional read/write access to a directory and can be repeated. `--unstable-feature` enables opt-in experimental features (unioned with `config.unstableFeatures`). `--dangerously-allow-all` disables permission restrictions entirely (reproduces legacy behavior). `--audit-permissions` scans agent output for permission denials and logs a classified summary.
 
 Each subcommand bootstraps unstable features via `bootstrapUnstableFeatures()` before other work: it validates the directory, loads config, validates CLI feature names, initializes the process-wide registry, and warns on stderr when any features are enabled. Unknown CLI feature names throw `UnstableFeatureError` (exit code 1).
 
@@ -87,25 +87,27 @@ Error handling catches `AgentStepFailedError` (returns exit code), `Confirmation
 
 Loads and validates project-level configuration from `.saaga/config.yaml`. Returns an empty config object when the file does not exist, enabling zero-config usage. Throws `ConfigError` on malformed YAML or invalid field types.
 
-**Exports**: `loadConfig(projectDir): Promise<SaagaConfig>`, `SaagaConfig` interface, `ConfigError` class, `CONFIG_DIR` (constant: `".saaga"`), `CONFIG_FILE` (constant: `"config.yaml"`), `DEFAULT_DOCS_DIR` (constant: `"saaga-docs"`)
+**Exports**: `loadConfig(projectDir): Promise<SaagaConfig>`, `SaagaConfig` interface, `BackendConfig` interface, `ConfigError` class, `CONFIG_DIR` (constant: `".saaga"`), `CONFIG_FILE` (constant: `"config.yaml"`), `DEFAULT_DOCS_DIR` (constant: `"saaga-docs"`)
 
-**`SaagaConfig` fields**: `defaultBackend?: string`, `backends?: Partial<Record<Backend, BackendModels>>`, `ruleTargets?: string`, `docsDir?: string`, `autoApprove?: boolean`, `unstableFeatures?: string[]`
+**`SaagaConfig` fields**: `defaultBackend?: string`, `backends?: Partial<Record<Backend, BackendConfig>>`, `ruleTargets?: string`, `docsDir?: string`, `autoApprove?: boolean`, `unstableFeatures?: string[]`
 
-**Dependencies**: `yaml` (npm package), `unstable-features`
+**`BackendConfig` fields**: `models?: Record<string, string>` — open map of model key → model name
+
+**Dependencies**: `yaml` (npm package), `unstable-features`, `cli/backend` (`isValidModelKey`)
 
 ### Backend (`src/cli/backend.ts`)
 
 Resolves which agent backend to use and constructs the concrete `Agent` instance.
 
-**Exports**: `resolveBackend(input): Backend`, `resolveModelForTier(backend, tier, configModels?): string`, `backendCliCommand(backend): string`, `createAgent(opts): Agent`, `Backend` type, `ModelTier` type, `BackendError`, `ResolveBackendInput`, `CreateAgentOptions`
+**Exports**: `resolveBackend(input): Backend`, `parseModelOverrides(entries): Record<string, string>`, `mergeModelOverrides(configModels?, cliOverrides?): Record<string, string>`, `resolveModel(backend, key, models?): string`, `backendCliCommand(backend): string`, `createAgent(opts): Agent`, `isValidModelKey(key): boolean`, `Backend` type, `ModelKey` type, `BuiltinModelKey` type, `BUILTIN_MODEL_KEYS`, `MODEL_KEY_PATTERN`, `BackendError`, `ResolveBackendInput`, `CreateAgentOptions`
 
-`resolveModelForTier()` returns the model string for a quality tier (`low` / `medium` / `high`), consulting optional per-backend config overrides before falling back to `DEFAULT_BACKEND_MODELS`.
+`resolveModel()` returns the model string for a model key, consulting an optional models map before falling back to `DEFAULT_BACKEND_MODELS` for built-in keys `low` / `medium` / `high`. Unknown keys with no configured value throw `BackendError`.
 
 `backendCliCommand()` returns the CLI binary name that Saaga executes for a given backend (e.g. `"cursor-agent"` for cursor, `"copilot"` for copilot, `"claude"` for claude). Used by the CLI to populate the cost notice.
 
-> **Internal constants:** `BACKEND_CLI_COMMANDS` — a `Record<Backend, string>` mapping each backend to its CLI command name. `DEFAULT_BACKEND_MODELS` — per-backend `modelLow` / `modelMedium` / `modelHigh` built-in defaults.
+> **Internal constants:** `BACKEND_CLI_COMMANDS` — a `Record<Backend, string>` mapping each backend to its CLI command name. `DEFAULT_BACKEND_MODELS` — per-backend built-in defaults keyed by `low` / `medium` / `high`.
 
-**Resolution precedence**: `--backend` flag → `.saaga/config.yaml` `defaultBackend` field → error.
+**Resolution precedence**: `--backend` flag → `.saaga/config.yaml` `defaultBackend` field → error. Model keys: `--model <key>=<model>` → `backends.<backend>.models.<key>` → built-in default (`low`/`medium`/`high` only) → error.
 
 `ResolveBackendInput` carries `flag?: string` (from CLI `--backend`) and `config?: string` (from `.saaga/config.yaml` `defaultBackend` field).
 
@@ -243,7 +245,7 @@ Orchestrates the doctor workflow: checks backend availability, runs fast-tier or
 
 **Exports**: `runDoctor(opts): Promise<DoctorResult>`, `formatDoctorResult(result, opts?): string`, `DoctorOptions` (interface), `DoctorResult` (interface), `DoctorBackendResult` (interface)
 
-`DoctorOptions` fields: `backend: Backend | "all"`, `level: ProbeLevel`, `json?: boolean`, `probe?: string[]`, `model?: string`, `backendModels?: Partial<Record<Backend, BackendModels>>`, `ci?: boolean`, `cwd?: string`.
+`DoctorOptions` fields: `backend: Backend | "all"`, `level: ProbeLevel`, `json?: boolean`, `probe?: string[]`, `modelOverrides?: Record<string, string>`, `backendModels?: Partial<Record<Backend, BackendConfig>>`, `ci?: boolean`, `cwd?: string`.
 
 `DoctorResult` fields: `schemaVersion: 1`, `backends: DoctorBackendResult[]`, `exitCode: number`, `logDir?: string`. Exit codes: 0 = all passed, 1 = at least one failed, 2 = could not run (binary missing).
 

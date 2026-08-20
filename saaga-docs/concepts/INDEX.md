@@ -8,7 +8,7 @@
 | [Flow DSL](./flow-dsl.md) | The type system: `FlowDefinition`, `Step` discriminated union, and `Scope` |
 | [Scope and Expressions](./scope-and-expressions.md) | The `${var}` interpolation system, path resolution, predicate evaluation, and `resolveValue()` |
 | [Project Configuration](./project-configuration.md) | The `.saaga/config.yaml` file: fields, loading, validation, and resolution chains |
-| [Backend Resolution](./backend-resolution.md) | The precedence chain for selecting a backend and model defaults |
+| [Backend Resolution](./backend-resolution.md) | The precedence chain for selecting a backend and resolving models via open model keys |
 | [Cost Confirmation](./cost-confirmation.md) | The interactive cost disclaimer shown before agent-backed commands: notice builder, auto-approve, and `ConfirmationDeclinedError` |
 | [Run Context and Isolation](./run-context.md) | Run ID format, `<appPath>/.saaga-runs/` directory layout, and run context creation for artifact isolation |
 | [Script Registry](./script-registry.md) | The `ScriptRegistry` map, `ScriptHandler` signature, `ScriptContext`, and how built-in scripts are registered and invoked |
