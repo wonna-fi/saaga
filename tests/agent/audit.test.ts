@@ -133,6 +133,83 @@ describe("PermissionAuditor", () => {
     expect(log).not.toContain("IMPORTANT:");
   });
 
+  test("keeps distinct shell commands apart, since neither reports a path", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "audit-"));
+    const logPath = join(dir, "permission-audit.log");
+    const auditor = new PermissionAuditor(perms, APP, logPath);
+
+    auditor.record(
+      denial({
+        tool: "Bash",
+        command: "git show ce1e4d6 --stat",
+        message: "Permission to use Bash with command git show ce1e4d6 --stat has been denied.",
+      }),
+    );
+    auditor.record(
+      denial({
+        tool: "Bash",
+        command: "mkdir -p /app/out && ls /app/out",
+        message:
+          "Permission to use Bash has been denied because Claude Code is running in don't ask mode.",
+      }),
+    );
+
+    const result = await auditor.flush();
+    expect(result.counts.shell).toBe(2);
+
+    const log = await readFile(logPath, "utf8");
+    expect(log).toContain("## shell (2)");
+    expect(log).toContain("Bash  git show ce1e4d6 --stat");
+    expect(log).toContain("Bash  mkdir -p /app/out && ls /app/out");
+    // Both messages survive, which is the point: folding them hid the second.
+    expect(log).toContain("running in don't ask mode.");
+    expect(log).not.toContain("(x2)");
+    expect(log).not.toContain("(no path reported)");
+  });
+
+  test("still folds repeats of the identical command", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "audit-"));
+    const logPath = join(dir, "permission-audit.log");
+    const auditor = new PermissionAuditor(perms, APP, logPath);
+
+    for (let i = 0; i < 3; i++) {
+      auditor.record(denial({ tool: "Bash", command: "rm -rf /app/dist" }));
+    }
+
+    await auditor.flush();
+    const log = await readFile(logPath, "utf8");
+    expect(log).toContain("Bash  rm -rf /app/dist  (x3)");
+    expect(log.split("rm -rf /app/dist").length - 1).toBe(1);
+  });
+
+  test("flattens a multiline command and says when none was reported", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "audit-"));
+    const logPath = join(dir, "permission-audit.log");
+    const auditor = new PermissionAuditor(perms, APP, logPath);
+
+    auditor.record(denial({ tool: "Bash", command: "mkdir -p /app/out &&\n  ls /app/out" }));
+    auditor.record(denial({ tool: "bash" }));
+
+    await auditor.flush();
+    const log = await readFile(logPath, "utf8");
+    expect(log).toContain("  Bash  mkdir -p /app/out && ls /app/out");
+    expect(log).toContain("bash  (no command reported)");
+  });
+
+  test("truncates a command too long for one entry line", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "audit-"));
+    const logPath = join(dir, "permission-audit.log");
+    const auditor = new PermissionAuditor(perms, APP, logPath);
+
+    const long = `echo ${"x".repeat(300)}`;
+    auditor.record(denial({ tool: "Bash", command: long }));
+
+    await auditor.flush();
+    const log = await readFile(logPath, "utf8");
+    expect(log).toContain(`  Bash  ${long.slice(0, 200)}…`);
+    expect(log).not.toContain(long);
+  });
+
   test("writes a summary even when nothing was denied", async () => {
     const dir = mkdtempSync(join(tmpdir(), "audit-"));
     const logPath = join(dir, "permission-audit.log");

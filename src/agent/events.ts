@@ -16,6 +16,8 @@ export interface DenialEvent {
   tool: string;
   /** Absolute path the call targeted, where the backend reveals it. */
   path?: string;
+  /** Command the call would have run, where the backend reveals it. */
+  command?: string;
   /** Message emitted by the CLI, not by the model. */
   message: string;
 }

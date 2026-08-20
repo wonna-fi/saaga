@@ -79,6 +79,7 @@ describe("cursor event parser", () => {
         kind: "denial",
         tool: "shell",
         path: undefined,
+        command: "mkdir -p /run/plans",
         message: "mkdir -p /run/plans",
       },
     ]);
@@ -210,6 +211,35 @@ describe("copilot event parser", () => {
     ]);
   });
 
+  test("keeps the command of a denied shell request", () => {
+    const shellRequest = JSON.stringify({
+      type: "assistant.message",
+      data: {
+        toolRequests: [
+          { toolCallId: "call-2", name: "bash", arguments: { command: "ls /etc" } },
+        ],
+      },
+    });
+    const shellDenial = JSON.stringify({
+      type: "tool.execution_complete",
+      data: {
+        toolCallId: "call-2",
+        success: false,
+        error: { message: "Permission denied", code: "denied" },
+      },
+    });
+    const events = drain(createCopilotEventParser(), [shellRequest, shellDenial]);
+    expect(events).toEqual([
+      {
+        kind: "denial",
+        tool: "bash",
+        path: undefined,
+        command: "ls /etc",
+        message: "Permission denied",
+      },
+    ]);
+  });
+
   test("ignores tool failures that are not permission denials", () => {
     const failure = JSON.stringify({
       type: "tool.execution_complete",
@@ -284,6 +314,46 @@ describe("claude event parser", () => {
         tool: "Write",
         path: "/app/AGENTS.md",
         message: "File is in a directory that is denied by your permission settings.",
+      },
+    ]);
+  });
+
+  test("keeps the bash command, since the refusal reports no path", () => {
+    const bashUseLine = JSON.stringify({
+      type: "assistant",
+      message: {
+        content: [
+          {
+            type: "tool_use",
+            id: "toolu_2",
+            name: "Bash",
+            input: { command: "git show ce1e4d6 --stat", description: "show the commit" },
+          },
+        ],
+      },
+    });
+    const bashResultLine = JSON.stringify({
+      type: "user",
+      message: {
+        content: [
+          {
+            type: "tool_result",
+            tool_use_id: "toolu_2",
+            is_error: true,
+            content:
+              "<tool_use_error>Permission to use Bash with command git show ce1e4d6 --stat has been denied.</tool_use_error>",
+          },
+        ],
+      },
+    });
+    const events = drain(createClaudeEventParser(), [bashUseLine, bashResultLine]);
+    expect(events).toEqual([
+      {
+        kind: "denial",
+        tool: "Bash",
+        path: undefined,
+        command: "git show ce1e4d6 --stat",
+        message: "Permission to use Bash with command git show ce1e4d6 --stat has been denied.",
       },
     ]);
   });

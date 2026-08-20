@@ -76,7 +76,7 @@ export class CopilotAgent implements Agent {
  * two have to be correlated by call id.
  */
 export function createCopilotEventParser(): EventParser {
-  const pending = new Map<string, { tool: string; path?: string }>();
+  const pending = new Map<string, { tool: string; path?: string; command?: string }>();
 
   return {
     push(line: string): AgentEvent[] {
@@ -91,6 +91,7 @@ export function createCopilotEventParser(): EventParser {
           pending.set(req.toolCallId, {
             tool: typeof req.name === "string" ? req.name : "unknown",
             path: typeof args.path === "string" ? args.path : undefined,
+            command: typeof args.command === "string" ? args.command : undefined,
           });
         }
       }
@@ -105,6 +106,7 @@ export function createCopilotEventParser(): EventParser {
             kind: "denial",
             tool: origin?.tool ?? "unknown",
             path: origin?.path,
+            command: origin?.command,
             message: error.message ?? "denied",
           },
         ];
