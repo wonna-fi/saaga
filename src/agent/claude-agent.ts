@@ -69,11 +69,11 @@ const CLAUDE_DENIAL_PATTERNS = [
  * Parse claude's `stream-json` output.
  *
  * A refusal arrives as a `tool_result` carrying only the originating call's
- * id, so the targeted path has to be recovered from the `tool_use` seen
- * earlier in the stream.
+ * id, so the targeted path or command has to be recovered from the `tool_use`
+ * seen earlier in the stream.
  */
 export function createClaudeEventParser(): EventParser {
-  const pending = new Map<string, { tool: string; path?: string }>();
+  const pending = new Map<string, { tool: string; path?: string; command?: string }>();
 
   return {
     push(line: string): AgentEvent[] {
@@ -94,6 +94,7 @@ export function createClaudeEventParser(): EventParser {
           pending.set(block.id, {
             tool: typeof block.name === "string" ? block.name : "unknown",
             path: typeof path === "string" ? path : undefined,
+            command: typeof input.command === "string" ? input.command : undefined,
           });
         }
         if (block.type === "tool_result" && block.is_error === true) {
@@ -105,6 +106,7 @@ export function createClaudeEventParser(): EventParser {
             kind: "denial",
             tool: origin?.tool ?? "unknown",
             path: origin?.path,
+            command: origin?.command,
             message: text.replace(/<\/?tool_use_error>/g, "").trim(),
           });
         }

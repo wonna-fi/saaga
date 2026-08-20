@@ -98,6 +98,7 @@ export function createCursorEventParser(): EventParser {
             kind: "denial",
             tool,
             path: (r.path as string) || (args.path as string) || undefined,
+            command: (r.command as string) || (args.command as string) || undefined,
             message: (r.reason as string) || (r.command as string) || "rejected",
           });
         }

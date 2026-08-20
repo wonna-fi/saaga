@@ -125,12 +125,13 @@ export class PermissionAuditor {
       const group = this.entries.filter((e) => e.className === className);
       if (group.length === 0) continue;
       lines.push("", `## ${className} (${group.length})`, CLASS_NOTES[className]);
-      for (const [, occurrences] of groupByTarget(group)) {
+      const targets = [...groupByTarget(group).values()];
+      for (const [index, occurrences] of targets.entries()) {
         const first = occurrences[0];
-        const target = first.resolvedPath ?? "(no path reported)";
         const repeat = occurrences.length > 1 ? `  (x${occurrences.length})` : "";
+        if (index > 0) lines.push("");
         lines.push(
-          `  ${first.event.tool}  ${target}${repeat}`,
+          `  ${first.event.tool}  ${describeTarget(first)}${repeat}`,
           `    ${summarize(first.event.message)}`,
         );
       }
@@ -149,15 +150,37 @@ export class PermissionAuditor {
 }
 
 /**
+ * What an entry is filed under: the command for a refused shell call, the
+ * resolved path for everything else. Only shell tools report a command, so one
+ * expression covers both.
+ */
+function targetOf(entry: ClassifiedDenial): string | undefined {
+  return entry.event.command ?? entry.resolvedPath;
+}
+
+/** The target as it is written into the log, saying which half is missing. */
+function describeTarget(entry: ClassifiedDenial): string {
+  const target = targetOf(entry);
+  if (entry.className === "shell") {
+    return target ? flattenCommand(target) : "(no command reported)";
+  }
+  return target ?? "(no path reported)";
+}
+
+/**
  * Fold repeats of the same tool and target into one entry.
  *
  * An agent that keeps retrying the same refused write would otherwise repeat
- * an identical block often enough to bury everything else.
+ * an identical block often enough to bury everything else. Shell calls report
+ * no path, so they fold by command instead: two different refused commands are
+ * two different findings, not one retried twice. The key uses the raw command
+ * rather than the shortened form, so two long commands that happen to share a
+ * prefix stay apart.
  */
 function groupByTarget(entries: ClassifiedDenial[]): Map<string, ClassifiedDenial[]> {
   const groups = new Map<string, ClassifiedDenial[]>();
   for (const entry of entries) {
-    const key = `${entry.event.tool}\u0000${entry.resolvedPath ?? ""}`;
+    const key = `${entry.event.tool}\u0000${targetOf(entry) ?? ""}`;
     const existing = groups.get(key);
     if (existing) existing.push(entry);
     else groups.set(key, [entry]);
@@ -182,6 +205,19 @@ function summarize(message: string): string {
   return firstLine.length > MAX_MESSAGE
     ? firstLine.slice(0, MAX_MESSAGE) + "…"
     : firstLine;
+}
+
+const MAX_COMMAND = 200;
+
+/**
+ * Fit a command onto the single line an entry gets.
+ *
+ * Commands reach us with heredocs and line continuations intact, and a raw
+ * newline here would read as the start of a separate entry.
+ */
+function flattenCommand(command: string): string {
+  const flat = command.replace(/\s+/g, " ").trim();
+  return flat.length > MAX_COMMAND ? flat.slice(0, MAX_COMMAND) + "…" : flat;
 }
 
 function emptyCounts(): Record<DenialClass, number> {
