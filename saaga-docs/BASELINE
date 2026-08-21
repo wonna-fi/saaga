@@ -1,4 +1,4 @@
-# Generated: 2026-08-20T01:06:39.053Z
+# Generated: 2026-08-21T01:08:42.385Z
 dc5db626c0687243063280d4a5282a5260abf4f3 .github/scripts/publish-saaga-changes.sh
 d7e08a188b70e03d7663a8cc06b48d27a812ca95 .github/workflows/ci.yml
 de4bc82ba2995f5752fe1c2f2420dfa8ae9d63ea .github/workflows/doctor-fast.yml
@@ -28,11 +28,11 @@ ab2d73ce1b10e61dd56fb25b77eb63b4f79f4242 prompts/quick-update.md
 933a970c1e5afd4a60dbea6696046e9c7400dc3a rules/copilot-rule.md
 25bc8dab42c0e0266024a1e4bbb6bdee0238be44 rules/cursor-rule.mdc
 9285368586c3850b7e78367ba667762f63ab44f7 rules/rule-stub.md
-bfd78047749346152652b8d7638391220daaff6d src/agent/audit.ts
-e9939a777fece3422a71bb35f55dd08cbaa5c982 src/agent/claude-agent.ts
-f3afa75edee71068869383d2b2a9b934bec598ec src/agent/copilot-agent.ts
-7a3cf79a1e9f67218b5887ef01d3b1fe470ee63a src/agent/cursor-agent.ts
-b3afa9ecc2c35472879a1f3688f58e8bfbd3ddd8 src/agent/events.ts
+b17c604ee7d1def85f0e18f51654853054266d71 src/agent/audit.ts
+151fa7364cd0295a91bc6143db446f5e593bd0aa src/agent/claude-agent.ts
+b8cfbc54a6cca8fa830e2d256e6021faf7b6a8f4 src/agent/copilot-agent.ts
+db48ac297bf405a34819e38bc1942cbf0ec3cec5 src/agent/cursor-agent.ts
+ce20358aea4534c84f0aa24eb686969ab53d0284 src/agent/events.ts
 4b16c29e97b6d7bb409adff0c787251f1076b8af src/agent/fake-agent.ts
 547ea56fbfb345546073b06b00dbd34ec9ba6722 src/agent/permissions.ts
 8749ca269ac640cf403c917fe0178bb6dbd121ba src/agent/spawn.ts
@@ -76,11 +76,11 @@ cf768f2cba0090848d14f54853a1633b24e811ef src/scripts/install-rules.ts
 f5f98b8bf1ab2c19e0116cf306da0346fa537b77 src/scripts/remove-quick-updates.ts
 e743e1dc72219e2844646110f2e5b6f3a6c30161 src/templates.ts
 9b6d6db938b4c2079e1a3ebdebda7ed791c42e0b src/unstable-features.ts
-cc8695cdd823dc31d303d9b79b568774f230ae6e tests/agent/audit.test.ts
+0024dc0997896e51ac1fb0350133222c1ac6b354 tests/agent/audit.test.ts
 5107959473d18546bd0779b7a7b5807932b42f3b tests/agent/claude-agent.test.ts
 7cae3a2f4dd0503cd75209350b2cf05e82542202 tests/agent/copilot-agent.test.ts
 4572ec36a447ef32a9a7c2d62cb531fd4c626a5c tests/agent/cursor-agent.test.ts
-0fffdaa10e1ac3f99363f51be22b874af3bcdcc9 tests/agent/events.test.ts
+52ad0ded9da591b017df741d87c6fc6a4a080250 tests/agent/events.test.ts
 66962ce481c7a15301efbbe0de9f835220c77fc0 tests/agent/fake-agent.test.ts
 a04da270e583659819e33dd9372766ec10cb6be8 tests/agent/permissions.test.ts
 a3445925d40f86840cd93fd86e3701ab71f92da4 tests/cli/backend.test.ts

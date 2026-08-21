@@ -169,7 +169,7 @@ Normalized event types parsed from backend-specific structured output.
 
 **Exports**: `DenialEvent` (interface), `SessionEvent` (interface), `AgentEvent` (type), `AgentEventSink` (type), `EventParser` (interface), `LineSplitter` (class), `parseJsonLine(line): Record<string, unknown> | undefined`, `consumeEvents(stream, parser, sink): Promise<void>`
 
-`AgentEvent` is a discriminated union: `DenialEvent` (a tool call refused on permission grounds, carrying `tool`, optional `path`, and `message`) or `SessionEvent` (the toolset announced at session start, carrying `tools: string[]`).
+`AgentEvent` is a discriminated union: `DenialEvent` (a tool call refused on permission grounds, carrying `tool`, optional `path`, optional `command`, and `message`) or `SessionEvent` (the toolset announced at session start, carrying `tools: string[]`).
 
 `LineSplitter` reassembles whole lines from arbitrarily chunked stream data. `consumeEvents()` drives a parser over an async iterable stream, forwarding every parsed event to the sink.
 
@@ -181,7 +181,7 @@ Classifies and summarizes permission denials after a run.
 
 `DenialClass` is `"unexpected" | "out-of-workspace" | "protected-path" | "shell" | "unknown"`. `classifyDenial()` places a denial against the permission profile by comparing the resolved path to the read/write roots and deny paths.
 
-`PermissionAuditor` collects denial events via `record(event)`, classifies each one, and writes a grouped summary via `flush(): Promise<AuditResult>`. The `AuditResult` carries `logPath`, `counts` per class, and the list of `unexpected` denials (those inside a granted path, indicating a profile bug).
+`PermissionAuditor` collects denial events via `record(event)`, classifies each one, and writes a grouped summary via `flush(): Promise<AuditResult>`. Within each class, repeats fold by tool plus target: shell denials key on `event.command` (so distinct pathless shell refusals stay separate), and other denials key on the resolved path. The `AuditResult` carries `logPath`, `counts` per class, and the list of `unexpected` denials (those inside a granted path, indicating a profile bug).
 
 #### Spawn (`src/agent/spawn.ts`)
 

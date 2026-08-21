@@ -27,6 +27,7 @@ Agent events are structured messages parsed from a backend CLI's output stream d
 | `DenialEvent` | `kind` | Always `"denial"` — discriminant |
 | `DenialEvent` | `tool` | Name of the tool that was refused, in the backend's own naming |
 | `DenialEvent` | `path` | Absolute path the call targeted (optional; not all backends report it) |
+| `DenialEvent` | `command` | Command the call would have run (optional; shell tools report this when the backend reveals it) |
 | `DenialEvent` | `message` | Message emitted by the CLI (not by the model) |
 | `SessionEvent` | `kind` | Always `"session"` — discriminant |
 | `SessionEvent` | `tools` | The toolset the backend announced at session start |
@@ -100,22 +101,22 @@ The event system forms a pipeline:
 
 Parses `stream-json` output where refusals appear as `tool_call` completions with:
 - `result.writePermissionDenied` — carries `{ path, error }`
-- `result.rejected` — carries `{ command?, path?, reason, isReadonly? }`
+- `result.rejected` — carries `{ command?, path?, reason, isReadonly? }`; `command` is taken from the rejection or the tool-call args
 - `result.error.errorMessage` containing "permission denied" — read-tool failures
 
 ### Copilot (`createCopilotEventParser`)
 
 Parses JSONL output where:
-- `assistant.message` events carry `toolRequests` with call IDs and arguments
+- `assistant.message` events carry `toolRequests` with call IDs and arguments (including optional `path` and `command`)
 - `tool.execution_complete` events carry `error.code: "denied"` correlated by call ID
 
-The parser maintains a pending map of call IDs to recover the tool name and path from the original request.
+The parser maintains a pending map of call IDs to recover the tool name, path, and command from the original request.
 
 ### Claude (`createClaudeEventParser`)
 
 Parses `stream-json` output where:
 - `system` init events carry the announced `tools` array (emitted as `SessionEvent`)
-- `tool_use` blocks carry the call ID, tool name, and input path
+- `tool_use` blocks carry the call ID, tool name, and input (`path` / `file_path` / `notebook_path`, and optional `command` for Bash)
 - `tool_result` blocks with `is_error: true` are matched against denial patterns
 
 The parser maintains a pending map of call IDs and matches refusal messages against `CLAUDE_DENIAL_PATTERNS`.
@@ -127,13 +128,16 @@ The parser maintains a pending map of call IDs and matches refusal messages agai
 3. **Querying** — `unexpected` getter returns denials classified as `"unexpected"` (profile bugs)
 4. **Flushing** — `flush()` writes the grouped audit log and returns `AuditResult`
 
-The audit log groups entries by class, deduplicates repeated tool+target combinations (showing `(xN)` counts), and summarizes totals. Messages are truncated to 200 characters to avoid verbose Claude-style guidance text.
+The audit log groups entries by class, then folds repeats of the same tool and target (showing `(xN)` counts). The target is the refused command for shell denials (`event.command`) and the resolved path for everything else — so two different pathless shell refusals stay as separate findings instead of collapsing into one. Commands are flattened onto a single line (whitespace collapsed) and truncated to 200 characters; a shell denial with no command is labeled `(no command reported)`. Non-shell denials without a path still show `(no path reported)`. Messages are truncated to 200 characters to avoid verbose Claude-style guidance text.
 
 ## Internal Implementation
 
 > Functions below are internal and should not be called directly. They are documented for understanding the internal logic.
 >
-> - `src/agent/audit.ts`.`groupByTarget()` — folds repeated denials of the same tool and path into single entries with counts
+> - `src/agent/audit.ts`.`targetOf()` — returns `event.command` when present, otherwise `resolvedPath` (shell tools are the ones that populate `command`)
+> - `src/agent/audit.ts`.`describeTarget()` — formats the target for the log line, including `(no command reported)` / `(no path reported)` placeholders
+> - `src/agent/audit.ts`.`groupByTarget()` — folds repeated denials of the same tool and target (command or path) into single entries with counts
+> - `src/agent/audit.ts`.`flattenCommand()` — collapses whitespace and truncates a command to 200 characters for one log line
 > - `src/agent/audit.ts`.`summarize()` — truncates a CLI message to its first sentence (max 200 chars)
 > - `src/agent/audit.ts`.`emptyCounts()` — creates a zeroed `Record<DenialClass, number>`
 > - `src/agent/cursor-agent.ts`.`extractDeniedPath()` — regex extraction of path from "Write permission denied: /path: ..." messages
