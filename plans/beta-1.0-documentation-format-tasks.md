@@ -105,14 +105,20 @@ token-burning rewrite. A version gate turns that into a clear error instead.
   frontmatter; `prompts/verify-domain-documentation.md` instructs updating `last_verified` on PASS;
   `prompts/quick-update.md` instructs preserving it.
 - **Corpus layout version.** A small metadata file inside `saaga-docs/` (it must travel with the
-  corpus, so not `.saaga/config.yaml`) carrying `layout_version: 1`, written by init/update. A
-  missing file means version 0 (pre-beta) — every existing corpus is identifiable retroactively.
-  Corpus-level, not per-doc: migrations act on the whole tree, and per-doc stamps invite
-  mixed-version states.
-- **Version gate.** A built-in script, run as the first step of every flow, compares the corpus
-  `layout_version` against the version this Saaga writes; on mismatch it fails fast with a message
-  naming the upgrade path. Explicitly a gate, not a migration framework — one known transition
-  exists; numbered up/down migration machinery is premature.
+  corpus, so not `.saaga/config.yaml`) carrying `layout_version: 1`, written by init/update. In an
+  existing corpus, a missing file means version 0 (pre-beta) — every existing corpus is
+  identifiable retroactively. An absent or empty docs directory is not a corpus at all
+  (greenfield), never version 0. Corpus-level, not per-doc: migrations act on the whole tree, and
+  per-doc stamps invite mixed-version states.
+- **Version gate.** A built-in script, run as the first step of every flow, resolving three
+  states: (1) *no corpus* — docs directory absent or empty — passes; `init` proceeds and stamps
+  `layout_version` on the tree it creates. (2) *Corpus present at a mismatched version* (a missing
+  file in an existing corpus reads as version 0) — the update-family flows (`update`,
+  `quick-update`, `verify-quick-updates`) fail fast with a message naming the upgrade path.
+  (3) *`init` over an existing corpus* (any version) — fails with a message instructing to delete
+  the old corpus first (or, once it exists, run `saaga migrate`), making re-init an explicit
+  two-step rather than a silent overwrite. Explicitly a gate, not a migration framework — one
+  known transition exists; numbered up/down migration machinery is premature.
 - Distinct axes, kept distinct: `layout_version` says which format the corpus follows;
   `last_verified` says how fresh a document's content is.
 
@@ -125,8 +131,10 @@ token-burning rewrite. A version gate turns that into a clear error instead.
 - [ ] The rendered `slice-doc` prompt contains the frontmatter instruction (fixture test).
 - [ ] A sample regenerated doc carries valid frontmatter with plausible `sources`.
 - [ ] Docs without frontmatter still pass through all flows unchanged.
-- [ ] Version-gate unit tests: matching version passes; missing file reads as version 0 and fails
-      against a version-1 Saaga with the upgrade-path message; all flows contain the gate step.
+- [ ] Version-gate unit tests, one per state: greenfield (absent or empty docs dir) passes and
+      `init` stamps the version; an existing corpus without the file reads as version 0 and fails
+      the update-family flows with the upgrade-path message; `init` over an existing corpus fails
+      with the delete-first message; matching version passes; all flows contain the gate step.
 
 ---
 
@@ -399,7 +407,8 @@ with honest division of labor: structural steps run deterministically in code (f
 skeletons, category moves, regenerating README/GLOSSARY/INDEXes — machinery tasks 2 and 3 already
 build), while semantic upgrades (LOD trims, dedup merges, budget enforcement) are delegated to the
 agent flows that own them (docs-gc or re-init). The `layout_version` gate from task 1 tells each
-corpus which mix it needs; until migrate exists, the gate's error message recommends re-init.
+corpus which mix it needs; until migrate exists, the gate's error message recommends re-init —
+delete the old corpus, then run `saaga init`, which the gate's greenfield state permits.
 
 ## Explicitly not included
 
@@ -474,6 +483,14 @@ beta dist-tag → re-enable.
 Tasks 0–6 make the current docs progressively wrong about the pipeline; nobody hand-fixes them
 (per CLAUDE.md) and the regeneration wipes the drift. Skip `verify-quick-updates` runs in the last
 stretch before the milestone — that is tokens spent hardening docs scheduled for deletion.
+
+### Amendment: version-gate states (from PR #42 review)
+
+Task 1's gate originally read a missing `layout_version` file as version 0 unconditionally, which
+would have blocked greenfield `init` — and with it the gate's own recommended re-init upgrade
+path. The task now distinguishes three states: no corpus passes (greenfield init), a mismatched
+existing corpus fails the update-family flows with the upgrade-path message, and `init` over an
+existing corpus fails with a delete-first message so re-init stays an explicit two-step.
 
 ### After task 0 lands: review the generated plan
 
