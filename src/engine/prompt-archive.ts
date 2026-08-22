@@ -1,6 +1,13 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
+export interface PromptContext {
+  /** The slice/phase this render belongs to, when the step names one. */
+  phase?: string;
+  /** The verify/fix loop iteration, when the step runs inside a loop. */
+  iteration?: string;
+}
+
 /**
  * Copies every rendered agent prompt into the run directory.
  *
@@ -9,13 +16,6 @@ import { resolve } from "node:path";
  * the prompts, the plan alone no longer reconstructs a run — so the prompts
  * are archived alongside it.
  */
-export interface PromptContext {
-  /** The slice/phase this render belongs to, when the step names one. */
-  phase?: string;
-  /** The verify/fix loop iteration, when the step runs inside a loop. */
-  iteration?: string;
-}
-
 export interface PromptArchive {
   /**
    * Writes one rendered prompt to `<runDir>/prompts/`.
