@@ -28,6 +28,22 @@ pnpm test           # vitest run
 pnpm test:watch     # vitest watch
 ```
 
+## Evaluation harness
+
+`eval/` holds a paired eval harness measuring whether the `saaga-docs/`
+corpus helps a coding agent on this repo. Its smoke tests run inside
+`pnpm test` with the fake agent and cost nothing. Real runs invoke an agent
+CLI and spend tokens:
+
+```bash
+pnpm eval --dry-run                                  # print the run matrix
+pnpm eval                                            # no-docs vs saaga-docs, 2 reps
+pnpm eval:report --run eval/results/run-<timestamp>  # write eval/reports/<name>.md
+```
+
+Raw results are gitignored under `eval/results/`; reports are committed
+under `eval/reports/`. Method and caveats: [eval/README.md](./eval/README.md).
+
 ## Repository layout
 
 | Directory | Contents |
@@ -38,6 +54,7 @@ pnpm test:watch     # vitest watch
 | `rules/` | Rule stub templates installed by `install-rules` |
 | `saaga-docs/` | Domain documentation (concepts, features, patterns) |
 | `examples/` | Dockerfile, agent install scripts |
+| `eval/` | Paired documentation-value eval harness (not shipped) |
 | `.devcontainer/` | Dev container configuration |
 
 ## Domain documentation
