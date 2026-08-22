@@ -256,8 +256,13 @@ async function runAgentStep(
     renderedVars[key] = interpolate(raw, scope);
   }
 
+  // `includeRoots` is the shared-partial search path. It is a list so that a
+  // project's own prompt directory can be prepended ahead of the package's
+  // when custom prompts land, without changing the resolver.
   const prompt = appendSaagaRules(
-    await renderPromptFile(promptPath, renderedVars),
+    await renderPromptFile(promptPath, renderedVars, {
+      includeRoots: [PROMPTS_DIR],
+    }),
     deps.saagaRules,
   );
 
