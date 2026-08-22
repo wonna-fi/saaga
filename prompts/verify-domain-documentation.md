@@ -87,7 +87,7 @@ For each error found, record:
 | **Claim** | The specific incorrect claim, or for a Coverage Gap the doc-worthy change that is missing from the documentation |
 | **Evidence** | What the source code actually shows (for a Coverage Gap, the change-report entry plus the source surface that warrants documentation) |
 | **Severity** | **Critical** (wrong API, non-existent method, or an entirely undocumented new public surface/feature), **Major** (incorrect behavior, or a documented surface whose change was not reflected), or **Minor** (formatting, incomplete list) |
-| **Preventable** | Whether the plan's verification protocol should have caught this, and if not, what improvement would help |
+| **Preventable** | Whether the verification protocol below should have caught this, and if not, what improvement would help |
 
 ## Step 5: Write Verification Report
 
@@ -96,7 +96,7 @@ Write the full verification report to `{review_path}`. The report must contain:
 1. **Documents reviewed**: Total count and list
 2. **Error count**: By severity (critical / major / minor)
 3. **Error details**: The full findings table from Step 4
-4. **Plan improvement suggestions**: If errors reveal gaps in the plan's verification requirements, quality checklists, or templates, describe specific improvements. Use the Lessons Learned entry format:
+4. **Methodology improvement suggestions**: If errors reveal gaps in the quality checklists, the documentation templates, or the verification protocol below — or in the plan's Template Adaptations — describe specific improvements. Note whether the gap belongs to the shared methodology (`prompts/partials/`) or to this run's plan. Use this entry format:
    - **Problem**: What went wrong
    - **Root Cause**: Why it happened
    - **Corrective Actions**: What should be fixed in the documents

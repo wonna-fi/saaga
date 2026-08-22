@@ -103,69 +103,32 @@ A table of all quick-update artifacts being processed:
 
 #### 2. Approach
 
-Include this mermaid diagram showing the vertical slice structure:
+State how this run groups the work into phases and why. Documentation is produced
+in vertical slices — concepts first, then the patterns that use them, then the
+features built on both. Slices are flexible: not all three doc types are required
+for every phase, only what is warranted.
 
-```
-flowchart LR
-    subgraph slice [Vertical Slice]
-        C[Concepts] --> P[Patterns]
-        P --> F[Features]
-    end
+#### 3. Template Adaptations
 
-    C -.-> |references| Code[(Source Code)]
-    P -.-> |examples from| Code
-    F -.-> |links to| C
-    F -.-> |links to| P
-```
+The document templates, decision guidance, quality checklists and verification
+protocol are delivered to the writer and the verifier by their own prompts. Do
+NOT reproduce them here.
 
-Add a note that slices are flexible — not all three doc types (concept, pattern, feature) are required for every phase. Only verify/re-document what is warranted.
+Record only the **deltas** this repository needs — for example "rename User Flow
+to Execution Flow for engine features", or "treat a symbol as public only if it
+is re-exported from `src/index.ts`". Include:
 
-#### 3. Documentation Templates
-
-Include three templates (Concept, Pattern, Feature) adapted from the universal templates in the Reference section below. Adapt code examples, file references, and terminology to match the application's language and framework conventions.
-
-Each template MUST include an example based on an actual domain area from the application.
-
-#### 4. Decision Guidance
-
-Include verbatim from the Reference section below.
-
-#### 5. Quality Checklists
-
-Adapt the universal checklists from the Reference section, adding technology-specific verification steps from Step 5.
-
-#### 6. Handling Uncertainty
-
-Include verbatim from the Reference section below.
-
-#### 7. Verification Requirements
-
-**Golden Rule: If you cannot find evidence for a claim in the source code, do NOT document it as fact.**
-
-Include a technology-specific verification summary table:
+- **Template deltas**: any section renamed, added, or justifiably omitted for this codebase.
+- **Verification checks**: the technology-specific verification summary table for this repository, derived from Step 5.
 
 | What to Verify | How to Verify | Common Mistakes |
 |---|---|---|
+| (technology-specific rows) | | |
 
-Also include an **Internal Consistency Check** requirement and an **Uncertainty Focus Areas** section listing the specific areas flagged across all quick-update summaries that warrant extra scrutiny.
+If a template needs no adaptation, say so in one line. Never paste a template
+into the plan.
 
-#### 8. Mandatory Verification Protocol
-
-A step-by-step protocol that MUST be executed before marking any document as complete. Create a technology-adapted version with these steps:
-
-**Step 1: Key Services/Functions Verification** — For EVERY function/method listed in a "Key Services/Functions" table, search the source file and verify it is part of the public API. If not public/exported, remove it from the table and add it to an "Internal Implementation" note instead.
-
-**Step 2: Reference Implementation Verification** — For EVERY function listed in "Reference Implementations", verify it exists and check its accessibility.
-
-**Step 3: Document Review Checklist** — A final self-check confirming: every function name was searched in source, accessibility was verified for each, all public API items are correctly listed, and internal functions are properly noted.
-
-Include these final self-check questions:
-
-1. Can you point to the exact line of code for every claim?
-2. Have you actually read the source file (not just searched)?
-3. Have you verified example outputs match actual behavior?
-
-#### 9. Verification Phases (Phase 1 through Phase N)
+#### 4. Verification Phases (Phase 1 through Phase N)
 
 For each phase:
 
@@ -176,18 +139,17 @@ For each phase:
 - **Documents to verify/re-document**: List of doc files with specific aspects to verify
 - **Key files to analyze**: Source files to read for verification
 
-#### 10. Execution Strategy
+#### 5. Execution Strategy
 
 - Concepts first, then patterns, then features within each phase
 - For each document: read existing doc, read source code, re-document if needed, verify consistency
 - **Close every coverage gap**: create the missing documentation for each doc-worthy change listed under "Coverage gaps to close", following the matching template, and add it to the relevant INDEX.md
 - Pay extra attention to uncertainty areas flagged in the quick-update summaries
-- Run the Mandatory Verification Protocol on all documents before marking complete
 - Cross-link between docs; update INDEX.md files after each phase
 
 {include:partials/index-format.md}
 
-#### 11. Success Criteria
+#### 6. Success Criteria
 
 - Every quick-update artifact in the manifest is represented by exactly one phase (no artifact dropped)
 - All quick-update documentation has been verified against source code
@@ -200,6 +162,10 @@ For each phase:
 ---
 
 ## Reference: Universal Methodology
+
+The following is delivered verbatim to the documentation writer and the
+verifier by their own prompts. It is reproduced here as context for slicing
+decisions only — do NOT copy any of it into the plan.
 
 {include:partials/document-templates.md}
 

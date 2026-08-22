@@ -104,3 +104,64 @@ phases:
     ]);
   });
 });
+
+const SLIM_PLAN = `---
+app: saaga
+type: init
+phases:
+  - number: 0
+    title: "Setup Structure"
+  - number: 1
+    title: "Flow Engine"
+---
+
+# Documentation Plan
+
+## Approach
+
+Concepts first, then patterns, then features.
+
+## Template Adaptations
+
+No deltas: the universal templates apply as written.
+
+| What to Verify | How to Verify | Common Mistakes |
+|---|---|---|
+| Symbol is public | Grep for \`export\` in the module | Listing internal helpers |
+
+## Phase 0: Setup Structure
+
+- **Key files to analyze**: none
+
+## Phase 1: Flow Engine
+
+- **Concepts to document**: Flow DSL, Scope
+- **Key files to analyze**: src/engine/runner.ts
+- **Notes**: keep step sequences out of the concept docs
+
+## Execution Strategy
+
+Phases execute in order.
+
+## Success Criteria
+
+Docs pass verification.
+`;
+
+describe("parse-plan script: slim plan format", () => {
+  test("parses a decisions-only plan body (no templates or checklists)", async () => {
+    const path = await tmpPlan(SLIM_PLAN);
+    const phases = await parsePlan({ file: path }, { cwd: "/x" });
+    expect(phases).toEqual([
+      { number: 0, title: "Setup Structure" },
+      { number: 1, title: "Flow Engine" },
+    ]);
+  });
+
+  test("ignores frontmatter keys other than phases", async () => {
+    const path = await tmpPlan(SLIM_PLAN);
+    const phases = await parsePlan({ file: path }, { cwd: "/x" });
+    expect(phases).toHaveLength(2);
+    expect(Object.keys(phases[0]).sort()).toEqual(["number", "title"]);
+  });
+});

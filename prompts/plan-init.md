@@ -98,22 +98,11 @@ phases:
 
 The markdown body of the plan MUST contain the following sections:
 
-#### 1. Approach: Vertical Slices
+#### 1. Approach
 
-Include this mermaid diagram:
-
-```
-flowchart LR
-    subgraph slice [Vertical Slice]
-        C[Concepts] --> P[Patterns]
-        P --> F[Features]
-    end
-
-    C -.-> |references| Code[(Source Code)]
-    P -.-> |examples from| Code
-    F -.-> |links to| C
-    F -.-> |links to| P
-```
+State how this run slices the work: the domain areas found in Step 1c, the order
+they are documented in, and why. Documentation is produced in vertical slices —
+concepts first, then the patterns that use them, then the features built on both.
 
 #### 2. Phase 0: Setup Structure
 
@@ -124,64 +113,27 @@ Deliverables for Phase 0:
 
 Do NOT create or modify any agent rule file (`AGENTS.md`, `CLAUDE.md`, Cursor `.mdc`, or Copilot instructions) in this phase. Installing the documentation guidance into rule files is handled separately by the `install-rules` step, which is the single source of truth for that content.
 
-#### 3. Documentation Templates
+#### 3. Template Adaptations
 
-Include three templates (Concept, Pattern, Feature) adapted from the universal templates in the Reference section below. Adapt code examples, file references, and terminology to match the application's language and framework conventions.
+The document templates, decision guidance, quality checklists and verification
+protocol are delivered to the writer and the verifier by their own prompts. Do
+NOT reproduce them here.
 
-Each template MUST include an example based on an actual domain area from the application to illustrate the expected format and level of detail.
+Record only the **deltas** this repository needs — for example "rename User Flow
+to Execution Flow for engine features", or "treat a symbol as public only if it
+is re-exported from `src/index.ts`". Include:
 
-#### 4. Decision Guidance
-
-Include verbatim from the Reference section below.
-
-#### 5. Quality Checklists
-
-Adapt the universal checklists from the Reference section, adding technology-specific verification steps from Step 2.
-
-#### 6. Handling Uncertainty
-
-Include verbatim from the Reference section below.
-
-#### 7. Verification Requirements
-
-**Golden Rule: If you cannot find evidence for a claim in the source code, do NOT document it as fact.**
-
-Include a technology-specific verification summary table:
+- **Template deltas**: any section renamed, added, or justifiably omitted for this codebase.
+- **Verification checks**: the technology-specific verification summary table for this repository, derived from Step 2.
 
 | What to Verify | How to Verify | Common Mistakes |
 |---|---|---|
 | (technology-specific rows) | | |
 
-Also include an **Internal Consistency Check** requirement: after completing all documents in a slice, cross-reference behavior descriptions across concept, pattern, and feature docs. Verify claims don't contradict each other and update conflicting documents to be consistent with the actual code behavior.
+If a template needs no adaptation, say so in one line. Never paste a template
+into the plan.
 
-#### 8. Mandatory Verification Protocol
-
-A step-by-step protocol that MUST be executed before marking any document as complete. Create a technology-adapted version with these steps:
-
-**Step 1: Key Services/Functions Verification** - For EVERY function/method listed in a "Key Services/Functions" table, search the source file and verify it is part of the public API. If not public/exported, remove it from the table and add it to an "Internal Implementation" note instead.
-
-**Step 2: Reference Implementation Verification** - For EVERY function listed in "Reference Implementations", verify it exists and check its accessibility. Public functions are listed by name; internal functions are referenced by file name with a note.
-
-**Step 3: Document Review Checklist** - A final self-check confirming: every function name was searched in source, accessibility was verified for each, all public API items are correctly listed, and internal functions are properly noted.
-
-Adapt the specific verification commands to the technology (e.g., `Grep: "export.*functionName"` for TypeScript, `Grep: "public.*methodName"` for Apex/Java).
-
-Include these final self-check questions:
-
-1. Can you point to the exact line of code for every claim?
-2. Have you actually read the source file (not just searched)?
-3. Have you verified example outputs match actual behavior?
-
-#### 9. Lessons Learned
-
-Include an empty "Lessons Learned" section. It will be populated during execution as issues are discovered in reviews. Each entry format:
-
-- **Problem**: What went wrong
-- **Root Cause**: Why it happened
-- **Corrective Actions**: What was fixed
-- **Prevention**: How to avoid it in future slices
-
-#### 10. Phase 1 through Phase N: Domain Slices
+#### 4. Phase 1 through Phase N: Domain Slices
 
 For each domain area discovered in Step 1c, create a phase with:
 
@@ -189,18 +141,16 @@ For each domain area discovered in Step 1c, create a phase with:
 - **Patterns to document**: List the reusable code approaches
 - **Features to document**: List the user-facing capabilities
 - **Key files to analyze**: List the primary source files for this domain area (with relative paths)
+- **Notes**: Anything specific to this slice the writer needs — gotchas, boundaries with other slices, docs to cross-link
 
-#### 11. Execution Strategy
+#### 5. Execution Strategy
 
 - Phases are executed in order (later phases reference earlier concepts)
 - Within each phase: concepts first, then patterns, then features
 - Cross-link between docs; update INDEX.md files after each phase
-- Run the Mandatory Verification Protocol on all documents before marking complete
-- Reviews after each phase; findings go in Lessons Learned
+- Reviews after each phase
 
-{include:partials/index-format.md}
-
-#### 12. Success Criteria
+#### 6. Success Criteria
 
 - AI agents can find relevant concepts by checking INDEX.md files
 - Each concept doc explains where configuration lives and which services/functions to use
@@ -210,6 +160,10 @@ For each domain area discovered in Step 1c, create a phase with:
 ---
 
 ## Reference: Universal Methodology
+
+The following is delivered verbatim to the documentation writer and the
+verifier by their own prompts. It is reproduced here as context for slicing
+decisions only — do NOT copy any of it into the plan.
 
 {include:partials/document-templates.md}
 

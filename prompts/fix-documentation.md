@@ -21,7 +21,7 @@ Read the verification report at `{review_path}`. For each error, note:
 - The **claim** that is incorrect
 - The **evidence** showing what the source code actually says
 - The **severity** (Critical, Major, Minor)
-- The **corrective actions** (from the Plan Improvement Suggestions section, if applicable)
+- The **corrective actions** (from the Methodology Improvement Suggestions section, if applicable)
 
 ## Step 2: Read the Plan
 
