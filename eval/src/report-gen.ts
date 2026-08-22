@@ -1,5 +1,16 @@
 import { formatSpread } from "./metrics.js";
-import type { ConditionId, EvalRunSummary, TaskHalf, TaskResult } from "./types.js";
+import type { ConditionId, EvalRunSummary, RunSpec, TaskHalf, TaskResult } from "./types.js";
+
+/**
+ * Base filename for a committed report, unique per run: two runs with the
+ * same backend and model key on the same day must not overwrite each other,
+ * so the run's start time is part of the name.
+ * Example: "2026-08-22-103000-claude-medium".
+ */
+export function reportBaseName(spec: RunSpec): string {
+  const stamp = spec.startedAt.slice(0, 19).replace("T", "-").replace(/:/g, "");
+  return `${stamp}-${spec.backend}-${spec.modelKey}`;
+}
 
 /**
  * Render an EvalRunSummary as a markdown comparison report.

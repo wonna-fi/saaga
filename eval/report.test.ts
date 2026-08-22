@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { collectMetrics, formatSpread, spread } from "./src/metrics.js";
-import { generateReport } from "./src/report-gen.js";
+import { generateReport, reportBaseName } from "./src/report-gen.js";
 import type { EvalRunSummary, RunMetrics, TaskResult } from "./src/types.js";
 
 describe("metrics", () => {
@@ -99,6 +99,17 @@ describe("generateReport", () => {
     expect(report).toMatch(/\| no-docs \| 1\/2 \| 5 \| 1000 \| 200 \| 10s \|/);
     expect(report).toContain("## Per-rep detail");
     expect(report).toContain("error: timeout");
+  });
+
+  test("report base names are unique per run, not per day", () => {
+    const morning = reportBaseName(summary.spec);
+    const evening = reportBaseName({
+      ...summary.spec,
+      startedAt: "2026-08-22T18:30:15.000Z",
+    });
+    expect(morning).toBe("2026-08-22-100000-claude-medium");
+    expect(evening).toBe("2026-08-22-183015-claude-medium");
+    expect(morning).not.toBe(evening);
   });
 
   test("warns when reps < 2", () => {

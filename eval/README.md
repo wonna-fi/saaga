@@ -22,6 +22,11 @@ commit re-initializes it. No history survives — the restricted shell allows re
 a cloned or worktree sandbox would let a no-docs agent recover the corpus with `git show`.
 Mutating before the commit also keeps deletions out of `git status`.
 
+Answer-key material is stripped from **every** sandbox regardless of condition: `eval/`
+(task prompts and check regexes) and `plans/` (the seed analysis with labeled truths and
+stale claims) would let an agent look up graded answers instead of solving from docs or
+source. Both arms lose the same material, so the comparison stays fair.
+
 Agents run with a purpose-built permission profile (read whole sandbox, write whole sandbox +
 run dir, restricted shell). The restricted shell also equalizes conditions: no arm can run
 tests or arbitrary commands.
@@ -68,7 +73,9 @@ pnpm eval:report --run eval/results/run-<timestamp>                 # write eval
 ```
 
 Raw results land in `eval/results/` (gitignored). Committed reports live in `eval/reports/`
-as a markdown report plus the `summary.json` that regenerates it.
+as a markdown report plus the `summary.json` that regenerates it, named
+`<date>-<time>-<backend>-<modelKey>` from the run's start time so repeated runs never
+overwrite each other.
 
 ## Adding a task
 

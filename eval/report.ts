@@ -2,7 +2,7 @@ import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { parseArgs } from "node:util";
 import { fileURLToPath } from "node:url";
 import { basename, join } from "node:path";
-import { generateReport } from "./src/report-gen.js";
+import { generateReport, reportBaseName } from "./src/report-gen.js";
 import type { EvalRunSummary } from "./src/types.js";
 
 /**
@@ -43,8 +43,7 @@ async function main(): Promise<number> {
 
   const outDir = values.out ?? join(repoRoot, "eval", "reports");
   await mkdir(outDir, { recursive: true });
-  const date = summary.spec.startedAt.slice(0, 10);
-  const name = `${date}-${summary.spec.backend}-${summary.spec.modelKey}`;
+  const name = reportBaseName(summary.spec);
 
   const reportPath = join(outDir, `${name}.md`);
   await writeFile(reportPath, generateReport(summary));

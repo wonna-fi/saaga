@@ -43,6 +43,14 @@ export async function createSandbox(opts: CreateSandboxOptions): Promise<Sandbox
     await execa("tar", ["-xf", tarFile, "-C", sandboxDir]);
     await rm(tarFile, { force: true });
 
+    // Answer-key material never reaches an agent: eval/ holds the task
+    // prompts and check regexes, plans/ holds the seed analysis with the
+    // labeled truths and stale claims. Stripped in EVERY condition — both
+    // arms lose the same material, so the comparison stays fair.
+    for (const answerKeyPath of ["eval", "plans"]) {
+      await rm(join(sandboxDir, answerKeyPath), { recursive: true, force: true });
+    }
+
     await applyCondition(sandboxDir, opts.condition, opts);
 
     await execa("git", ["init", "-q"], { cwd: sandboxDir });

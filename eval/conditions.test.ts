@@ -95,6 +95,16 @@ describe("createSandbox", () => {
     expect(agentsMd).toContain("## Documentation");
   });
 
+  test("answer-key material is stripped from every condition", async () => {
+    // eval/ (check regexes) and plans/ (seed analysis with labeled answers)
+    // would let an agent look up graded answers; neither arm may see them.
+    for (const condition of ["no-docs", "saaga-docs"] as const) {
+      const { sandboxDir } = await make(condition);
+      await expect(readdir(join(sandboxDir, "eval"))).rejects.toThrow();
+      await expect(readdir(join(sandboxDir, "plans"))).rejects.toThrow();
+    }
+  });
+
   test("openwiki condition without a wiki dir is a hard error", async () => {
     await expect(
       createSandbox({ repoRoot, rev: "HEAD", condition: "openwiki" }),
