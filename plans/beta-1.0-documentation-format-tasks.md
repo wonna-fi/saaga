@@ -469,14 +469,29 @@ corpus; if the new dedup rules work, the regenerated corpus will not have those 
 task 8's real run against the old corpus checked out from the tag into a scratch directory, or
 adjust that criterion after regeneration (net line count decreases + deletion report still hold).
 
-### Pause the nightly actions across the regeneration-to-publish window
+### Pause the doc workflows from the first format-changing merge
 
-The GitHub Actions run npm-`latest` Saaga, which has no version gate and old prompts. The moment
-the repo carries a version-1 corpus, a nightly quick-update would churn it under old-format rules —
-the gate only protects once the *running* Saaga has it. Sequence: pause the nightly/weekly
-workflows → land the regeneration PR (atomic: delete old `saaga-docs/`, commit new corpus +
-BASELINE + layout-version file; tag the parent commit) → publish the beta or pin the actions to a
-beta dist-tag → re-enable.
+The nightly quick-update and weekly verify workflows run **main's source** (`pnpm install` +
+`npx tsx src/cli.ts run …`), not a published package. Every task merged to main is live in that
+night's run — so the moment format-changing work lands (task 0, or the first of tasks 4–6), the
+automation runs new prompts and templates against the old version-0 corpus. That is the
+"upgraded Saaga vs pre-beta corpus" hazard from task 1, arriving mid-epic rather than at the
+milestone; the weekly verify pass is the worst case, sending the fix loop after docs scheduled
+for deletion.
+
+Two equivalent mitigations — pick one:
+
+- **Manual:** disable the two doc workflow schedules when the first format-changing task merges,
+  and re-enable them in the regeneration PR.
+- **Automatic:** land task 1's version gate early (it is wave 0 anyway) and bump the layout
+  version Saaga *writes* alongside the first format-changing merge — the update-family flows then
+  fail fast on the version-0 corpus with a clear error, pausing doc automation without a manual
+  toggle. Note the nightly runs stay red until regeneration; treat that as expected.
+
+The regeneration PR itself stays atomic: delete old `saaga-docs/`, commit new corpus + BASELINE +
+layout-version file, tag the parent commit, re-enable the workflows. Publishing the beta to npm
+is still a milestone step, but it protects external users — it plays no role in protecting this
+repo's corpus, since the actions never consume the published package.
 
 ### During the epic
 
