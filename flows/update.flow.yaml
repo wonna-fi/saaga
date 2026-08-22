@@ -41,6 +41,7 @@ steps:
                 vars:
                   plan: ${run_dir}/plans/${app}-update-${date}.plan.md
                   phase_number: ${phase.number}
+                  docs_dir: ${docs_dir}
 
             - loop:
                 max: 3
@@ -71,6 +72,7 @@ steps:
                             plan: ${run_dir}/plans/${app}-update-${date}.plan.md
                             phase_number: ${phase.number}
                             review_path: ${run_dir}/slice-${phase.number}/review-${iteration}.md
+                            docs_dir: ${docs_dir}
 
       - script:
           name: generate-baseline

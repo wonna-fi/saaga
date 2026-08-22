@@ -19,10 +19,9 @@ If any input is missing, ask the user.
 Read the plan file and extract:
 
 - The **phase definition** for the specified slice (concepts, patterns, and features listed)
-- The **Quality Checklists** (to know what to verify for each doc type)
-- The **Mandatory Verification Protocol** (the step-by-step verification procedure)
-- The **Verification Requirements** (technology-specific checks and the verification summary table)
-- The **Documentation Templates** (to check structural completeness)
+- The **Template Adaptations** section, if present: repository-specific deltas to the templates below, plus its **Verification checks** table naming the technology-specific checks recorded for this repository
+
+The quality checklists, the documentation templates, and the mandatory verification protocol are in this prompt, below. They are authoritative; the plan only records deltas.
 
 ## Step 2: Identify Documents to Review
 
@@ -36,7 +35,7 @@ For each document, perform the following checks by searching the actual source c
 
 ### 3a. Structural Completeness
 
-Compare the document against the template for its type (concept/pattern/feature). Flag any missing required sections.
+Compare the document against the template for its type (concept/pattern/feature) in the Documentation Templates section below. Flag any missing required sections.
 
 ### 3b. Factual Verification
 
@@ -87,7 +86,7 @@ For each error found, record:
 | **Claim** | The specific incorrect claim, or for a Coverage Gap the doc-worthy change that is missing from the documentation |
 | **Evidence** | What the source code actually shows (for a Coverage Gap, the change-report entry plus the source surface that warrants documentation) |
 | **Severity** | **Critical** (wrong API, non-existent method, or an entirely undocumented new public surface/feature), **Major** (incorrect behavior, or a documented surface whose change was not reflected), or **Minor** (formatting, incomplete list) |
-| **Preventable** | Whether the plan's verification protocol should have caught this, and if not, what improvement would help |
+| **Preventable** | Whether the verification protocol below should have caught this, and if not, what improvement would help |
 
 ## Step 5: Write Verification Report
 
@@ -96,7 +95,7 @@ Write the full verification report to `{review_path}`. The report must contain:
 1. **Documents reviewed**: Total count and list
 2. **Error count**: By severity (critical / major / minor)
 3. **Error details**: The full findings table from Step 4
-4. **Plan improvement suggestions**: If errors reveal gaps in the plan's verification requirements, quality checklists, or templates, describe specific improvements. Use the Lessons Learned entry format:
+4. **Methodology improvement suggestions**: If errors reveal gaps in the quality checklists, the documentation templates, or the verification protocol below — or in the plan's Template Adaptations — describe specific improvements. Note whether the gap belongs to the shared methodology (`prompts/partials/`) or to this run's plan. Use this entry format:
    - **Problem**: What went wrong
    - **Root Cause**: Why it happened
    - **Corrective Actions**: What should be fixed in the documents
@@ -119,3 +118,15 @@ The status file must contain only `PASS` or `FAIL` -- nothing else.
 - Be thorough. A missed error here becomes permanent misinformation for future AI agents.
 - You don't necessarily find any errors if the documentation is of excellent quality. That's okay! It
   only means that the documenter has done an excellent job and we should be happy for it.
+
+---
+
+{include:partials/quality-checklists.md}
+
+---
+
+{include:partials/verification-protocol.md}
+
+---
+
+{include:partials/document-templates.md}

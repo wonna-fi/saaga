@@ -185,6 +185,9 @@ saaga doctor                    Check backend CLI availability and
 - **Run artifacts** (plans, status files, change reports) are written
   under `<project>/.saaga-runs/<run-id>/`. This directory is
   automatically added to `.gitignore` by `saaga run init`.
+- **Rendered prompts** for every agent step are archived under
+  `<project>/.saaga-runs/<run-id>/prompts/`, exactly as the agent
+  received them. Together with the plan they make a run reproducible.
 - **Generated docs** land in `<project>/saaga-docs/`.
 
 ## Runtime and cost

@@ -35,6 +35,7 @@ pnpm test:watch     # vitest watch
 | `src/` | TypeScript source — CLI, engine, agents, scripts |
 | `flows/` | Flow YAML files (one per subcommand) |
 | `prompts/` | Prompt templates with `{var}` placeholders |
+| `prompts/partials/` | Shared methodology pulled in with `{include:...}` |
 | `rules/` | Rule stub templates installed by `install-rules` |
 | `saaga-docs/` | Domain documentation (concepts, features, patterns) |
 | `examples/` | Dockerfile, agent install scripts |
@@ -116,6 +117,28 @@ cap, or wire in your own scripts. The DSL primitives are `agent`,
 
 Prompt templates live in [`prompts/`](./prompts) and use `{var}`
 placeholders filled from the flow YAML's `vars:` block.
+
+Shared methodology — the document templates, decision guidance, quality
+checklists, the verification protocol — lives once in
+[`prompts/partials/`](./prompts/partials) and is pulled into the prompts
+that need it with an include directive:
+
+```markdown
+{include:partials/concept-template.md}
+```
+
+Includes are resolved before `{var}` substitution, so placeholders inside
+a partial still resolve. Each path is looked up in the including file's
+own directory first, then in the roots the caller passes (today just
+`prompts/`). Partials may include other partials; cycles, excessive
+nesting and paths that escape the roots are errors.
+
+The split matters: **prompts carry methodology, generated plans carry
+decisions.** A plan records what this run does — which documents to write,
+which files to read, which templates need repository-specific deltas — and
+never restates a template or a checklist. The writer and verifier get those
+from their own prompts, so they arrive verbatim rather than paraphrased
+through a generated plan.
 
 > Note: customizing flows currently requires editing files in the Saaga
 > repository itself. First-class support for customizing flows from your
