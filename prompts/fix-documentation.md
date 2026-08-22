@@ -27,9 +27,10 @@ Read the verification report at `{review_path}`. For each error, note:
 
 Read the documentation plan at `{plan}`. Extract:
 
-- The **Documentation Templates** (to ensure fixes maintain structural compliance)
-- The **Quality Checklists** (to ensure fixes meet quality requirements)
-- The **Verification Requirements** (to understand what will be checked again)
+- The **phase definition** for slice `{phase_number}` (which documents this slice owns)
+- The **Template Adaptations**, if present (repository-specific deltas to the templates below)
+
+The documentation templates and quality checklists your fixes must satisfy are in this prompt, below — not in the plan.
 
 ## Step 3: Fix Each Error
 
@@ -44,9 +45,9 @@ For each error:
    - If a method is private, not public: move it from "Key Services" to "Internal Implementation"
    - If a description is incomplete: add the missing information based on source code
    - If a cross-reference is broken: fix the link or replace with plain text if the target doesn't exist
-   - If a structural section is missing: add it following the template from the plan
+   - If a structural section is missing: add it following the template below
    - If a value/constant is wrong: correct it based on source code
-   - If it is a **Coverage Gap** (a documentation-worthy change with no documentation): write the missing documentation. Read the source surface named in the evidence, decide whether it belongs in a concept, pattern, or feature doc (use the Decision Guidance in the plan), and either create the missing file at the path noted in the finding following the matching template, or add a section to the most appropriate existing doc. Base every claim on the source code, and update the relevant `INDEX.md` for any new file.
+   - If it is a **Coverage Gap** (a documentation-worthy change with no documentation): write the missing documentation. Read the source surface named in the evidence, decide whether it belongs in a concept, pattern, or feature doc (use the Decision Guidance below), and either create the missing file at the path noted in the finding following the matching template, or add a section to the most appropriate existing doc. Base every claim on the source code, and update the relevant `INDEX.md` for any new file.
 4. **Verify your fix** by re-reading the relevant source code to ensure accuracy
 
 ## Step 4: Update INDEX.md Files
@@ -57,6 +58,24 @@ If any fixes changed document titles or added/removed documents, update the corr
 
 - **Only fix what was flagged.** Do not rewrite sections that were not identified as errors.
 - **Do not modify the verification report.** It is a record of what was found.
-- **Follow the plan's templates.** All fixes must maintain the document structure defined in the plan.
+- **Follow the templates below.** All fixes must maintain the document structure they define, plus any deltas the plan's Template Adaptations section records.
 - **Base all fixes on source code evidence.** Read the actual source files before making changes. Do not guess.
 - **Preserve existing correct content.** Minimize changes to reduce the risk of introducing new errors.
+
+---
+
+{include:partials/document-templates.md}
+
+---
+
+{include:partials/decision-guidance.md}
+
+---
+
+{include:partials/quality-checklists.md}
+
+---
+
+## INDEX.md Maintenance
+
+{include:partials/index-format.md}

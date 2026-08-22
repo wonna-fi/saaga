@@ -19,10 +19,10 @@ If any input is missing, ask the user.
 Read the plan file and extract:
 
 - The **phase definition** for the specified slice (concepts, patterns, and features listed)
-- The **Quality Checklists** (to know what to verify for each doc type)
-- The **Mandatory Verification Protocol** (the step-by-step verification procedure)
-- The **Verification Requirements** (technology-specific checks and the verification summary table)
-- The **Documentation Templates** (to check structural completeness)
+- The **Template Adaptations**, if present (repository-specific deltas to the templates below)
+- The **Verification Requirements**, if present (the technology-specific verification summary table for this repository)
+
+The quality checklists, the documentation templates, and the mandatory verification protocol are in this prompt, below. They are authoritative; the plan only records deltas.
 
 ## Step 2: Identify Documents to Review
 
@@ -36,7 +36,7 @@ For each document, perform the following checks by searching the actual source c
 
 ### 3a. Structural Completeness
 
-Compare the document against the template for its type (concept/pattern/feature). Flag any missing required sections.
+Compare the document against the template for its type (concept/pattern/feature) in the Documentation Templates section below. Flag any missing required sections.
 
 ### 3b. Factual Verification
 
@@ -119,3 +119,15 @@ The status file must contain only `PASS` or `FAIL` -- nothing else.
 - Be thorough. A missed error here becomes permanent misinformation for future AI agents.
 - You don't necessarily find any errors if the documentation is of excellent quality. That's okay! It
   only means that the documenter has done an excellent job and we should be happy for it.
+
+---
+
+{include:partials/quality-checklists.md}
+
+---
+
+{include:partials/verification-protocol.md}
+
+---
+
+{include:partials/document-templates.md}
