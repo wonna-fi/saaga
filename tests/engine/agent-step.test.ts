@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { describe, expect, test } from "vitest";
@@ -446,5 +446,202 @@ describe("saagaRules injection", () => {
     );
 
     expect(fake.calls[0].prompt).not.toContain(".saagarules");
+  });
+});
+
+describe("rendered prompt archive", () => {
+  test("writes each rendered prompt into <run_dir>/prompts/", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "saaga-prompt-archive-"));
+    const runDir = join(dir, ".saaga-runs", "run-abc123");
+    const fake = new FakeAgent({
+      "Document the Architecture": { exitCode: 0 },
+    });
+
+    const flow = parseFlowDefinition({
+      name: "test",
+      steps: [
+        {
+          agent: {
+            prompt: "document-architecture",
+            vars: { app: "myapp", docs_dir: "saaga-docs" },
+          },
+        },
+      ],
+    });
+
+    await runFlow(
+      flow,
+      { app: "myapp", app_path: dir, run_dir: runDir },
+      { agent: fake, cwd: dir },
+    );
+
+    const archived = join(runDir, "prompts", "01-document-architecture.md");
+    expect(existsSync(archived)).toBe(true);
+    expect(await readFile(archived, "utf8")).toBe(fake.calls[0].prompt);
+  });
+
+  test("archives the prompt the agent actually received, .saagarules included", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "saaga-prompt-archive-"));
+    const runDir = join(dir, ".saaga-runs", "run-abc123");
+    const fake = new FakeAgent({
+      "Document the Architecture": { exitCode: 0 },
+    });
+
+    const flow = parseFlowDefinition({
+      name: "test",
+      steps: [
+        { agent: { prompt: "document-architecture", vars: { app: "myapp" } } },
+      ],
+    });
+
+    await runFlow(
+      flow,
+      { app: "myapp", app_path: dir, run_dir: runDir },
+      { agent: fake, cwd: dir, saagaRules: "Always cite line numbers." },
+    );
+
+    const archived = await readFile(
+      join(runDir, "prompts", "01-document-architecture.md"),
+      "utf8",
+    );
+    expect(archived).toContain("Always cite line numbers.");
+    expect(archived).toBe(fake.calls[0].prompt);
+  });
+
+  test("gives repeated renders of one prompt distinct filenames", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "saaga-prompt-archive-"));
+    const runDir = join(dir, ".saaga-runs", "run-abc123");
+    const fake = new FakeAgent({
+      "Document a Plan Slice": { exitCode: 0 },
+    });
+
+    const flow = parseFlowDefinition({
+      name: "test",
+      steps: [
+        {
+          foreach: {
+            var: "phase",
+            in: "${phases}",
+            do: [
+              {
+                agent: {
+                  prompt: "slice-doc",
+                  vars: {
+                    plan: "/run/plan.md",
+                    phase_number: "${phase.number}",
+                    docs_dir: "saaga-docs",
+                  },
+                },
+              },
+            ],
+          },
+        },
+      ],
+    });
+
+    await runFlow(
+      flow,
+      {
+        app: "myapp",
+        app_path: dir,
+        run_dir: runDir,
+        phases: [
+          { number: 1, title: "One" },
+          { number: 2, title: "Two" },
+        ],
+      },
+      { agent: fake, cwd: dir },
+    );
+
+    const written = (await readdir(join(runDir, "prompts"))).sort();
+    expect(written).toEqual([
+      "01-slice-doc-phase1.md",
+      "02-slice-doc-phase2.md",
+    ]);
+  });
+
+  test("runs fine when the flow has no run_dir", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "saaga-prompt-archive-"));
+    const fake = new FakeAgent({
+      "Document the Architecture": { exitCode: 0 },
+    });
+
+    const flow = parseFlowDefinition({
+      name: "test",
+      steps: [
+        { agent: { prompt: "document-architecture", vars: { app: "myapp" } } },
+      ],
+    });
+
+    await expect(
+      runFlow(flow, { app: "myapp", app_path: dir }, { agent: fake, cwd: dir }),
+    ).resolves.toBeUndefined();
+    expect(fake.calls).toHaveLength(1);
+  });
+});
+
+describe("prompt archive naming inside a verify/fix loop", () => {
+  test("labels each render with its phase and loop iteration", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "saaga-prompt-archive-"));
+    const runDir = join(dir, ".saaga-runs", "run-abc123");
+    const fake = new FakeAgent({
+      "Verify Domain Documentation Slice": {
+        exitCode: 0,
+        effect: async (_opts, prompt) => {
+          const m = prompt.match(/Write the verification status to `([^`]+)`/);
+          if (!m) throw new Error("status path not found");
+          await mkdir(dirname(m[1]), { recursive: true });
+          // Fail the first pass so the loop runs twice.
+          const iteration = m[1].endsWith("status-1.txt") ? "FAIL" : "PASS";
+          await writeFile(m[1], iteration, "utf8");
+        },
+      },
+    });
+
+    const flow = parseFlowDefinition({
+      name: "test",
+      steps: [
+        {
+          loop: {
+            max: 3,
+            until: '${status} == "PASS"',
+            do: [
+              {
+                agent: {
+                  prompt: "verify-domain-documentation",
+                  vars: {
+                    plan: "/run/plan.md",
+                    phase_number: "2",
+                    review_path: "${run_dir}/slice-2/review-${iteration}.md",
+                    status_path: "${run_dir}/slice-2/status-${iteration}.txt",
+                    changes_dir: "none",
+                    docs_dir: "saaga-docs",
+                  },
+                },
+              },
+              {
+                "read-file": {
+                  path: "${run_dir}/slice-2/status-${iteration}.txt",
+                  set: "status",
+                  trim: true,
+                },
+              },
+            ],
+          },
+        },
+      ],
+    });
+
+    await runFlow(
+      flow,
+      { app: "myapp", app_path: dir, run_dir: runDir },
+      { agent: fake, cwd: dir },
+    );
+
+    const written = (await readdir(join(runDir, "prompts"))).sort();
+    expect(written).toEqual([
+      "01-verify-domain-documentation-phase2-iter1.md",
+      "02-verify-domain-documentation-phase2-iter2.md",
+    ]);
   });
 });
