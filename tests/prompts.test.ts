@@ -169,3 +169,35 @@ describe("prompt strings the flow tests depend on", () => {
     expect(out).toMatch(/Write the verification status to `([^`]+)`/);
   });
 });
+
+describe("consumer prompts reference only plan sections the plan still emits", () => {
+  const CONSUMERS = ["slice-doc", "verify-domain-documentation", "fix-documentation"];
+  const PLAN_PROMPTS = ["plan-init", "plan-update", "plan-verify-quick-updates"];
+
+  // Sections the slim plan dropped. A consumer prompt that still sends the
+  // agent looking for one of these makes it hunt for a heading that is never
+  // written, and miss whatever replaced it.
+  const REMOVED_PLAN_SECTIONS = [
+    "Verification Requirements",
+    "Lessons Learned",
+    "Mandatory Verification Protocol section of the plan",
+  ];
+
+  test.for(CONSUMERS)("%s does not point at a removed plan section", async (name) => {
+    const out = await render(name);
+    for (const section of REMOVED_PLAN_SECTIONS) {
+      expect(out).not.toContain(section);
+    }
+  });
+
+  test.for(CONSUMERS)("%s points at Template Adaptations instead", async (name) => {
+    const out = await render(name);
+    expect(out).toContain("Template Adaptations");
+  });
+
+  test.for(PLAN_PROMPTS)("%s actually emits Template Adaptations", async (name) => {
+    const out = await render(name);
+    expect(out).toContain("#### 3. Template Adaptations");
+    expect(out).toContain("**Verification checks**");
+  });
+});

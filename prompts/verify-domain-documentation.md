@@ -19,8 +19,7 @@ If any input is missing, ask the user.
 Read the plan file and extract:
 
 - The **phase definition** for the specified slice (concepts, patterns, and features listed)
-- The **Template Adaptations**, if present (repository-specific deltas to the templates below)
-- The **Verification Requirements**, if present (the technology-specific verification summary table for this repository)
+- The **Template Adaptations** section, if present: repository-specific deltas to the templates below, plus its **Verification checks** table naming the technology-specific checks recorded for this repository
 
 The quality checklists, the documentation templates, and the mandatory verification protocol are in this prompt, below. They are authoritative; the plan only records deltas.
 
