@@ -374,4 +374,57 @@ describe("claude event parser", () => {
     });
     expect(drain(createClaudeEventParser(), [useLine, otherError])).toEqual([]);
   });
+
+  test("reports usage totals from the terminal result message", () => {
+    const resultMessage = JSON.stringify({
+      type: "result",
+      subtype: "success",
+      num_turns: 7,
+      duration_ms: 42_000,
+      total_cost_usd: 0.1234,
+      usage: {
+        input_tokens: 1200,
+        output_tokens: 340,
+        cache_read_input_tokens: 9000,
+        cache_creation_input_tokens: 500,
+      },
+    });
+    expect(drain(createClaudeEventParser(), [resultMessage])).toEqual([
+      {
+        kind: "usage",
+        turns: 7,
+        inputTokens: 1200,
+        outputTokens: 340,
+        cacheReadTokens: 9000,
+        cacheCreationTokens: 500,
+        costUsd: 0.1234,
+        durationMs: 42_000,
+      },
+    ]);
+  });
+
+  test("degrades missing or malformed usage fields to undefined", () => {
+    const partial = JSON.stringify({
+      type: "result",
+      num_turns: "3",
+      usage: { input_tokens: 10 },
+    });
+    expect(drain(createClaudeEventParser(), [partial])).toEqual([
+      {
+        kind: "usage",
+        turns: undefined,
+        inputTokens: 10,
+        outputTokens: undefined,
+        cacheReadTokens: undefined,
+        cacheCreationTokens: undefined,
+        costUsd: undefined,
+        durationMs: undefined,
+      },
+    ]);
+
+    const bare = JSON.stringify({ type: "result" });
+    const events = drain(createClaudeEventParser(), [bare]);
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ kind: "usage" });
+  });
 });

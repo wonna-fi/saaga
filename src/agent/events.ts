@@ -28,7 +28,25 @@ export interface SessionEvent {
   tools: string[];
 }
 
-export type AgentEvent = DenialEvent | SessionEvent;
+/**
+ * Usage totals a backend reported when the session closed.
+ *
+ * Every field is optional because the terminal message's shape varies
+ * between CLI versions; a missing field degrades to "unknown" rather
+ * than failing the run.
+ */
+export interface UsageEvent {
+  kind: "usage";
+  turns?: number;
+  inputTokens?: number;
+  outputTokens?: number;
+  cacheReadTokens?: number;
+  cacheCreationTokens?: number;
+  costUsd?: number;
+  durationMs?: number;
+}
+
+export type AgentEvent = DenialEvent | SessionEvent | UsageEvent;
 
 export type AgentEventSink = (event: AgentEvent) => void;
 
