@@ -40,7 +40,7 @@ Claude Code) through a multi-phase workflow:
 
 ## What you get
 
-After `saaga init`, your project contains:
+After `saaga run init`, your project contains:
 
 - **`saaga-docs/`** — structured domain documentation organized into
   three categories:
@@ -62,7 +62,7 @@ After `saaga init`, your project contains:
   | `claude` | `CLAUDE.md` (managed block) |
   | `copilot` | `.github/instructions/domain-docs.instructions.md` |
 
-- **`saaga-docs/BASELINE`** — a content manifest that lets `saaga update`
+- **`saaga-docs/BASELINE`** — a content manifest that lets `saaga run update`
   detect what changed and re-document only the affected areas.
 
 ## Prerequisites
@@ -107,7 +107,7 @@ npx @wonna/saaga <command>
 Generate initial documentation (run from inside your project):
 
 ```bash
-saaga init --backend cursor
+saaga run init --backend cursor
 ```
 
 > **Heads up** — `init` is the heavy one. It drives the agent through
@@ -120,31 +120,37 @@ saaga init --backend cursor
 After code changes, update the docs incrementally:
 
 ```bash
-saaga update
+saaga run update
 ```
 
 ## Commands
 
-All directory subcommands accept an optional `[dir]` argument that
-defaults to the current working directory.
+### `saaga run <flow> [dir]`
+
+Run a named flow. Omit the flow name (`saaga run`) to list available
+flows. All flows accept an optional `[dir]` argument that defaults to
+the current working directory.
+
+Built-in flows:
 
 ```text
-saaga init [dir]                Full initial documentation
-                                (architecture + plan + phases +
-                                verify/fix + baseline).
+init                  Full initial documentation (architecture +
+                      plan + phases + verify/fix + baseline).
 
-saaga update [dir]              Detect changes since BASELINE,
-                                regenerate affected slices, refresh
-                                baseline.
+update                Detect changes since BASELINE, regenerate
+                      affected slices, refresh baseline.
 
-saaga quick-update [dir]        Fast single-session doc update using
-                                a cheaper model. Produces a metadata
-                                artifact for later verification.
+quick-update          Fast single-session doc update using a cheaper
+                      model. Produces a metadata artifact for later
+                      verification.
 
-saaga verify-quick-updates [dir]
-                                Consolidate and verify all unverified
-                                quick-update artifacts.
+verify-quick-updates  Consolidate and verify all unverified
+                      quick-update artifacts.
+```
 
+### Other commands
+
+```text
 saaga install-rules [dir]       Install always-on documentation rules
                                 into agent rule files. No agent backend
                                 required.
@@ -172,13 +178,13 @@ saaga doctor                    Check backend CLI availability and
 
 | Flag | Subcommands | Description |
 | ---- | ----------- | ----------- |
-| `--rule-targets <targets>` | `init`, `install-rules` | Comma-separated rule targets: `agentsmd`, `cursor`, `claude`, `copilot`, `none` |
+| `--rule-targets <targets>` | `run`, `install-rules` | Comma-separated rule targets: `agentsmd`, `cursor`, `claude`, `copilot`, `none` (used by the `init` flow) |
 
 ### Output locations
 
 - **Run artifacts** (plans, status files, change reports) are written
   under `<project>/.saaga-runs/<run-id>/`. This directory is
-  automatically added to `.gitignore` by `saaga init`.
+  automatically added to `.gitignore` by `saaga run init`.
 - **Generated docs** land in `<project>/saaga-docs/`.
 
 ## Runtime and cost
@@ -212,7 +218,7 @@ usage is billed to your own account with that provider. On an interactive
 terminal it then asks for confirmation:
 
 ```text
-Cost notice: 'saaga init' will run the 'cursor-agent' CLI (backend cursor, model
+Cost notice: 'saaga run init' will run the 'cursor-agent' CLI (backend cursor, model
 claude-4.6-opus-high-thinking) as an autonomous coding agent over /path/to/app.
 Agent sessions consume tokens that are billed to your own cursor-agent account,
 at whatever rate your plan with that provider applies. Saaga does not include or
@@ -284,7 +290,7 @@ Resolution order: **`--model <key>=<model>` -> `backends.<name>.models.<key>` in
 Create a `.saagaignore` file in the project root to exclude source files
 or directories from Saaga's documentation scope. Excluded files are
 omitted from baseline generation and will not trigger documentation
-updates during `saaga update`.
+updates during `saaga run update`.
 
 The syntax follows gitignore conventions (globs, negation with `!`,
 trailing `/` for directories). `.gitignore` rules are also honored
@@ -371,7 +377,7 @@ unstableFeatures:
 ```
 
 ```bash
-saaga update --unstable-feature none
+saaga run update --unstable-feature none
 ```
 
 When any unstable feature is enabled, a `[WARN]` line listing the active
@@ -443,7 +449,7 @@ If a run fails because the agent cannot reach a path it needs (unusual
 layouts, monorepos, symlinks), use `--allow-dir` to grant access:
 
 ```bash
-saaga update --allow-dir /path/to/shared/lib
+saaga run update --allow-dir /path/to/shared/lib
 ```
 
 `--allow-dir` is repeatable and appends the path to both read and write
@@ -456,7 +462,7 @@ the original backend flags (`--force`, `--allow-all-tools`,
 `--dangerously-skip-permissions`). A warning is printed on every use:
 
 ```bash
-saaga init --dangerously-allow-all --backend cursor
+saaga run init --dangerously-allow-all --backend cursor
 ```
 
 ### Auditing denials

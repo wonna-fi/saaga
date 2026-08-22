@@ -1,4 +1,7 @@
 name: quick-update
+description: >-
+  Fast single-session documentation update using a cheaper/faster model.
+  Produces a metadata artifact for later verification.
 steps:
   - script:
       name: detect-changes

@@ -1,7 +1,7 @@
 name: Verify quick updates (weekly)
 
-# Monday maintenance: runs `saaga quick-update` followed by
-# `saaga verify-quick-updates` so the week's accumulated artifacts are
+# Monday maintenance: runs `saaga run quick-update` followed by
+# `saaga run verify-quick-updates` so the week's accumulated artifacts are
 # consolidated and verified in one pass.
 # The same publish logic applies: docs-only → main, mixed → PR.
 
@@ -50,8 +50,8 @@ jobs:
         env:
           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
         run: |
-          npx tsx src/cli.ts quick-update . --ci
-          npx tsx src/cli.ts verify-quick-updates . --ci
+          npx tsx src/cli.ts run quick-update . --ci
+          npx tsx src/cli.ts run verify-quick-updates . --ci
 
       - name: Generate GitHub App token
         id: app-token

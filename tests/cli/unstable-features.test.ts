@@ -45,7 +45,7 @@ describe("unstable features (CLI integration)", () => {
     const fake = new FakeAgent({});
     const err = new StringWritable();
 
-    const exitCode = await runCli(["quick-update", app], {
+    const exitCode = await runCli(["run", "quick-update", app], {
       agent: fake,
       stderr: err,
     });
@@ -60,7 +60,7 @@ describe("unstable features (CLI integration)", () => {
     const err = new StringWritable();
 
     const exitCode = await runCli(
-      ["quick-update", app, "--unstable-feature", "none"],
+      ["run", "quick-update", app, "--unstable-feature", "none"],
       { agent: fake, stderr: err },
     );
 
@@ -74,7 +74,7 @@ describe("unstable features (CLI integration)", () => {
     const err = new StringWritable();
 
     const exitCode = await runCli(
-      ["quick-update", app, "--unstable-feature", "none"],
+      ["run", "quick-update", app, "--unstable-feature", "none"],
       { agent: fake, stderr: err },
     );
 
@@ -89,7 +89,7 @@ describe("unstable features (CLI integration)", () => {
     const fake = new FakeAgent({});
     const err = new StringWritable();
 
-    const exitCode = await runCli(["quick-update", app], {
+    const exitCode = await runCli(["run", "quick-update", app], {
       agent: fake,
       stderr: err,
     });
@@ -106,7 +106,7 @@ describe("unstable features (CLI integration)", () => {
     const fake = new FakeAgent({});
 
     await expect(
-      runCli(["quick-update", app], { agent: fake }),
+      runCli(["run", "quick-update", app], { agent: fake }),
     ).rejects.toThrow(/unknown feature 'bogus'/);
     expect(fake.calls).toHaveLength(0);
   });
@@ -117,7 +117,7 @@ describe("unstable features (CLI integration)", () => {
     const err = new StringWritable();
 
     const exitCode = await runCli(
-      ["quick-update", app, "--unstable-feature", "nope"],
+      ["run", "quick-update", app, "--unstable-feature", "nope"],
       { agent: fake, stderr: err },
     );
 
@@ -131,7 +131,7 @@ describe("unstable features (CLI integration)", () => {
     const fake = new FakeAgent({});
     const err = new StringWritable();
 
-    const exitCode = await runCli(["quick-update", app], {
+    const exitCode = await runCli(["run", "quick-update", app], {
       agent: fake,
       stderr: err,
     });
@@ -201,7 +201,7 @@ describe("unstable features (CLI integration)", () => {
     // Only "none" is currently available, so repeating the same name
     // should produce exactly one mention in the warning.
     const exitCode = await runCli(
-      ["quick-update", app, "--unstable-feature", "none", "--unstable-feature", "none"],
+      ["run", "quick-update", app, "--unstable-feature", "none", "--unstable-feature", "none"],
       { agent: fake, stderr: err },
     );
 

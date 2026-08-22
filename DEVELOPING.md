@@ -100,8 +100,8 @@ invocation and reset between calls, preventing state leakage in tests.
 
 ## Flows and prompts
 
-The orchestration logic ships as YAML, not code. Each subcommand maps to
-a flow file:
+The orchestration logic ships as YAML, not code. `saaga run <flow>`
+executes a named flow file:
 
 - [`flows/architecture.flow.yaml`](./flows/architecture.flow.yaml)
 - [`flows/init.flow.yaml`](./flows/init.flow.yaml)
@@ -130,8 +130,8 @@ single source of truth for backend, model, and approval settings; only
 
 | Workflow | Schedule (UTC) | Commands |
 | -------- | -------------- | -------- |
-| `quick-update-nightly.yml` | 00:00 Sun, Tue–Sat | `saaga quick-update` |
-| `verify-quick-updates-weekly.yml` | 00:00 Mon | `saaga quick-update` then `saaga verify-quick-updates` |
+| `quick-update-nightly.yml` | 00:00 Sun, Tue–Sat | `saaga run quick-update` |
+| `verify-quick-updates-weekly.yml` | 00:00 Mon | `saaga run quick-update` then `saaga run verify-quick-updates` |
 
 Monday's weekly run replaces the nightly quick-update for that day, so
 every night of the week is covered exactly once.

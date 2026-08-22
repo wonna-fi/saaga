@@ -52,7 +52,7 @@ export interface CostConfirmationInput extends CostNoticeInput {
 /** The multi-line cost disclaimer shown before an agent-backed run. */
 export function buildCostNotice(input: CostNoticeInput): string {
   const lines = [
-    `Cost notice: 'saaga ${input.subcommand}' will run the ` +
+    `Cost notice: 'saaga run ${input.subcommand}' will run the ` +
       `'${input.backendCli}' CLI${describeResolution(input)} as an ` +
       `autonomous coding agent over ${input.appPath}.`,
     `Agent sessions consume tokens that are billed to your own ` +

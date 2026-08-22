@@ -1,4 +1,7 @@
 name: update
+description: >-
+  Incrementally update documentation: detect changes since BASELINE,
+  regenerate affected slices, refresh BASELINE.
 steps:
   - script:
       name: detect-changes

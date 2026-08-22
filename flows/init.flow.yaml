@@ -1,4 +1,7 @@
 name: init
+description: >-
+  Generate full initial documentation for an app directory
+  (architecture + plan + phases + verify/fix + baseline).
 steps:
   - script:
       name: ensure-gitignore

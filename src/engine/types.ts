@@ -59,5 +59,6 @@ export type Step =
 
 export interface FlowDefinition {
   name: string;
+  description?: string;
   steps: Step[];
 }

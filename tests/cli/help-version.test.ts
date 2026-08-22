@@ -34,7 +34,7 @@ describe("saaga --version", () => {
     const exitCode = await runCli(["--help"], { stdout: out });
     expect(exitCode).toBe(0);
     const text = out.text;
-    for (const cmd of ["init", "update", "quick-update", "verify-quick-updates", "install-rules"]) {
+    for (const cmd of ["run", "install-rules", "doctor"]) {
       expect(text).toContain(cmd);
     }
     expect(text).toContain("--backend");
@@ -44,13 +44,13 @@ describe("saaga --version", () => {
     expect(text).toContain("--unstable-feature");
   });
 
-  test("init --help lists the rule target flag with its default", async () => {
+  test("run --help lists the rule target flag and flow argument", async () => {
     const out = new StringWritable();
-    const exitCode = await runCli(["init", "--help"], { stdout: out });
+    const exitCode = await runCli(["run", "--help"], { stdout: out });
     expect(exitCode).toBe(0);
     expect(out.text).toContain("--rule-targets");
-    expect(out.text).not.toContain("--skill-target");
-    expect(out.text).toContain("agentsmd");
+    expect(out.text).toContain("flow");
+    expect(out.text).toContain("dir");
   });
 
   test("subcommand --help shows its own arguments", async () => {
