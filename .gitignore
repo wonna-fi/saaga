@@ -242,3 +242,4 @@ $RECYCLE.BIN/
 .cursor/plans/
 .pnpm-store/
 .saaga-runs/
+eval/results/
