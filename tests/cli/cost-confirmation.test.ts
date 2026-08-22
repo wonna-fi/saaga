@@ -81,7 +81,7 @@ async function runDirCount(app: string): Promise<number> {
 describe("buildCostNotice", () => {
   test("names the backend CLI, the resolution, the command, and the target", () => {
     const notice = buildCostNotice(NOTICE_INPUT);
-    expect(notice).toContain("'saaga init'");
+    expect(notice).toContain("'saaga run init'");
     expect(notice).toContain("'cursor-agent' CLI");
     expect(notice).toContain("backend cursor");
     expect(notice).toContain("model claude-4.6-opus-high-thinking");
@@ -121,7 +121,7 @@ describe("buildCostNotice", () => {
 
   test("unknown subcommands simply get no cost hint", () => {
     const notice = buildCostNotice({ ...NOTICE_INPUT, subcommand: "whatever" });
-    expect(notice).toContain("'saaga whatever'");
+    expect(notice).toContain("'saaga run whatever'");
     expect(notice.split("\n")).toHaveLength(2);
   });
 });

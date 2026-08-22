@@ -528,7 +528,7 @@ async function runFlowSubcommand(input: RunFlowSubcommandInput): Promise<void> {
   const logger = createLogger(globals, options, logFile);
 
   logger.info(
-    `saaga ${subcommand} ${appPath} (backend=${agent.name}${
+    `saaga run ${subcommand} ${appPath} (backend=${agent.name}${
       resolved.model ? `, model=${resolved.model}` : ""
     })`,
   );

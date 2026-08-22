@@ -218,7 +218,7 @@ usage is billed to your own account with that provider. On an interactive
 terminal it then asks for confirmation:
 
 ```text
-Cost notice: 'saaga init' will run the 'cursor-agent' CLI (backend cursor, model
+Cost notice: 'saaga run init' will run the 'cursor-agent' CLI (backend cursor, model
 claude-4.6-opus-high-thinking) as an autonomous coding agent over /path/to/app.
 Agent sessions consume tokens that are billed to your own cursor-agent account,
 at whatever rate your plan with that provider applies. Saaga does not include or
