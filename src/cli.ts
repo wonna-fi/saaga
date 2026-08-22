@@ -34,7 +34,7 @@ import {
   buildCostSummary,
   confirmAgentCosts,
 } from "./cli/confirm.js";
-import { loadFlow } from "./engine/loader.js";
+import { flowExists, listFlows, loadFlow } from "./engine/loader.js";
 import { AgentStepFailedError, runFlow } from "./engine/runner.js";
 import { Logger } from "./logger.js";
 import { PACKAGE_ROOT } from "./paths.js";
@@ -228,28 +228,62 @@ export async function runCli(
     .exitOverride();
 
   program
-    .command("init")
-    .description("Generate full initial documentation for an app directory")
+    .command("run")
+    .description(
+      "Run a named flow (omit the flow name to list available flows)",
+    )
+    .argument("[flow]", "Flow to run (e.g. init, update, quick-update)")
     .argument("[dir]", "Path to the application directory (default: cwd)", ".")
     .option(
       "--rule-targets <targets>",
       "Comma-separated rule files to install documentation rules into " +
-        "(agentsmd|cursor|claude|copilot|none)",
+        "(agentsmd|cursor|claude|copilot|none) — used by the init flow",
     )
-    .action(async (dir: string, cmdOpts: RuleTargetFlags, cmd: Command) => {
+    .action(async (flow: string | undefined, dir: string, cmdOpts: RuleTargetFlags, cmd: Command) => {
       const globals = cmd.optsWithGlobals<GlobalCliFlags>();
+
+      if (flow === undefined) {
+        const flows = await listFlows();
+        const stream = options.stdout ?? process.stdout;
+        const maxName = Math.max(...flows.map((f) => f.name.length));
+        stream.write("Available flows:\n\n");
+        for (const f of flows) {
+          const desc = f.description ? `  ${f.description}` : "";
+          stream.write(`  ${f.name.padEnd(maxName)}${desc}\n`);
+        }
+        stream.write("\nUsage: saaga run <flow> [dir]\n");
+        return;
+      }
+
+      if (!(await flowExists(flow))) {
+        const flows = await listFlows();
+        const names = flows.map((f) => f.name).join(", ");
+        throw new Error(`Unknown flow '${flow}'. Available flows: ${names}`);
+      }
+
       const baseCwd = options.cwd ?? process.cwd();
       const config = await bootstrapUnstableFeatures(resolve(baseCwd, dir), dir, globals, options);
       await runFlowSubcommand({
         dir,
-        flowName: "init",
-        subcommand: "init",
+        flowName: flow,
+        subcommand: flow,
         globals,
         options,
+        useQuickModel: flow === "quick-update",
         ruleTargetFlag: cmdOpts.ruleTargets,
         config,
       });
     });
+
+  for (const oldCmd of ["init", "update", "quick-update", "verify-quick-updates"]) {
+    program
+      .command(oldCmd, { hidden: true })
+      .argument("[args...]")
+      .allowUnknownOption(true)
+      .action(() => {
+        throw new DeprecatedCommandError(oldCmd);
+      });
+  }
 
   program
     .command("install-rules")
@@ -270,73 +304,6 @@ export async function runCli(
       await runInstallRulesSubcommand({
         dir,
         ruleTargetFlag: cmdOpts.ruleTargets,
-        globals,
-        options,
-        config,
-      });
-    });
-
-  program
-    .command("update")
-    .description(
-      "Incrementally update documentation: detect changes since BASELINE, " +
-        "regenerate affected slices, refresh BASELINE",
-    )
-    .argument("[dir]", "Path to the application directory (default: cwd)", ".")
-    .action(async (dir: string, _cmdOpts: unknown, cmd: Command) => {
-      const globals = cmd.optsWithGlobals<GlobalCliFlags>();
-      const baseCwd = options.cwd ?? process.cwd();
-      const config = await bootstrapUnstableFeatures(resolve(baseCwd, dir), dir, globals, options);
-      await runFlowSubcommand({
-        dir,
-        flowName: "update",
-        subcommand: "update",
-        globals,
-        options,
-        config,
-      });
-    });
-
-  program
-    .command("quick-update")
-    .description(
-      "Fast single-session documentation update: triage changes, update " +
-        "affected docs, and record a metadata artifact for later verification. " +
-        "Uses a cheaper/faster model by default.",
-    )
-    .argument("[dir]", "Path to the application directory (default: cwd)", ".")
-    .action(async (dir: string, _cmdOpts: unknown, cmd: Command) => {
-      const globals = cmd.optsWithGlobals<GlobalCliFlags>();
-      const baseCwd = options.cwd ?? process.cwd();
-      const config = await bootstrapUnstableFeatures(resolve(baseCwd, dir), dir, globals, options);
-      await runFlowSubcommand({
-        dir,
-        flowName: "quick-update",
-        subcommand: "quick-update",
-        globals,
-        options,
-        useQuickModel: true,
-        config,
-      });
-    });
-
-  program
-    .command("verify-quick-updates")
-    .description(
-      "Verify, correct, and improve all unverified quick updates. " +
-        "Consolidates accumulated quick-update artifacts into a plan, " +
-        "runs slice-doc + verify/fix loop per phase, then removes " +
-        "processed artifacts.",
-    )
-    .argument("[dir]", "Path to the application directory (default: cwd)", ".")
-    .action(async (dir: string, _cmdOpts: unknown, cmd: Command) => {
-      const globals = cmd.optsWithGlobals<GlobalCliFlags>();
-      const baseCwd = options.cwd ?? process.cwd();
-      const config = await bootstrapUnstableFeatures(resolve(baseCwd, dir), dir, globals, options);
-      await runFlowSubcommand({
-        dir,
-        flowName: "verify-quick-updates",
-        subcommand: "verify-quick-updates",
         globals,
         options,
         config,
@@ -421,6 +388,10 @@ export async function runCli(
       return err.exitCode;
     }
     if (err instanceof PreflightError) {
+      return err.exitCode;
+    }
+    if (err instanceof DeprecatedCommandError) {
+      (options.stderr ?? process.stderr).write(`${err.message}\n`);
       return err.exitCode;
     }
     if (isCommanderInfoExit(err)) {
@@ -791,6 +762,17 @@ class DoctorError extends Error {
     super(`doctor: probes ${exitCode === 1 ? "failed" : "could not run"}`);
     this.name = "DoctorError";
     this.exitCode = exitCode;
+  }
+}
+
+class DeprecatedCommandError extends Error {
+  readonly exitCode = 1;
+
+  constructor(oldCommand: string) {
+    super(
+      `'saaga ${oldCommand}' has moved — use: saaga run ${oldCommand}`,
+    );
+    this.name = "DeprecatedCommandError";
   }
 }
 

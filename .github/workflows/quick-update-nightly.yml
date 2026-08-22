@@ -1,6 +1,6 @@
 name: Quick update (nightly)
 
-# Runs `saaga quick-update` from the repository source on main.
+# Runs `saaga run quick-update` from the repository source on main.
 # Documentation-only changes are committed straight to main; anything else
 # goes into a PR for human review.
 # Monday nights are handled by the weekly verify workflow instead.
@@ -49,7 +49,7 @@ jobs:
       - name: Run quick-update
         env:
           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
-        run: npx tsx src/cli.ts quick-update . --ci
+        run: npx tsx src/cli.ts run quick-update . --ci
 
       - name: Generate GitHub App token
         id: app-token

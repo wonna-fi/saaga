@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { access, readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { parse as parseYaml } from "yaml";
 import { FLOWS_DIR } from "../paths.js";
@@ -33,11 +33,19 @@ export function parseFlowDefinition(raw: unknown): FlowDefinition {
   if (typeof name !== "string") {
     throw new Error("Flow 'name' must be a string");
   }
+  const description = obj.description;
+  if (description !== undefined && typeof description !== "string") {
+    throw new Error("Flow 'description' must be a string");
+  }
   const steps = obj.steps;
   if (!Array.isArray(steps)) {
     throw new Error("Flow 'steps' must be an array");
   }
-  return { name, steps: steps.map(parseStep) };
+  return {
+    name,
+    ...(description !== undefined && { description }),
+    steps: steps.map(parseStep),
+  };
 }
 
 function parseStep(raw: unknown): Step {
@@ -255,4 +263,31 @@ function parseAgentStep(body: unknown): AgentStep {
     step.label = obj.label;
   }
   return step;
+}
+
+export interface FlowInfo {
+  name: string;
+  description?: string;
+}
+
+export async function listFlows(): Promise<FlowInfo[]> {
+  const entries = await readdir(FLOWS_DIR);
+  const results: FlowInfo[] = [];
+  for (const entry of entries) {
+    if (!entry.endsWith(".flow.yaml")) continue;
+    const flow = await loadFlowFromFile(resolve(FLOWS_DIR, entry));
+    results.push({ name: flow.name, description: flow.description });
+  }
+  results.sort((a, b) => a.name.localeCompare(b.name));
+  return results;
+}
+
+export async function flowExists(name: string): Promise<boolean> {
+  const path = resolve(FLOWS_DIR, `${name}.flow.yaml`);
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
 }

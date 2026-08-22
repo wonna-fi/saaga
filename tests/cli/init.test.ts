@@ -75,7 +75,7 @@ phases:
 # Plan body
 `;
 
-describe("saaga init", () => {
+describe("saaga run init", () => {
   test("phase-0-only plan: architecture, plan-init, slice-doc(0), install-rules, baseline", async () => {
     const { app } = await tmpAppEnv("salesforce");
     const planScenario = planInitScenario(SINGLE_PHASE_PLAN);
@@ -86,7 +86,7 @@ describe("saaga init", () => {
       "Document a Plan Slice": { exitCode: 0 },
     });
 
-    const exitCode = await runCli(["init", app], {
+    const exitCode = await runCli(["run", "init", app], {
       agent: fake,
     });
 
@@ -126,7 +126,7 @@ describe("saaga init", () => {
     });
 
     await expect(
-      runCli(["init", app], { agent: fake }),
+      runCli(["run", "init", app], { agent: fake }),
     ).rejects.toThrow(/expect_file/);
   });
 
@@ -153,7 +153,7 @@ phases:
       "Verify Domain Documentation Slice": verifyScenario(() => "PASS"),
     });
 
-    const exitCode = await runCli(["init", app], {
+    const exitCode = await runCli(["run", "init", app], {
       agent: fake,
     });
 
@@ -188,7 +188,7 @@ phases:
       "Fix Documentation Errors": { exitCode: 0 },
     });
 
-    const exitCode = await runCli(["init", app], {
+    const exitCode = await runCli(["run", "init", app], {
       agent: fake,
     });
 
@@ -234,7 +234,7 @@ phases:
       "Verify Domain Documentation Slice": verifyScenario(() => "PASS"),
     });
 
-    const exitCode = await runCli(["init", app], {
+    const exitCode = await runCli(["run", "init", app], {
       agent: fake,
     });
 
@@ -268,7 +268,7 @@ phases:
     });
 
     const exitCode = await runCli(
-      ["init", app, "--rule-targets", "cursor,copilot"],
+      ["run", "init", app, "--rule-targets", "cursor,copilot"],
       { agent: fake },
     );
 
@@ -294,7 +294,7 @@ phases:
     const fake = new FakeAgent({});
 
     await expect(
-      runCli(["init", app, "--rule-targets", "bogus"], {
+      runCli(["run", "init", app, "--rule-targets", "bogus"], {
         agent: fake,
       }),
     ).rejects.toThrow(/invalid rule target 'bogus'/);
@@ -307,7 +307,7 @@ phases:
     const fake = new FakeAgent({});
 
     await expect(
-      runCli(["init", app, "--rule-targets", "   "], {
+      runCli(["run", "init", app, "--rule-targets", "   "], {
         agent: fake,
       }),
     ).rejects.toThrow(/no rule target specified/);
@@ -329,7 +329,7 @@ phases:
       "Document a Plan Slice": { exitCode: 0 },
     });
 
-    const exitCode = await runCli(["init", app], { agent: fake });
+    const exitCode = await runCli(["run", "init", app], { agent: fake });
     expect(exitCode).toBe(0);
 
     for (const call of fake.calls) {

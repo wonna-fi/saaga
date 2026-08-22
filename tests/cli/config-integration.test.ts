@@ -53,7 +53,7 @@ phases:
     // the config loading path. The real resolution test is:
     // without FakeAgent and without --backend, having config.defaultBackend
     // should not throw "Backend must be specified".
-    const exitCode = await runCli(["init", app], {
+    const exitCode = await runCli(["run", "init", app], {
       agent: fake,
     });
     expect(exitCode).toBe(0);
@@ -87,7 +87,7 @@ phases:
       "Document a Plan Slice": { exitCode: 0 },
     });
 
-    const exitCode = await runCli(["init", app], {
+    const exitCode = await runCli(["run", "init", app], {
       agent: fake,
     });
     expect(exitCode).toBe(0);
@@ -137,7 +137,7 @@ phases:
       "Document a Plan Slice": { exitCode: 0 },
     });
 
-    const exitCode = await runCli(["init", app, "--rule-targets", "agentsmd"], {
+    const exitCode = await runCli(["run", "init", app, "--rule-targets", "agentsmd"], {
       agent: fake,
     });
     expect(exitCode).toBe(0);

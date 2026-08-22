@@ -237,7 +237,7 @@ describe("saaga cost confirmation (end to end)", () => {
     const fake = new FakeAgent({});
     const err = new StringWritable();
 
-    const exitCode = await runCli(["quick-update", app], {
+    const exitCode = await runCli(["run", "quick-update", app], {
       agent: fake,
       stderr: err,
       stdin: ttyStdin("n\n"),
@@ -262,7 +262,7 @@ describe("saaga cost confirmation (end to end)", () => {
     );
     const err = new StringWritable();
 
-    const exitCode = await runCli(["quick-update", app], {
+    const exitCode = await runCli(["run", "quick-update", app], {
       stderr: err,
       stdin: ttyStdin("n\n"),
     });
@@ -280,7 +280,7 @@ describe("saaga cost confirmation (end to end)", () => {
     const err = new StringWritable();
 
     const exitCode = await runCli(
-      ["quick-update", app, "--model", "medium=cli-medium"],
+      ["run", "quick-update", app, "--model", "medium=cli-medium"],
       { stderr: err, stdin: ttyStdin("n\n") },
     );
 
@@ -293,7 +293,7 @@ describe("saaga cost confirmation (end to end)", () => {
     const fake = new FakeAgent({});
     const err = new StringWritable();
 
-    const exitCode = await runCli(["quick-update", app], {
+    const exitCode = await runCli(["run", "quick-update", app], {
       agent: fake,
       stderr: err,
       stdin: ttyStdin("y\n"),
@@ -309,7 +309,7 @@ describe("saaga cost confirmation (end to end)", () => {
     const fake = new FakeAgent({});
     const err = new StringWritable();
 
-    const exitCode = await runCli(["quick-update", app, "--yes"], {
+    const exitCode = await runCli(["run", "quick-update", app, "--yes"], {
       agent: fake,
       stderr: err,
       stdin: ttyStdin("n\n"),
@@ -328,7 +328,7 @@ describe("saaga cost confirmation (end to end)", () => {
     const fake = new FakeAgent({});
     const err = new StringWritable();
 
-    const exitCode = await runCli(["quick-update", app], {
+    const exitCode = await runCli(["run", "quick-update", app], {
       agent: fake,
       stderr: err,
       stdin: ttyStdin("n\n"),

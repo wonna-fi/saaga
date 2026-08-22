@@ -62,7 +62,7 @@ phases:
 # Plan body
 `;
 
-describe("saaga update", () => {
+describe("saaga run update", () => {
   test("zero changes: detect-changes runs, but no plan-update is invoked", async () => {
     const { app } = await tmpUpdateEnv("noop");
 
@@ -70,7 +70,7 @@ describe("saaga update", () => {
       "Update Domain Documentation": planUpdateScenario(ONE_PHASE_UPDATE_PLAN),
     });
 
-    const exitCode = await runCli(["update", app], {
+    const exitCode = await runCli(["run", "update", app], {
       agent: fake,
     });
     expect(exitCode).toBe(0);
@@ -92,7 +92,7 @@ Non doc-worthy.
 `),
     });
 
-    const exitCode = await runCli(["update", app], {
+    const exitCode = await runCli(["run", "update", app], {
       agent: fake,
     });
     expect(exitCode).toBe(0);
@@ -125,7 +125,7 @@ phases:
       "Verify Domain Documentation Slice": verifyScenario(() => "PASS"),
     });
 
-    const exitCode = await runCli(["update", app], {
+    const exitCode = await runCli(["run", "update", app], {
       agent: fake,
     });
     expect(exitCode).toBe(0);
@@ -156,7 +156,7 @@ phases:
       "Fix Documentation Errors": { exitCode: 0 },
     });
 
-    const exitCode = await runCli(["update", app], {
+    const exitCode = await runCli(["run", "update", app], {
       agent: fake,
     });
     expect(exitCode).toBe(0);

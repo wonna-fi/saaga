@@ -1,4 +1,8 @@
 name: verify-quick-updates
+description: >-
+  Verify, correct, and improve all unverified quick updates. Consolidates
+  accumulated quick-update artifacts into a plan, runs slice-doc + verify/fix
+  loop per phase, then removes processed artifacts.
 steps:
   - script:
       name: collect-quick-updates

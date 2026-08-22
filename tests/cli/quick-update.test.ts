@@ -48,7 +48,7 @@ function quickUpdateScenario(
   };
 }
 
-describe("saaga quick-update", () => {
+describe("saaga run quick-update", () => {
   test("zero changes: no agent is invoked", async () => {
     const { app } = await tmpQuickUpdateEnv("noop");
 
@@ -56,7 +56,7 @@ describe("saaga quick-update", () => {
       "Quick-Update Domain Documentation": quickUpdateScenario("UPDATED"),
     });
 
-    const exitCode = await runCli(["quick-update", app], {
+    const exitCode = await runCli(["run", "quick-update", app], {
       agent: fake,
     });
     expect(exitCode).toBe(0);
@@ -71,7 +71,7 @@ describe("saaga quick-update", () => {
       "Quick-Update Domain Documentation": quickUpdateScenario("UPDATED"),
     });
 
-    const exitCode = await runCli(["quick-update", app], {
+    const exitCode = await runCli(["run", "quick-update", app], {
       agent: fake,
     });
     expect(exitCode).toBe(0);
@@ -107,7 +107,7 @@ describe("saaga quick-update", () => {
       "Quick-Update Domain Documentation": quickUpdateScenario("SKIPPED"),
     });
 
-    const exitCode = await runCli(["quick-update", app], {
+    const exitCode = await runCli(["run", "quick-update", app], {
       agent: fake,
     });
     expect(exitCode).toBe(0);

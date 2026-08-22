@@ -63,7 +63,7 @@ function verifyScenario(
   };
 }
 
-describe("saaga verify-quick-updates", () => {
+describe("saaga run verify-quick-updates", () => {
   test("no artifacts: exits cleanly without invoking the agent", async () => {
     const { app } = await tmpVerifyEnv("noop");
 
@@ -71,7 +71,7 @@ describe("saaga verify-quick-updates", () => {
       "Plan Verification": planVerifyScenario("---\nphases: []\n---\n"),
     });
 
-    const exitCode = await runCli(["verify-quick-updates", app], {
+    const exitCode = await runCli(["run", "verify-quick-updates", app], {
       agent: fake,
     });
     expect(exitCode).toBe(0);
@@ -97,7 +97,7 @@ phases:
       "Verify Domain Documentation Slice": verifyScenario(() => "PASS"),
     });
 
-    const exitCode = await runCli(["verify-quick-updates", app], {
+    const exitCode = await runCli(["run", "verify-quick-updates", app], {
       agent: fake,
     });
     expect(exitCode).toBe(0);
@@ -133,7 +133,7 @@ phases:
       "Fix Documentation Errors": { exitCode: 0 },
     });
 
-    const exitCode = await runCli(["verify-quick-updates", app], {
+    const exitCode = await runCli(["run", "verify-quick-updates", app], {
       agent: fake,
     });
     expect(exitCode).toBe(0);
@@ -163,7 +163,7 @@ phases:
       "Verify Domain Documentation Slice": verifyScenario(() => "PASS"),
     });
 
-    const exitCode = await runCli(["verify-quick-updates", app], {
+    const exitCode = await runCli(["run", "verify-quick-updates", app], {
       agent: fake,
     });
     expect(exitCode).toBe(0);
