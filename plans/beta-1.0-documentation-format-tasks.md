@@ -295,6 +295,14 @@ sees the ownership rules verbatim, not via plan paraphrase.
 3. **Dedup planning step.** The plan format gains a per-document "owns / references" declaration:
    for each planned doc, which facts it owns and which docs it links to for the rest. Verify checks
    that a doc does not restate content it declared as referenced.
+4. **ARCHITECTURE under verification.** The init flow gains a verify/fix pass over the generated
+   `ARCHITECTURE.md` — a dedicated verify step after the architecture step, or folded into phase
+   0's verification (implementer's choice, justified in the PR). Rationale: the init flow
+   generates ARCHITECTURE before the plan exists and outside the per-phase verify/fix loop, so it
+   is the only document nothing verifies at generation time — and the analysis's core finding on
+   this doc is that it ignored its own prompt's rules ("concise", "public interface only", all
+   violated by the 687-line output). The diet and budget above cannot be enforced by the writer
+   prompt alone; until task 7's sweep runs post-milestone, this pass is the only enforcement.
 
 **Acceptance criteria.**
 
@@ -303,6 +311,9 @@ sees the ownership rules verbatim, not via plan paraphrase.
       is prose-only, the task documents why no parser change is needed.
 - [ ] Sample regeneration: each workflow's step sequence appears in exactly one document;
       `features/cli-entry-point.md` no longer duplicates ARCHITECTURE's CLI walkthrough.
+- [ ] Fake-agent init flow test covers the ARCHITECTURE verify/fix pass; sample regeneration: the
+      regenerated `ARCHITECTURE.md` passes verify against its length budget and its
+      links-instead-of-inlines rule.
 
 ---
 
