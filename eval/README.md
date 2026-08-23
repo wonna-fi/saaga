@@ -67,6 +67,17 @@ every real implementation still passes them; a legitimate fixture refresh is a t
 version bump. Note the test files double as the specification — doc leverage may therefore
 show up as cost-to-success more than as pass rate.
 
+**The per-task budget is part of the instrument**: pass = target tests green within the
+pre-registered timeout (600 s for code tasks, 300 s default for answer tasks). A run killed
+at the budget counts as a failure by design — "solves it eventually" is not the measured
+claim, and weaker tiers timing out on hard code tasks is exactly the sensitivity signal the
+haiku run exists to capture. Such runs appear with exit 143 and n/a usage metrics (the CLI
+was killed before its terminal usage message), while the checker still grades the partial
+work into `checkDetail`.
+
+Reading reports, one sanity indicator to expect: the `corpus opened` column must be `0/N` in
+every `no-docs` arm — a measured negative control that condition isolation held for that run.
+
 ### Primary endpoints (pre-registered)
 
 1. **Code-task pass rate**, `no-docs` vs `saaga-docs` (the instrument with dynamic range).
