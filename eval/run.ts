@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { execa } from "execa";
 import { createAgent, resolveModel, type Backend } from "../src/cli/backend.js";
-import { selectTasks, validateRegistry } from "./src/registry.js";
+import { TASK_SET_VERSION, selectTasks, validateRegistry } from "./src/registry.js";
 import { runEval } from "./src/runner.js";
 import { generateReport } from "./src/report-gen.js";
 import { ALL_CONDITIONS, type ConditionId, type RunSpec } from "./src/types.js";
@@ -91,19 +91,27 @@ async function main(): Promise<number> {
     conditions,
     reps,
     taskIds: tasks.map((t) => t.id),
+    taskSetVersion: TASK_SET_VERSION,
     startedAt: new Date().toISOString(),
   };
 
   if (values["dry-run"]) {
-    process.stdout.write(`rev: ${rev}\nbackend: ${backend} / ${model} (key: ${values.model})\n`);
-    process.stdout.write(`matrix: ${tasks.length} tasks × ${conditions.length} conditions × ${reps} reps = ${tasks.length * conditions.length * reps} agent runs\n\n`);
+    const lines: string[] = [];
     for (const task of tasks) {
       for (const condition of conditions) {
+        if (task.appliesTo && !task.appliesTo.includes(condition)) {
+          lines.push(`${task.id} · ${condition} · skipped (not applicable)`);
+          continue;
+        }
         for (let rep = 1; rep <= reps; rep++) {
-          process.stdout.write(`${task.id} · ${condition} · rep ${rep}\n`);
+          lines.push(`${task.id} · ${condition} · rep ${rep}`);
         }
       }
     }
+    const runCount = lines.filter((l) => !l.endsWith("(not applicable)")).length;
+    process.stdout.write(`rev: ${rev}\nbackend: ${backend} / ${model} (key: ${values.model})\n`);
+    process.stdout.write(`matrix: ${tasks.length} tasks × ${conditions.length} conditions × ${reps} reps = ${runCount} agent runs\n\n`);
+    process.stdout.write(lines.join("\n") + "\n");
     return 0;
   }
 

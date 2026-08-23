@@ -199,6 +199,12 @@ describe("generateComparison", () => {
     expect(() => generateComparison(base, candidate)).toThrow(/task sets differ/);
   });
 
+  test("refuses to compare different task-set versions", () => {
+    const candidate = structuredClone(base);
+    candidate.spec.taskSetVersion = 2;
+    expect(() => generateComparison(base, candidate)).toThrow(/task-set versions differ/);
+  });
+
   test("warns when the model differs between runs", () => {
     const candidate = structuredClone(base);
     candidate.spec.model = "haiku";

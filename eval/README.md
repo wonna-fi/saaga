@@ -32,14 +32,55 @@ Agents run with a purpose-built permission profile (read whole sandbox, write wh
 run dir, restricted shell). The restricted shell also equalizes conditions: no arm can run
 tests or arbitrary commands.
 
-### Task set: two halves, reported separately
+### Task set: two halves, two kinds (task-set v2)
 
 - **Neutral half** (`eval/tasks/neutral/`): depth-preservation probes and verified anchor facts
-  from `plans/eval-seed-material.md` (labeled fair to both corpora there), plus three tasks
-  derived from real merged PRs. **Only this half supports the headline claim.**
+  from `plans/eval-seed-material.md` (labeled fair to both corpora there), three tasks derived
+  from real merged PRs, and six **code tasks** (below). **Only this half supports the headline
+  claim.**
 - **Defect half** (`eval/tasks/defect/`): regression probes for the four confirmed stale doc
-  claims plus term-collision probes. This half measures whether known documentation defects
-  mislead the agent — fix-verification, not general usefulness.
+  claims plus term-collision probes. Interpretation revised after the v1 baselines: in
+  open-book arms this half is void (agents cross-check stale docs against source and are not
+  misled); closed-book against the pre-refactor corpus it is defeated by duplication (the
+  corpus states the same facts in multiple homes, only some stale, and retrieval finds a
+  correct duplicate). Its binding use is docs-only against the *regenerated* corpus; the
+  milestone's "stale claims gone" criterion is checked by a deterministic grep for the four
+  stale strings, not by agents.
+
+### Code tasks (the headline pass-rate instrument)
+
+Answer-shaped QA saturates at strong model tiers (v1 baselines: 67/68 open-book). Six
+`kind: "code"` tasks grade by execution instead: `prepare()` overwrites a feature's
+implementation with a committed stub fixture (`eval/tasks/neutral/fixtures/` — exports and
+types kept, bodies throw "not implemented") before the sandbox's initial commit, the agent
+re-implements it from the docs and the target test files (readable in the sandbox; the
+restricted shell still prevents *executing* anything), and after the agent finishes a trusted
+host-side checker (`checkTests()`) restores the test files and configs from the initial
+commit — so editing the tests cannot pass — symlinks the host's `node_modules` in, and runs
+the feature's existing vitest files. Pass = exit 0.
+
+Code tasks run in `no-docs`/`saaga-docs`/`openwiki` only (there is no source tree to
+re-implement into closed-book); applicability lives in `eval/src/registry.ts`, not in task
+modules, so the condition-blindness guard stays intact. A drift guard
+(`eval/code-tasks.test.ts`) proves in CI that every stub still breaks its target tests and
+every real implementation still passes them; a legitimate fixture refresh is a task-set
+version bump. Note the test files double as the specification — doc leverage may therefore
+show up as cost-to-success more than as pass rate.
+
+### Primary endpoints (pre-registered)
+
+1. **Code-task pass rate**, `no-docs` vs `saaga-docs` (the instrument with dynamic range).
+2. **Cost-to-success for the QA tasks in open-book arms**: at a strong tier both arms pass,
+   so the discriminating signal is cache-read tokens / turns / elapsed at equal success.
+3. **Closed-book QA success** (`docs-only`): corpus coverage and accuracy, ceiling-free.
+
+### Task-set versioning
+
+`TASK_SET_VERSION` (`eval/src/registry.ts`) is stamped into every run's spec and bumped on
+ANY change to task membership, a prompt, a check predicate, a `prepare()`/stub fixture, or
+condition scoping. `eval:report --base/--candidate` refuses to compare different versions —
+a bump means both sides of any comparison must be re-run. The committed 2026-08-23 baselines
+are **v1** (17 answer tasks) and remain valid v1 evidence; v2 starts a fresh baseline set.
 
 Trim-verification probes from the seed file are deliberately *not* tasks: rewarding recall of
 over-documented trivia would score the very over-documentation the docs refactor removes. They
@@ -62,7 +103,9 @@ Any check edit after a pilot run must be recorded in the PR description that mak
   as **cache read** tokens, reported in its own column; judge context cost from that one.
 - **docs reads / corpus opened**: how many corpus files the agent opened, counted from the
   run's NDJSON transcript by the runner (backfilled from `logs/` by `eval:report` for older
-  runs). Distinguishes "docs ignored" from "docs read but unhelpful/overridden".
+  runs). Distinguishes "docs ignored" from "docs read but unhelpful/overridden". This is a
+  **lower bound**: it counts Read-tool `file_path`s only, so corpus content reached via Grep
+  output is not counted (v1 runs showed passing answers with zero counted reads).
 - **elapsed**: harness wall-clock, always present.
 
 At least 2 repetitions per condition; the report shows `median (min–max)` spread, never bare
@@ -98,25 +141,33 @@ never edited by hand; everything needed for comparison is computed from `summary
 ### Pre-registered design for the corpus-regeneration comparison
 
 Committed before the regenerated corpus exists. Old corpus (base) vs new corpus (candidate)
-will be judged on, in this order, with the identical task set and checks throughout:
+will be judged on, in this order, with the identical **v2** task set and checks throughout:
 
-1. **Non-regression** on the neutral half at sonnet tier (`saaga-docs` arm) — at the observed
-   ceiling, holding the pass rate after shrinking the corpus is the claim, and any drop is
-   the over-trim the depth-preservation probes exist to catch.
-2. **Context-cost delta** — cache-read tokens in the `saaga-docs` arm; the old corpus measured
-   as pure overhead versus `no-docs`, so a smaller corpus should shrink it.
-3. **Closed-book delta** — the `docs-only` condition, immune to the ceiling: neutral half =
-   coverage/depth, defect half = accuracy (the four stale claims must stop failing).
-4. **Sensitivity run** at haiku tier (`--model low`), where doc leverage and doc harm have
+1. **Code-task delta** in the paired arms at sonnet tier — the headline instrument.
+2. **QA non-regression** on the neutral half (`saaga-docs` arm) — at the observed ceiling,
+   holding the pass rate after shrinking the corpus is the claim, and any drop is the
+   over-trim the depth-preservation probes exist to catch.
+3. **Context-cost delta** — cache-read tokens in the `saaga-docs` arm; the old corpus
+   measured as pure overhead versus `no-docs` (+9% at equal success), so a smaller corpus
+   should shrink it.
+4. **Closed-book delta** — the `docs-only` condition, immune to the ceiling: neutral half =
+   coverage/depth (v1 caught the `saaga run` coverage gap), defect half = accuracy.
+5. **Sensitivity run** at haiku tier (`--model low`), where doc leverage and doc harm have
    room to appear below the ceiling.
+
+Old-corpus v2 baselines required before regeneration: paired sonnet, docs-only sonnet, and
+paired haiku.
 
 ## Adding a task
 
 Create a module under `eval/tasks/<half>/` exporting an `EvalTask` (see any existing task),
 register it in `eval/src/registry.ts`, and keep it condition-blind — the registry test enforces
-the forbidden references and the 10–20 task budget. `kind: "answer"` tasks get the ANSWER.md
+the forbidden references and the 10–25 task budget. `kind: "answer"` tasks get the ANSWER.md
 instruction appended by the runner; `check` uses `checkAnswer()` with positive predicates and,
-for defect probes, negative predicates matching the stale claim.
+for defect probes, negative predicates matching the stale claim. `kind: "code"` tasks add a
+stub fixture under `fixtures/<slug>/`, `prepare: stubWith(...)`, `targetFiles`/`targetTests`,
+`check: checkTests(...)`, and a `CONDITION_SCOPE` entry in the registry. Any task change bumps
+`TASK_SET_VERSION` and invalidates standing baselines.
 
 ## Caveats
 
@@ -133,6 +184,7 @@ for defect probes, negative predicates matching the stale claim.
   arm; the files they point at do not exist there, and neither file is auto-loaded into agent
   context, so the leak surface is considered inert.
 - **Defect half scope**: it verifies fixes for known defects; it cannot support the headline
-  "docs help" claim.
-- **No test-running**: the restricted shell means no arm can compile or run the suite, so
-  code-shaped tasks are graded on file state only.
+  "docs help" claim (and see the duplication finding above for its closed-book limits).
+- **Agents cannot run tests**: the restricted shell means no arm can compile or execute
+  anything; code tasks are graded by a trusted host-side checker after the agent finishes,
+  and the target test files double as the specification the agent reads.

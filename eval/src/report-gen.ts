@@ -128,6 +128,12 @@ function corpusOpened(runs: TaskResult[]): string {
  * Conditions are compared over their intersection.
  */
 export function generateComparison(base: EvalRunSummary, candidate: EvalRunSummary): string {
+  if (base.spec.taskSetVersion !== candidate.spec.taskSetVersion) {
+    throw new Error(
+      `task-set versions differ (base: ${String(base.spec.taskSetVersion)}, candidate: ${String(candidate.spec.taskSetVersion)}) — ` +
+        "a version bump changes prompts/checks/stubs, so both sides must be re-run at the same version",
+    );
+  }
   const baseTasks = [...base.spec.taskIds].sort().join(",");
   const candTasks = [...candidate.spec.taskIds].sort().join(",");
   if (baseTasks !== candTasks) {

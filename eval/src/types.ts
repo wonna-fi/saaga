@@ -29,6 +29,8 @@ export type TaskHalf = "defect" | "neutral";
 /** What a task's check() gets to look at. Never includes the condition. */
 export interface CheckCtx {
   sandboxDir: string;
+  /** Host checkout; checkTests borrows its node_modules AFTER the agent run. */
+  repoRoot: string;
   /** Content of <sandbox>/ANSWER.md, or "" when the agent never wrote it. */
   readAnswer(): Promise<string>;
   /** Content of a sandbox-relative file, or "" when absent. */
@@ -55,6 +57,21 @@ export interface EvalTask {
   prompt: string;
   /** Per-run timeout; defaults to DEFAULT_TASK_TIMEOUT_MS. */
   timeoutMs?: number;
+  /**
+   * Task-specific sandbox mutation, run after the condition mutation and
+   * BEFORE the sandbox's initial commit (so git reveals nothing). Code
+   * tasks overwrite their target files with committed stub fixtures here.
+   */
+  prepare?(sandboxDir: string): Promise<void>;
+  /** Code tasks: sandbox-relative test files the checker executes. */
+  targetTests?: readonly string[];
+  /** Code tasks: sandbox-relative implementation files prepare() stubs. */
+  targetFiles?: readonly string[];
+  /**
+   * Conditions this task runs in; absent = all. Populated ONLY by the
+   * registry (harness policy) — task modules stay condition-blind.
+   */
+  appliesTo?: readonly ConditionId[];
   check(ctx: CheckCtx): Promise<CheckResult>;
 }
 
@@ -72,6 +89,12 @@ export interface RunSpec {
   conditions: ConditionId[];
   reps: number;
   taskIds: string[];
+  /**
+   * Version of the pre-registered task set (see TASK_SET_VERSION in
+   * registry.ts). Optional so summaries from before the field parse;
+   * comparisons refuse to mix versions.
+   */
+  taskSetVersion?: number;
   startedAt: string;
 }
 

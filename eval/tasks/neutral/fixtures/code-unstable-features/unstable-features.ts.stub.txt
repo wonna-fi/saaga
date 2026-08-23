@@ -1,0 +1,44 @@
+/**
+ * Typed registry of unstable features.
+ */
+
+export const UNSTABLE_FEATURES = ["none"] as const;
+
+export type UnstableFeature = (typeof UNSTABLE_FEATURES)[number];
+
+export function isUnstableFeature(name: string): name is UnstableFeature {
+  void name;
+  throw new Error("not implemented");
+}
+
+export function findUnknownFeature(names: readonly string[]): string | undefined {
+  void names;
+  throw new Error("not implemented");
+}
+
+export function resolveUnstableFeatures(
+  configFeatures: readonly string[],
+  cliFeatures: readonly string[],
+): UnstableFeature[] {
+  void configFeatures;
+  void cliFeatures;
+  throw new Error("not implemented");
+}
+
+export function initUnstableFeatures(features: readonly UnstableFeature[]): void {
+  void features;
+  throw new Error("not implemented");
+}
+
+export function isUnstableFeatureEnabled(feature: UnstableFeature): boolean {
+  void feature;
+  throw new Error("not implemented");
+}
+
+export function getEnabledUnstableFeatures(): UnstableFeature[] {
+  throw new Error("not implemented");
+}
+
+export function resetUnstableFeatures(): void {
+  throw new Error("not implemented");
+}

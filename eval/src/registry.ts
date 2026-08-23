@@ -1,4 +1,4 @@
-import type { EvalTask } from "./types.js";
+import type { ConditionId, EvalTask } from "./types.js";
 
 import { task as copilotRestrictedFlags } from "../tasks/defect/copilot-restricted-flags.js";
 import { task as configDefaultBackend } from "../tasks/defect/config-default-backend.js";
@@ -17,6 +17,39 @@ import { task as pr01RunCommand } from "../tasks/neutral/pr-01-run-command.js";
 import { task as pr02ModelKeys } from "../tasks/neutral/pr-02-model-keys.js";
 import { task as pr03Saagarules } from "../tasks/neutral/pr-03-saagarules.js";
 import { task as saagaignoreSymlinks } from "../tasks/neutral/saagaignore-symlinks.js";
+import { task as codeSaagarules } from "../tasks/neutral/code-saagarules.js";
+import { task as codeModelOverrides } from "../tasks/neutral/code-model-overrides.js";
+import { task as codeExpression } from "../tasks/neutral/code-expression.js";
+import { task as codeUnstableFeatures } from "../tasks/neutral/code-unstable-features.js";
+import { task as codeDenialClassify } from "../tasks/neutral/code-denial-classify.js";
+import { task as codeFileManifest } from "../tasks/neutral/code-file-manifest.js";
+
+/**
+ * Version of the pre-registered task set. Bump on ANY change to task
+ * membership, a prompt, a check predicate, a prepare()/stub fixture, or
+ * this file's condition scoping — comparisons refuse to mix versions, so
+ * a bump means both sides of any comparison must be re-run.
+ *
+ * v1: 17 answer tasks (the committed 2026-08-23 baselines).
+ * v2: + 6 code tasks (execution-graded re-implementation).
+ */
+export const TASK_SET_VERSION = 2;
+
+/**
+ * Condition applicability is harness policy, not task content, so it
+ * lives here rather than in the task modules — the condition-blindness
+ * test greps eval/tasks/** and must keep finding nothing. Code tasks
+ * skip docs-only: there is no source tree to re-implement into.
+ */
+const CODE_TASK_CONDITIONS: readonly ConditionId[] = ["no-docs", "saaga-docs", "openwiki"];
+const CONDITION_SCOPE: Record<string, readonly ConditionId[]> = {
+  "neutral/code-saagarules": CODE_TASK_CONDITIONS,
+  "neutral/code-model-overrides": CODE_TASK_CONDITIONS,
+  "neutral/code-expression": CODE_TASK_CONDITIONS,
+  "neutral/code-unstable-features": CODE_TASK_CONDITIONS,
+  "neutral/code-denial-classify": CODE_TASK_CONDITIONS,
+  "neutral/code-file-manifest": CODE_TASK_CONDITIONS,
+};
 
 /**
  * The pre-registered task set. Order is the deterministic run order.
@@ -24,7 +57,7 @@ import { task as saagaignoreSymlinks } from "../tasks/neutral/saagaignore-symlin
  * Both halves must land in one PR before any real condition runs — the
  * pre-registration discipline from plans/eval-seed-material.md.
  */
-export const EVAL_TASKS: readonly EvalTask[] = [
+const RAW_TASKS: readonly EvalTask[] = [
   shellPolicyValues,
   copilotRestrictedFlags,
   configDefaultBackend,
@@ -42,7 +75,17 @@ export const EVAL_TASKS: readonly EvalTask[] = [
   pr01RunCommand,
   pr02ModelKeys,
   pr03Saagarules,
+  codeSaagarules,
+  codeModelOverrides,
+  codeExpression,
+  codeUnstableFeatures,
+  codeDenialClassify,
+  codeFileManifest,
 ];
+
+export const EVAL_TASKS: readonly EvalTask[] = RAW_TASKS.map((task) =>
+  CONDITION_SCOPE[task.id] ? { ...task, appliesTo: CONDITION_SCOPE[task.id] } : task,
+);
 
 /** Throws when the registry violates its own invariants. */
 export function validateRegistry(tasks: readonly EvalTask[] = EVAL_TASKS): void {
@@ -54,8 +97,31 @@ export function validateRegistry(tasks: readonly EvalTask[] = EVAL_TASKS): void 
       throw new Error(`task id '${task.id}' does not match its half '${task.half}'`);
     }
   }
-  if (tasks.length < 10 || tasks.length > 20) {
-    throw new Error(`task set must hold 10-20 tasks, found ${tasks.length}`);
+  if (tasks.length < 10 || tasks.length > 25) {
+    throw new Error(`task set must hold 10-25 tasks, found ${tasks.length}`);
+  }
+
+  for (const scopedId of Object.keys(CONDITION_SCOPE)) {
+    if (!ids.has(scopedId)) {
+      throw new Error(`CONDITION_SCOPE names unregistered task id: ${scopedId}`);
+    }
+  }
+
+  const stubbedFiles = new Set<string>();
+  for (const task of tasks) {
+    if (task.kind !== "code") continue;
+    if (!task.prepare) throw new Error(`code task ${task.id} lacks prepare()`);
+    if (!task.targetTests?.length) throw new Error(`code task ${task.id} lacks targetTests`);
+    if (!task.targetFiles?.length) throw new Error(`code task ${task.id} lacks targetFiles`);
+    if (!task.appliesTo || task.appliesTo.includes("docs-only")) {
+      throw new Error(`code task ${task.id} must be scoped out of docs-only`);
+    }
+    for (const file of task.targetFiles) {
+      if (stubbedFiles.has(file)) {
+        throw new Error(`code tasks stub the same file twice: ${file}`);
+      }
+      stubbedFiles.add(file);
+    }
   }
 }
 

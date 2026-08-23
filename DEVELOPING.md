@@ -31,9 +31,12 @@ pnpm test:watch     # vitest watch
 ## Evaluation harness
 
 `eval/` holds a paired eval harness measuring whether the `saaga-docs/`
-corpus helps a coding agent on this repo. Its smoke tests run inside
-`pnpm test` with the fake agent and cost nothing. Real runs invoke an agent
-CLI and spend tokens:
+corpus helps a coding agent on this repo — answer tasks graded by
+pre-registered regexes plus code tasks graded by running the feature's
+real vitest files against the sandbox. Its smoke tests and a drift guard
+(which verifies the code-task stubs still match the source tree) run
+inside `pnpm test` with the fake agent and cost nothing. Real runs invoke
+an agent CLI and spend tokens:
 
 ```bash
 pnpm eval --dry-run                                  # print the run matrix

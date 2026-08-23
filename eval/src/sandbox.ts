@@ -30,6 +30,12 @@ export interface CreateSandboxOptions extends ApplyConditionOptions {
   /** Full SHA (or any rev) to export the tracked tree from. */
   rev: string;
   condition: ConditionId;
+  /**
+   * Task-specific tree mutation, run after the condition mutation and
+   * before the initial commit — it lands inside the single synthetic
+   * commit, so git status/log/show reveal nothing about it.
+   */
+  prepare?: (sandboxDir: string) => Promise<void>;
 }
 
 export async function createSandbox(opts: CreateSandboxOptions): Promise<Sandbox> {
@@ -52,6 +58,7 @@ export async function createSandbox(opts: CreateSandboxOptions): Promise<Sandbox
     }
 
     await applyCondition(sandboxDir, opts.condition, opts);
+    if (opts.prepare) await opts.prepare(sandboxDir);
 
     await execa("git", ["init", "-q"], { cwd: sandboxDir });
     await execa("git", ["add", "-A"], { cwd: sandboxDir });

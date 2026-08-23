@@ -7,9 +7,25 @@ import { EVAL_TASKS, selectTasks, validateRegistry } from "./src/registry.js";
 const tasksDir = fileURLToPath(new URL("tasks", import.meta.url));
 
 describe("task registry", () => {
-  test("holds a valid 10-20 task set with unique, half-prefixed ids", () => {
+  test("holds a valid 10-25 task set with unique, half-prefixed ids", () => {
     expect(() => validateRegistry()).not.toThrow();
-    expect(EVAL_TASKS.length).toBe(17);
+    expect(EVAL_TASKS.length).toBe(23);
+  });
+
+  test("code tasks are execution-graded and scoped out of docs-only", () => {
+    const codeTasks = EVAL_TASKS.filter((t) => t.kind === "code");
+    expect(codeTasks.length).toBe(6);
+    for (const t of codeTasks) {
+      expect(t.prepare, t.id).toBeDefined();
+      expect(t.targetTests?.length, t.id).toBeGreaterThan(0);
+      expect(t.targetFiles?.length, t.id).toBeGreaterThan(0);
+      expect(t.appliesTo, t.id).toBeDefined();
+      expect(t.appliesTo, t.id).not.toContain("docs-only");
+    }
+    // Answer tasks stay unrestricted: appliesTo is registry policy for code tasks only.
+    for (const t of EVAL_TASKS.filter((t) => t.kind === "answer")) {
+      expect(t.appliesTo, t.id).toBeUndefined();
+    }
   });
 
   test("both halves are populated", () => {
@@ -31,12 +47,16 @@ describe("task registry", () => {
 
 describe("condition blindness", () => {
   test("no task module references a condition artifact", async () => {
-    const files: string[] = [];
-    for (const half of await readdir(tasksDir)) {
-      for (const name of await readdir(join(tasksDir, half))) {
-        files.push(join(tasksDir, half, name));
+    // Recursive: fixture stubs under tasks/*/fixtures/ are scanned too.
+    async function collect(dir: string, out: string[]): Promise<void> {
+      for (const entry of await readdir(dir, { withFileTypes: true })) {
+        const path = join(dir, entry.name);
+        if (entry.isDirectory()) await collect(path, out);
+        else out.push(path);
       }
     }
+    const files: string[] = [];
+    await collect(tasksDir, files);
     expect(files.length).toBeGreaterThanOrEqual(EVAL_TASKS.length);
 
     // Tasks must not name the docs corpus, the routing files, or the

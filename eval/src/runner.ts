@@ -49,6 +49,10 @@ export async function runEval(
 
   for (const task of tasks) {
     for (const condition of spec.conditions) {
+      if (task.appliesTo && !task.appliesTo.includes(condition)) {
+        log(`${task.id} · ${condition} · skipped (not applicable)`);
+        continue;
+      }
       for (let rep = 1; rep <= spec.reps; rep++) {
         const slug = task.id.replace("/", "--");
         const logFile = join(opts.outDir, "logs", condition, `${slug}--rep${rep}.ndjson`);
@@ -96,6 +100,7 @@ async function runOnce(
       rev,
       condition,
       openwikiDir: opts.openwikiDir,
+      prepare: task.prepare?.bind(task),
     });
   } catch (err) {
     return {
@@ -132,7 +137,7 @@ async function runOnce(
     const { exitCode } = await agent.run(prompt, agentOpts);
     const metrics = collectMetrics(events, Date.now() - t0);
     metrics.docsReads = await countDocsReads(logFile);
-    const check = await task.check(makeCheckCtx(sandbox.sandboxDir));
+    const check = await task.check(makeCheckCtx(sandbox.sandboxDir, opts.repoRoot));
     return { ...base, exitCode, pass: check.pass, checkDetail: check.detail, metrics };
   } catch (err) {
     return {
@@ -165,10 +170,11 @@ export async function countDocsReads(logFile: string): Promise<number | undefine
   }
 }
 
-function makeCheckCtx(sandboxDir: string): CheckCtx {
+function makeCheckCtx(sandboxDir: string, repoRoot: string): CheckCtx {
   const read = (path: string) => readFile(path, "utf8").catch(() => "");
   return {
     sandboxDir,
+    repoRoot,
     readAnswer: () => read(join(sandboxDir, "ANSWER.md")),
     readFile: (rel: string) => read(join(sandboxDir, rel)),
   };

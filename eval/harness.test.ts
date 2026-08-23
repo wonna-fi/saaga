@@ -193,10 +193,59 @@ describe("eval pipeline with the fake agent", () => {
     const read = (p: string) => readFile(p, "utf8").catch(() => "");
     const result = await task.check({
       sandboxDir: dir,
+      repoRoot,
       readAnswer: () => read(join(dir, "ANSWER.md")),
       readFile: (rel) => read(join(dir, rel)),
     });
     expect(result.pass).toBe(false);
     expect(result.detail).toBeTruthy();
   });
+
+  test("a code task runs end-to-end: stubbed sandbox, agent writes code, checker runs tests", async () => {
+    const task = EVAL_TASKS.find((t) => t.id === "neutral/code-saagarules");
+    expect(task).toBeDefined();
+    if (!task) return;
+
+    // The "solution" is the host's own implementation — self-updating,
+    // no committed answer fixture that could drift.
+    const solution = await readFile(join(repoRoot, "src", "saaga-rules.ts"), "utf8");
+    const agent = new FakeAgent({
+      "src/saaga-rules.ts": {
+        exitCode: 0,
+        effect: async (opts) => {
+          await writeFile(join(opts.cwd, "src", "saaga-rules.ts"), solution);
+        },
+      },
+    });
+
+    const spec = makeSpec({ conditions: ["saaga-docs"], reps: 1, taskIds: [task.id] });
+    const summary = await runEval(spec, agent, [task], { repoRoot, outDir: await makeOutDir() });
+    expect(summary.results).toHaveLength(1);
+    expect(summary.results[0].error).toBeUndefined();
+    expect(summary.results[0].pass).toBe(true);
+  }, 120_000);
+
+  test("a code task fails honestly when the agent does nothing, and skips docs-only", async () => {
+    const task = EVAL_TASKS.find((t) => t.id === "neutral/code-saagarules");
+    expect(task).toBeDefined();
+    if (!task) return;
+
+    const agent = new FakeAgent({ "src/saaga-rules.ts": { exitCode: 0 } });
+    // docs-only is requested but not applicable to code tasks: exactly one
+    // result (the saaga-docs run) must be recorded.
+    const spec = makeSpec({
+      conditions: ["docs-only", "saaga-docs"],
+      reps: 1,
+      taskIds: [task.id],
+    });
+    const summary = await runEval(spec, agent, [task], { repoRoot, outDir: await makeOutDir() });
+    expect(summary.results).toHaveLength(1);
+    expect(summary.results[0].condition).toBe("saaga-docs");
+    expect(summary.results[0].pass).toBe(false);
+    // The stub really breaks the tests, and the detail carries the summary.
+    expect(summary.results[0].checkDetail).toMatch(/Tests|vitest/);
+
+    const report = generateReport(summary);
+    expect(report).toContain("| neutral/code-saagarules | – | 0/1 |");
+  }, 120_000);
 });

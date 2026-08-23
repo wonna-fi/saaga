@@ -1,0 +1,30 @@
+export const SAAGA_RULES_FILE = ".saagarules";
+
+export class SaagaRulesError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "SaagaRulesError";
+  }
+}
+
+/**
+ * Load and validate `.saagarules` from the project root.
+ */
+export async function loadSaagaRules(
+  projectRoot: string,
+): Promise<string | undefined> {
+  void projectRoot;
+  throw new Error("not implemented");
+}
+
+/**
+ * Append user rules to a rendered prompt.
+ */
+export function appendSaagaRules(
+  prompt: string,
+  rules: string | undefined,
+): string {
+  void prompt;
+  void rules;
+  throw new Error("not implemented");
+}
