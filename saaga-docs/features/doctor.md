@@ -177,7 +177,7 @@ When running at the `full` level, a timestamped log directory is created at `<cw
 
 ### Preflight Integration
 
-Before any flow subcommand (`init`, `update`, `quick-update`, `verify-quick-updates`) executes, the CLI runs `runPreflight()` for the resolved backend:
+Before any `saaga run <flow>` invocation (`init`, `update`, `quick-update`, `verify-quick-updates`) executes, the CLI runs `runPreflight()` for the resolved backend:
 
 1. `runPreflight(backend)` calls `runDoctor({ backend, level: "fast" })`
 2. If `doctorResult.exitCode !== 0`, preflight has failed

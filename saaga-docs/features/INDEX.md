@@ -5,7 +5,7 @@
 | [Agent Invocation](./agent-invocation.md) | How the system resolves a backend, constructs an agent, and invokes it with a rendered prompt |
 | [Flow Execution](./flow-execution.md) | How `runFlow()` iterates steps, dispatches by type, renders agent prompts, runs scripts, evaluates predicates, and handles assertions |
 | [Flow Loading and Validation](./flow-loading-and-validation.md) | How `loadFlow()` reads YAML, parses it, and validates the structure into typed `FlowDefinition` |
-| [CLI Entry Point](./cli-entry-point.md) | How the **six** subcommands parse arguments, resolve the agent, create a run context, and execute flows |
+| [CLI Entry Point](./cli-entry-point.md) | How `run` / `install-rules` / `doctor` parse arguments; how `saaga run <flow>` lists flows, resolves the agent, creates a run context, and executes flows |
 | [Doctor Diagnostic System](./doctor.md) | Check backend CLI availability and run capability/restriction probes at fast or full tier; preflight gating for flow execution |
 | [Plan Parsing](./plan-parsing.md) | How `parse-plan` extracts YAML frontmatter phases from a plan file |
 | [Change Detection](./change-detection.md) | How `detect-changes` compares the work tree against BASELINE and classifies differences |

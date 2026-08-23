@@ -15,7 +15,7 @@ Before working with this feature, understand these concepts:
 
 ### User Flow
 
-1. User runs `saaga update <dir>` on an application that already has `<docs_dir>/BASELINE`
+1. User runs `saaga run update <dir>` on an application that already has `<docs_dir>/BASELINE`
 2. The update flow invokes `detect-changes` as its first step
 3. The script reads `<docs_dir>/BASELINE` to get the previous file manifest
 4. It computes the current manifest via `computeManifest()` from `file-manifest.ts` — a pure Node.js walk that applies `.gitignore` and `.saagaignore` filtering without invoking git

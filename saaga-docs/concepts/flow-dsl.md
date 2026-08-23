@@ -17,6 +17,8 @@ The Flow DSL is the type system that defines how Saaga workflows are structured.
 - `loadFlow(name)` — loads a flow by name from `FLOWS_DIR` (appends `.flow.yaml`)
 - `loadFlowFromFile(path)` — loads a flow from an arbitrary file path
 - `parseFlowDefinition(raw)` — parses an already-deserialized YAML object into a typed `FlowDefinition`
+- `listFlows()` — returns all bundled flows as `FlowInfo[]` (name + optional description), sorted by name
+- `flowExists(name)` — returns whether `flows/<name>.flow.yaml` exists
 
 ## Data Storage
 
@@ -25,6 +27,7 @@ The Flow DSL is the type system that defines how Saaga workflows are structured.
 | Type | Field/Property | Purpose |
 |------|----------------|---------|
 | `FlowDefinition` | `name` | Human-readable identifier for the flow (e.g. `"init"`, `"update"`) |
+| `FlowDefinition` | `description` | Optional short summary shown when listing flows via `saaga run` with no flow name |
 | `FlowDefinition` | `steps` | Ordered array of `Step` values to execute sequentially |
 
 ### Step (Discriminated Union)
@@ -115,7 +118,10 @@ The `Step` type is a union discriminated on the `type` field:
 | `src/engine/types.ts` | `IfStep` (interface) | Step type: conditional execution |
 | `src/engine/types.ts` | `ReadFileStep` (interface) | Step type: read file into scope |
 | `src/engine/types.ts` | `Step` (type) | Discriminated union of all step types |
-| `src/engine/types.ts` | `FlowDefinition` (interface) | Top-level structure: name + steps array |
+| `src/engine/types.ts` | `FlowDefinition` (interface) | Top-level structure: `name`, optional `description`, and `steps` array |
+| `src/engine/loader.ts` | `listFlows()` | List bundled flows as `FlowInfo[]` (name + optional description) |
+| `src/engine/loader.ts` | `flowExists()` | Check whether a named flow YAML file exists |
+| `src/engine/loader.ts` | `FlowInfo` (interface) | Lightweight listing type returned by `listFlows()` |
 
 ## YAML ↔ TypeScript Mapping
 

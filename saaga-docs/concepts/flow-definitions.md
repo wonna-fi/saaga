@@ -2,7 +2,7 @@
 
 ## Business Definition
 
-Flow definitions are the YAML-based workflow files that define the step sequences for each Saaga command. Each flow file describes what the command does end-to-end — which agent prompts to invoke, which scripts to run, and how to control iteration and branching. The four flows (`init`, `update`, `quick-update`, `verify-quick-updates`) map 1:1 to the CLI subcommands that execute flows. The `doctor` and `install-rules` subcommands do not use flows.
+Flow definitions are the YAML-based workflow files that define the step sequences for each Saaga command. Each flow file describes what the command does end-to-end — which agent prompts to invoke, which scripts to run, and how to control iteration and branching. The four bundled flows (`init`, `update`, `quick-update`, `verify-quick-updates`) are executed via `saaga run <flow>`. The `doctor` and `install-rules` subcommands do not use flows.
 
 ## Configuration
 
@@ -14,6 +14,8 @@ Flow definitions are the YAML-based workflow files that define the step sequence
 **How to access:**
 - `loadFlow(name)` - loads and parses `flows/<name>.flow.yaml` into a typed `FlowDefinition`
 - `loadFlowFromFile(path)` - loads a flow from an arbitrary file path
+- `listFlows()` - lists bundled flows (name + optional description) for `saaga run` with no flow argument
+- `flowExists(name)` - checks whether a named flow file exists under `FLOWS_DIR`
 - `FLOWS_DIR` (constant) - the resolved directory containing all flow files
 
 ## Data Storage
@@ -21,7 +23,9 @@ Flow definitions are the YAML-based workflow files that define the step sequence
 | Object/Model/Type | Field/Property | Purpose |
 |--------|-------|---------|
 | `FlowDefinition` | `name` | Identifier for the flow (matches the YAML `name:` field) |
+| `FlowDefinition` | `description` | Optional human-readable summary (YAML `description:`); shown in `saaga run` flow listing |
 | `FlowDefinition` | `steps` | Ordered array of `Step` objects composing the workflow |
+| `FlowInfo` | `name`, `description?` | Lightweight listing entry returned by `listFlows()` |
 
 ## The Four Flow Files
 
@@ -84,6 +88,9 @@ Batch verification flow that consolidates and hardens accumulated quick-update a
 | `src/engine/loader.ts` | `loadFlow()` | Load a flow by name from `FLOWS_DIR` |
 | `src/engine/loader.ts` | `loadFlowFromFile()` | Load a flow from an arbitrary file path |
 | `src/engine/loader.ts` | `parseFlowDefinition()` | Parse a raw YAML object into a typed `FlowDefinition` |
+| `src/engine/loader.ts` | `listFlows()` | List bundled flows (name + optional description) for `saaga run` |
+| `src/engine/loader.ts` | `flowExists()` | Check whether a named flow file exists under `FLOWS_DIR` |
+| `src/engine/loader.ts` | `FlowInfo` (interface) | Lightweight listing entry returned by `listFlows()` |
 | `src/engine/runner.ts` | `runFlow()` | Execute a `FlowDefinition` with initial scope and dependencies |
 | `src/paths.ts` | `FLOWS_DIR` | Resolved absolute path to `flows/` directory |
 

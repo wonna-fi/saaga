@@ -18,7 +18,7 @@ Before working with this feature, understand these concepts:
 
 ### User Flow
 
-1. User runs `saaga quick-update [dir] [flags]` (dir defaults to the current working directory)
+1. User runs `saaga run quick-update [dir] [flags]` (dir defaults to the current working directory)
 2. CLI validates `dir`, resolves the agent using the quick model (see [Backend Resolution](../concepts/backend-resolution.md)), creates a run context, and executes `flows/quick-update.flow.yaml`
 3. Flow runs `detect-changes` — compares work tree against BASELINE; if no changes are found, the flow exits early (no documentation update, no metadata artifact)
 4. Flow pre-creates the quick-update metadata directory at `<docs_dir>/metadata/quick_updates/<run_id>/` (this happens automatically before agent invocation via `runAgentStep`)
@@ -85,7 +85,7 @@ Step sequence:
 | `src/scripts/generate-baseline.ts` | `generateBaseline()` | Regenerates `<docs_dir>/BASELINE` after the update |
 | `src/engine/runner.ts` | `runFlow()` | Executes the flow; agent steps internally pre-create directories for output paths under write-permitted roots (`run_dir` or `permissions.writeRoots`) |
 | `src/cli/backend.ts` | `resolveModel()` | Returns the medium-key model for quick-update (`resolveModel(backend, "medium", ...)`) |
-| `src/cli.ts` | `runCli()` | Entry point; dispatches `quick-update` subcommand with `useQuickModel: true` |
+| `src/cli.ts` | `runCli()` | Entry point; `saaga run quick-update` runs with `useQuickModel: true` |
 
 ## Integration Points
 

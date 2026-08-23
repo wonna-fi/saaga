@@ -2,7 +2,7 @@
 
 ## Business Definition
 
-Cost confirmation is the interactive disclaimer flow that runs before every agent-backed subcommand (`init`, `update`, `quick-update`, `verify-quick-updates`). It informs the user that the session will invoke a third-party agent CLI, that token usage is billed to the user's own account with that provider, and provides a per-subcommand cost hint. On interactive terminals the user must type `y` or `yes` to proceed; the prompt can be bypassed with the `--yes` flag, the `autoApprove` config field, or by running in a non-interactive environment.
+Cost confirmation is the interactive disclaimer flow that runs before every agent-backed `saaga run <flow>` invocation (`init`, `update`, `quick-update`, `verify-quick-updates`). It informs the user that the session will invoke a third-party agent CLI, that token usage is billed to the user's own account with that provider, and provides a per-flow cost hint. On interactive terminals the user must type `y` or `yes` to proceed; the prompt can be bypassed with the `--yes` flag, the `autoApprove` config field, or by running in a non-interactive environment.
 
 ## Configuration
 
@@ -40,7 +40,7 @@ Cost confirmation is the interactive disclaimer flow that runs before every agen
 | Module | Function/Method | Purpose |
 |---------|--------|---------|
 | `src/cli/confirm.ts` | `confirmAgentCosts()` | Show the cost disclaimer and prompt for confirmation; throws `ConfirmationDeclinedError` on decline |
-| `src/cli/confirm.ts` | `buildCostNotice()` | Build the multi-line cost notice string from a `CostNoticeInput` |
+| `src/cli/confirm.ts` | `buildCostNotice()` | Build the multi-line cost notice string from a `CostNoticeInput` (opens with `Cost notice: 'saaga run <flow>' will run the '<cli>' CLI…`) |
 | `src/cli/confirm.ts` | `buildCostSummary()` | Build a one-line cost summary string for log output (format: `cost notice acknowledged (cli=<name>)` or `cost notice acknowledged (cli=<name>, model=<model>)` when a model is resolved) |
 | `src/cli/confirm.ts` | `ConfirmationDeclinedError` (class) | Error thrown when the user declines the cost confirmation; carries `exitCode = 1` |
 | `src/cli/confirm.ts` | `CostNoticeInput` (interface) | Input shape for `buildCostNotice()` and `buildCostSummary()` |

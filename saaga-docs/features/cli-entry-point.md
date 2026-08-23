@@ -2,7 +2,7 @@
 
 ## Overview
 
-The `saaga` CLI is the main user-facing entry point for generating and maintaining domain documentation. It provides six subcommands — `init`, `install-rules`, `update`, `quick-update`, `verify-quick-updates`, and `doctor`. Most subcommands resolve an AI agent backend, create an isolated run context, load a flow YAML file, and execute it. The `install-rules` subcommand is a deterministic local file operation that requires no agent backend. The `doctor` subcommand checks backend health without executing a flow. The CLI is built with Commander and designed for both interactive and CI usage.
+The `saaga` CLI is the main user-facing entry point for generating and maintaining domain documentation. It provides three top-level subcommands — `run`, `install-rules`, and `doctor`. Bundled documentation flows (`init`, `update`, `quick-update`, `verify-quick-updates`) are invoked as `saaga run <flow> [dir]`. Omitting the flow name lists available flows with their optional YAML `description` fields. The `install-rules` subcommand is a deterministic local file operation that requires no agent backend. The `doctor` subcommand checks backend health without executing a flow. Former top-level flow commands (`saaga init`, etc.) remain as hidden stubs that exit with a migration message pointing to `saaga run <flow>`. The CLI is built with Commander and designed for both interactive and CI usage.
 
 ## Key Concepts
 
@@ -23,12 +23,18 @@ Before working with this feature, understand these concepts:
 
 | Subcommand | Arguments | Flow File | Description |
 |------------|-----------|-----------|-------------|
-| `init` | `[dir]` | `flows/init.flow.yaml` | Generate full initial documentation (architecture → plan → slices → baseline); accepts `--rule-targets` flag |
+| `run` | `[flow] [dir]` | `flows/<flow>.flow.yaml` | Run a named bundled flow; omit `flow` to list available flows (name + description). `--rule-targets` applies when running `init` |
 | `install-rules` | `[dir]` | _(no flow — direct script)_ | Install documentation rule stubs (no agent backend required); accepts `--rule-targets` flag |
-| `update` | `[dir]` | `flows/update.flow.yaml` | Incrementally update documentation based on changes since BASELINE |
-| `quick-update` | `[dir]` | `flows/quick-update.flow.yaml` | Fast single-session doc update using a cheaper model; produces a quick-update metadata artifact |
-| `verify-quick-updates` | `[dir]` | `flows/verify-quick-updates.flow.yaml` | Verify, correct, and consolidate all unverified quick-update artifacts |
 | `doctor` | — | _(no flow — direct execution)_ | Check backend CLI availability and capability probes; see [Doctor Diagnostic System](./doctor.md) |
+
+#### Bundled flows (via `saaga run`)
+
+| Flow | File | Description |
+|------|------|-------------|
+| `init` | `flows/init.flow.yaml` | Generate full initial documentation (architecture → plan → slices → baseline) |
+| `update` | `flows/update.flow.yaml` | Incrementally update documentation based on changes since BASELINE |
+| `quick-update` | `flows/quick-update.flow.yaml` | Fast single-session doc update using a cheaper model; produces a quick-update metadata artifact |
+| `verify-quick-updates` | `flows/verify-quick-updates.flow.yaml` | Verify, correct, and consolidate all unverified quick-update artifacts |
 
 ### Global Flags
 
@@ -55,37 +61,35 @@ Before working with this feature, understand these concepts:
 5. CLI calls `installRules()` directly (no backend resolution, no run context)
 6. For each rule target: installs the rule stub (rendered from `rules/rule-stub.md`). Targets `agentsmd` and `claude` use managed-block markers (`<!-- saaga:begin --> … <!-- saaga:end -->`) for upsert into shared files. Targets `cursor` and `copilot` write a full owned file from their respective templates (`rules/cursor-rule.mdc` and `rules/copilot-rule.md`)
 
-### User Flow: Standard Subcommands (init, update, verify-quick-updates)
+### User Flow: `saaga run` (flow execution)
 
-1. User runs `saaga <subcommand> [dir] [flags]` (dir defaults to the current working directory)
-2. CLI validates the `dir` argument:
+1. User runs `saaga run` with no flow name → CLI calls `listFlows()`, prints each flow name and optional `description`, prints usage `saaga run <flow> [dir]`, and exits 0
+2. User runs `saaga run <flow> [dir] [flags]` (dir defaults to the current working directory)
+3. If the flow name is unknown, CLI calls `flowExists(flow)` / `listFlows()` and throws `Error: Unknown flow '<flow>. Available flows: …'`
+4. CLI validates the `dir` argument:
    - Must exist on disk (otherwise: `Error: "Directory not found: <dir>"`)
    - Must be a directory (otherwise: `Error: "Not a directory: <dir>"`)
-3. CLI bootstraps unstable features via `bootstrapUnstableFeatures()` (loads config, validates CLI feature names, initializes the process-wide registry, emits `[WARN]` when any are enabled) and reuses the returned config
-4. CLI extracts the app name as `basename(appPath)` and resolves the agent via the backend resolution chain, passing config (see [Backend Resolution](../concepts/backend-resolution.md))
-5. CLI calls `confirmAgentCosts()` with the resolved backend/model info, the `--yes` flag, `config.autoApprove`, `--ci` mode, and stdin/stderr streams. If the user declines, throws `ConfirmationDeclinedError` (see [Cost Confirmation](../concepts/cost-confirmation.md))
-6. CLI runs a preflight check via `runPreflight(backend)` — verifies the backend CLI is available and functioning. If it fails, writes a message to stderr and throws `PreflightError`. Skipped when a test agent is injected via `CliOptions.agent`.
-7. CLI creates the run context: generates a unique run ID and creates the run directory at `<appPath>/.saaga-runs/<run-id>/` (see [Run Context and Isolation](../concepts/run-context.md))
-8. CLI creates a log file path: `logFile = resolve(runCtx.runDir, "run.log")`
-9. CLI resolves `verbose` from `globals.verbose ?? false`
-10. CLI creates a `Logger` via internal `createLogger(globals, options, logFile)` — passes `ci`, `stream`, `logFile`, and `verbose` to `LoggerOptions`
-11. Logger logs startup info: `saaga <subcommand> <path> (backend=<name>, model=<model>)` when a model was resolved (omits the model segment when the agent was injected via `CliOptions.agent`). Also logs run ID and run directory. Logs `buildCostSummary()` as a detail line.
-12. CLI resolves the effective documentation directory via `resolveDocsDir(config)` (falls back to `DEFAULT_DOCS_DIR` = `"saaga-docs"`)
-13. CLI constructs the permission profile:
+5. CLI bootstraps unstable features via `bootstrapUnstableFeatures()` (loads config, validates CLI feature names, initializes the process-wide registry, emits `[WARN]` when any are enabled) and reuses the returned config
+6. CLI extracts the app name as `basename(appPath)` and resolves the agent via the backend resolution chain, passing config (see [Backend Resolution](../concepts/backend-resolution.md)). Flow `quick-update` uses the **`medium`** model key; all other flows use **`high`**
+7. CLI calls `confirmAgentCosts()` with the resolved backend/model info, the `--yes` flag, `config.autoApprove`, `--ci` mode, and stdin/stderr streams. The cost notice names the invocation as `saaga run <flow>`. If the user declines, throws `ConfirmationDeclinedError` (see [Cost Confirmation](../concepts/cost-confirmation.md))
+8. CLI runs a preflight check via `runPreflight(backend)` — verifies the backend CLI is available and functioning. If it fails, writes a message to stderr and throws `PreflightError`. Skipped when a test agent is injected via `CliOptions.agent`.
+9. CLI creates the run context: generates a unique run ID (embedding the flow name as the subcommand label) and creates the run directory at `<appPath>/.saaga-runs/<run-id>/` (see [Run Context and Isolation](../concepts/run-context.md))
+10. CLI creates a log file path: `logFile = resolve(runCtx.runDir, "run.log")`
+11. CLI resolves `verbose` from `globals.verbose ?? false`
+12. CLI creates a `Logger` via internal `createLogger(globals, options, logFile)` — passes `ci`, `stream`, `logFile`, and `verbose` to `LoggerOptions`
+13. Logger logs startup info: `saaga run <flow> <path> (backend=<name>, model=<model>)` when a model was resolved (omits the model segment when the agent was injected via `CliOptions.agent`). Also logs run ID and run directory. Logs `buildCostSummary()` as a detail line.
+14. CLI resolves the effective documentation directory via `resolveDocsDir(config)` (falls back to `DEFAULT_DOCS_DIR` = `"saaga-docs"`)
+15. CLI constructs the permission profile:
     - If `--dangerously-allow-all` is set: skips profile construction, writes a warning to stderr, and `permissions` remains `undefined`
     - Otherwise: calls `buildProfile({ appPath, docsDir, runDir, allowDirs })` to produce an `AgentPermissions` profile (see [Agent Permissions](../concepts/agent-permissions.md))
     - Writes `permissions.json` to the run directory (records mode `"restricted"` or `"unrestricted"` and the profile)
-14. CLI checks for a legacy `docs/` directory: if `config.docsDir` is not set, `docs/BASELINE` exists, and `<docsDir>/BASELINE` does not exist, it logs a warning suggesting the user set `docsDir: docs` in `.saaga/config.yaml` or migrate contents
-15. CLI creates a `PermissionAuditor` if `--audit-permissions` is set and a permission profile exists. The auditor collects denial events and writes a report to `<runDir>/permission-audit.log` after the flow completes. If `--audit-permissions` is set without a profile (i.e., with `--dangerously-allow-all`), a warning is logged and the flag is ignored.
-16. CLI loads `.saagarules` via `loadSaagaRules(appPath)` (see [Saaga Rules](../concepts/saaga-rules.md)); missing/empty yields `undefined`
-17. CLI loads the flow definition: `loadFlow(flowName)` reads `flows/<flowName>.flow.yaml`
-18. CLI executes the flow: `runFlow(flow, initialScope, deps)` with scope `{ app, app_path, docs_dir, run_id, run_dir, date }` and deps `{ agent, cwd: appPath, logger, logFile, verbose, permissions, auditor, saagaRules }`
-19. After flow completion (in a `finally` block): if an auditor is active, calls `reportAudit()` which flushes the audit log and surfaces unexpected denials as warnings
-20. CLI calls `logger.dispose()` to clean up spinner intervals
-
-### User Flow: quick-update Subcommand
-
-The `quick-update` subcommand follows the same flow as standard subcommands (steps 1–20 above) with one difference: the agent is resolved using the **`medium`** model key — `--model medium=<model>` → `config.backends.<backend>.models.medium` → built-in medium default — instead of the `high` key used by standard subcommands.
+16. CLI checks for a legacy `docs/` directory: if `config.docsDir` is not set, `docs/BASELINE` exists, and `<docsDir>/BASELINE` does not exist, it logs a warning suggesting the user set `docsDir: docs` in `.saaga/config.yaml` or migrate contents
+17. CLI creates a `PermissionAuditor` if `--audit-permissions` is set and a permission profile exists. The auditor collects denial events and writes a report to `<runDir>/permission-audit.log` after the flow completes. If `--audit-permissions` is set without a profile (i.e., with `--dangerously-allow-all`), a warning is logged and the flag is ignored.
+18. CLI loads `.saagarules` via `loadSaagaRules(appPath)` (see [Saaga Rules](../concepts/saaga-rules.md)); missing/empty yields `undefined`
+19. CLI loads the flow definition: `loadFlow(flowName)` reads `flows/<flowName>.flow.yaml`
+20. CLI executes the flow: `runFlow(flow, initialScope, deps)` with scope `{ app, app_path, docs_dir, run_id, run_dir, date }` (plus `rule_targets` when provided for `init`) and deps `{ agent, cwd: appPath, logger, logFile, verbose, permissions, auditor, saagaRules }`
+21. After flow completion (in a `finally` block): if an auditor is active, calls `reportAudit()` which flushes the audit log and surfaces unexpected denials as warnings
+22. CLI calls `logger.dispose()` to clean up spinner intervals
 
 ### User Flow: doctor Subcommand
 
@@ -117,6 +121,8 @@ The `quick-update` subcommand follows the same flow as standard subcommands (ste
 | `--dangerously-allow-all` set | Agent runs without permission restrictions; a warning is printed to stderr |
 | `--audit-permissions` without a profile | Warning logged; flag has no effect |
 | Doctor probes fail | Throws `DoctorError`; exit code 1 (failed) or 2 (could not run) |
+| Unknown flow name to `saaga run` | Throws `Error: Unknown flow '<flow>. Available flows: …'` |
+| Legacy top-level flow command (`saaga init`, etc.) | Throws `DeprecatedCommandError` with message `'saaga <cmd>' has moved — use: saaga run <cmd>`; exit code 1 |
 
 ## Technical Implementation
 
@@ -137,6 +143,7 @@ The program uses Commander's `exitOverride()` to prevent Commander from calling 
 - `UnstableFeatureError` is caught, its message is written to stderr with `[ERROR]` prefix, and its `exitCode` (1) is returned
 - `DoctorError` is caught and its `exitCode` (1 or 2) is returned
 - `PreflightError` is caught and its `exitCode` (1) is returned
+- `DeprecatedCommandError` is caught, its migration message is written to stderr, and its `exitCode` (1) is returned
 - Commander info exits (version/help display) are detected by their error codes (`commander.version`, `commander.helpDisplayed`) and return 0
 - All other errors propagate to the caller
 
@@ -188,7 +195,8 @@ The program uses Commander's `exitOverride()` to prevent Commander from calling 
 | `src/cli.ts` | `UnstableFeatureError` (class) | Error thrown for unknown `--unstable-feature` names (exit code 1) (not exported) |
 | `src/cli.ts` | `resolveAgent()` | Orchestrate backend resolution → model key selection (`medium` for quick-update, `high` otherwise) → `mergeModelOverrides` + `resolveModel()` → agent construction; returns `ResolvedAgent` (with optional `backend` and `model` fields) (not exported) |
 | `src/cli/confirm.ts` | `isInteractive()` | Determines if the terminal supports interactive prompt by checking `--ci`, stdin existence, and `isTTY` (not exported) |
-| `src/cli.ts` | `runFlowSubcommand()` | Shared handler for `init`, `update`, `quick-update`, `verify-quick-updates`: validates dir, creates run context, executes flow (not exported) |
+| `src/cli.ts` | `runFlowSubcommand()` | Shared handler for `saaga run <flow>`: validates dir, creates run context, executes flow (not exported) |
+| `src/cli.ts` | `DeprecatedCommandError` (class) | Error thrown by hidden legacy flow command stubs; points users to `saaga run <flow>` (exit code 1) (not exported) |
 | `src/cli.ts` | `runInstallRulesSubcommand()` | Handler for `install-rules`: validates dir, calls `installRules()` directly without backend/run context (not exported) |
 | `src/cli.ts` | `resolveRuleTargets()` | Resolves effective rule targets from CLI flag → `config.ruleTargets` → default `"agentsmd"`, then validates via `parseRuleTargets()` (not exported) |
 | `src/cli.ts` | `resolveDocsDir()` | Resolves effective docs directory from `config.docsDir` → `DEFAULT_DOCS_DIR` (`"saaga-docs"`) (not exported) |
@@ -207,7 +215,8 @@ The program uses Commander's `exitOverride()` to prevent Commander from calling 
 
 ## Extension Guide
 
-- **Add a new subcommand**: follow the [Adding CLI Subcommands](../patterns/adding-cli-subcommands.md) pattern
+- **Add a bundled flow**: follow the [Adding CLI Subcommands](../patterns/adding-cli-subcommands.md) pattern (prefer `flows/*.flow.yaml` + `saaga run`)
+- **Add a non-flow top-level command**: same pattern's non-flow section
 - **Add a new backend**: follow the [Adding Agent Backends](../patterns/adding-agent-backends.md) pattern
 - **Test with FakeAgent**: follow the [Testing with FakeAgent](../patterns/testing-with-fake-agent.md) pattern
 - **Add global flags**: add `.option()` calls to the program root in `src/cli.ts` and extend the `GlobalCliFlags` interface

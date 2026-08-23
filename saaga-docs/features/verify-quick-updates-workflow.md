@@ -17,7 +17,7 @@ Before working with this feature, understand these concepts:
 
 ### User Flow
 
-1. User runs `saaga verify-quick-updates [dir] [flags]` (dir defaults to the current working directory)
+1. User runs `saaga run verify-quick-updates [dir] [flags]` (dir defaults to the current working directory)
 2. CLI validates `dir`, resolves the agent using the standard model, creates a run context, and executes `flows/verify-quick-updates.flow.yaml`
 3. Flow runs `collect-quick-updates` — snapshots all subdirectories under `<docs_dir>/metadata/quick_updates/`; if none are found, flow exits early
 4. Agent receives the `plan-verify-quick-updates` prompt; reads each artifact's `changes.md` and `summary.md`, consolidates them into a phased verification plan, and writes the plan file
@@ -79,7 +79,7 @@ Step sequence:
 | `src/scripts/collect-quick-updates.ts` | `collectQuickUpdates()` | Snapshots unverified metadata folders; writes manifest JSON |
 | `src/scripts/remove-quick-updates.ts` | `removeQuickUpdates()` | Deletes folders listed in the manifest |
 | `src/scripts/parse-plan.ts` | `parsePlan()` | Extracts phases from the verification plan's YAML frontmatter |
-| `src/cli.ts` | `runCli()` | Entry point; dispatches `verify-quick-updates` subcommand |
+| `src/cli.ts` | `runCli()` | Entry point; `saaga run verify-quick-updates` loads and executes the verify flow |
 
 ## Integration Points
 

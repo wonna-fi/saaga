@@ -6,7 +6,7 @@
 | [Creating Prompt Templates](./creating-prompt-templates.md) | How to write a `prompts/*.md` file with `{var}` placeholders and wire it into a flow |
 | [Adding Flow Primitives](./adding-flow-primitives.md) | How to add a new step type: define the type, add a parser, implement the handler, register in the runner |
 | [Writing Flow YAML Files](./writing-flow-yaml-files.md) | How to compose steps, use variable interpolation, and leverage control flow primitives |
-| [Adding CLI Subcommands](./adding-cli-subcommands.md) | How to add a new subcommand: define it in `cli.ts`, create a flow, wire the handler |
+| [Adding CLI Subcommands](./adding-cli-subcommands.md) | How to add a bundled flow for `saaga run`, or a non-flow top-level command |
 | [Testing with FakeAgent](./testing-with-fake-agent.md) | How to use `FakeAgent` with substring-matched scenarios and side effects for integration tests |
 | [Adding Built-in Scripts](./adding-built-in-scripts.md) | How to create a new script handler, register it in `defaultScriptRegistry`, and reference it from flow YAML |
 | [Using .saagaignore](./using-saagaignore.md) | How to exclude paths from documentation scope using gitignore-syntax patterns |

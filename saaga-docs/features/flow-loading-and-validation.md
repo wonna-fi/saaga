@@ -15,7 +15,7 @@ Before working with this feature, understand these concepts:
 
 ### User Flow
 
-1. CLI subcommand determines which flow to run (e.g. `"init"`, `"update"`, `"slice"`)
+1. `saaga run` determines which flow to execute (e.g. `"init"`, `"update"`); listing mode uses `listFlows()` instead of loading
 2. Calls `loadFlow(name)` which resolves the path: `<FLOWS_DIR>/<name>.flow.yaml`
 3. Reads the file contents as UTF-8
 4. Parses YAML into a raw JavaScript object using the `yaml` package
@@ -29,6 +29,8 @@ Before working with this feature, understand these concepts:
 | `loadFlow(name)` | Flow name (e.g. `"init"`) | Resolves to `<FLOWS_DIR>/<name>.flow.yaml` |
 | `loadFlowFromFile(path)` | Absolute file path | Uses the path directly |
 | `parseFlowDefinition(raw)` | Pre-parsed YAML object | No file I/O — pure validation |
+| `listFlows()` | — | Reads `FLOWS_DIR`, loads each `*.flow.yaml`, returns sorted `FlowInfo[]` (name + optional description) |
+| `flowExists(name)` | Flow name | Returns whether `<FLOWS_DIR>/<name>.flow.yaml` is accessible |
 
 ### Validation Rules
 
@@ -38,6 +40,7 @@ Before working with this feature, understand these concepts:
 |-------|------------|------------------|
 | root | Must be a non-null object | `"Flow definition must be an object"` |
 | `name` | Must be a string | `"Flow 'name' must be a string"` |
+| `description` | If present, must be a string | `"Flow 'description' must be a string"` |
 | `steps` | Must be an array | `"Flow 'steps' must be an array"` |
 
 #### Step Parsing
@@ -143,6 +146,9 @@ steps:
 | `src/engine/loader.ts` | `loadFlow()` | Loads a flow by name from `FLOWS_DIR` |
 | `src/engine/loader.ts` | `loadFlowFromFile()` | Loads a flow from an arbitrary absolute path |
 | `src/engine/loader.ts` | `parseFlowDefinition()` | Validates a raw object into a typed `FlowDefinition` |
+| `src/engine/loader.ts` | `listFlows()` | Lists bundled flows as sorted `FlowInfo[]` (name + optional description) |
+| `src/engine/loader.ts` | `flowExists()` | Returns whether a named flow file exists under `FLOWS_DIR` |
+| `src/engine/loader.ts` | `FlowInfo` (interface) | Listing entry: `name` plus optional `description` |
 
 ### Internal Implementation
 
@@ -166,7 +172,7 @@ steps:
 ## Integration Points
 
 - **Depends on**: `FLOWS_DIR` from `src/paths.ts`, `yaml` npm package
-- **Used by**: CLI subcommands call `loadFlow()` before passing the result to `runFlow()`; tests use `loadFlowFromFile()` or `parseFlowDefinition()` directly
+- **Used by**: `saaga run` calls `listFlows()` / `flowExists()` / `loadFlow()` before `runFlow()`; tests use `loadFlowFromFile()` or `parseFlowDefinition()` directly
 - **Produces**: A typed `FlowDefinition` consumed by the flow runner
 
 ## Extension Guide

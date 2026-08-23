@@ -18,7 +18,7 @@ Before working with this feature, understand these concepts:
 
 ### User Flow
 
-1. User runs `saaga init [dir]` (dir defaults to the current working directory)
+1. User runs `saaga run init [dir]` (dir defaults to the current working directory)
 2. CLI resolves the agent backend, runs preflight check, and creates a run context with a unique run ID at `<appPath>/.saaga-runs/<run-id>/`
 3. Script `ensure-gitignore` ensures `.saaga-runs/` is listed in the project's `.gitignore` (creates the file if absent)
 4. Agent generates `<docs_dir>/ARCHITECTURE.md` for the application
@@ -89,7 +89,7 @@ The CLI provides these scope variables to the flow:
 
 | Module | Function/Method | Purpose |
 |--------|-----------------|---------|
-| `src/cli.ts` | `runCli()` | CLI entry point, parses `init` subcommand |
+| `src/cli.ts` | `runCli()` | CLI entry point; `saaga run init` loads and executes the init flow |
 | `src/engine/runner.ts` | `runFlow()` | Executes the loaded flow definition |
 | `src/engine/loader.ts` | `loadFlow()` | Loads `flows/init.flow.yaml` |
 | `src/scripts/parse-plan.ts` | `parsePlan()` | Extracts phases from the plan's YAML frontmatter |

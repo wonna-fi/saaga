@@ -17,7 +17,7 @@ Before working with this feature, understand these concepts:
 
 ### User Flow
 
-1. User runs `saaga update [dir]` (dir defaults to the current working directory)
+1. User runs `saaga run update [dir]` (dir defaults to the current working directory)
 2. CLI resolves the agent backend and creates a run context
 3. Script `detect-changes` compares the work tree against `<docs_dir>/BASELINE`
 4. If no changes detected (`${changes.count} == 0`): workflow ends immediately (no-op)
@@ -91,7 +91,7 @@ The `detect-changes` script sets `${changes}` with these fields:
 
 | Module | Function/Method | Purpose |
 |--------|-----------------|---------|
-| `src/cli.ts` | `runCli()` | CLI entry point, parses `update` subcommand |
+| `src/cli.ts` | `runCli()` | CLI entry point; `saaga run update` loads and executes the update flow |
 | `src/engine/runner.ts` | `runFlow()` | Executes the loaded flow definition |
 | `src/engine/loader.ts` | `loadFlow()` | Loads `flows/update.flow.yaml` |
 | `src/scripts/detect-changes.ts` | `detectChanges()` | Compares work tree vs. BASELINE, writes changes report |

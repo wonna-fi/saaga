@@ -18,7 +18,7 @@ Before working with this feature, understand these concepts:
 
 ### User Flow
 
-1. User runs a CLI subcommand (e.g., `saaga init <dir> --backend cursor`)
+1. User runs a flow via CLI (e.g., `saaga run init <dir> --backend cursor`)
 2. The CLI resolves which backend to use via the precedence chain:
    - `--backend` flag (highest priority)
    - `.saaga/config.yaml` `defaultBackend` field (fallback)
@@ -144,14 +144,14 @@ The internal `runAgentStep()` function handles each agent step:
 | Module | Function | Purpose |
 |--------|----------|---------|
 | `src/cli.ts` | `resolveAgent()` | Orchestrates backend resolution, model selection, and agent construction (not exported) |
-| `src/cli.ts` | `runFlowSubcommand()` | Shared logic for `init`, `update`, `quick-update`, and `verify-quick-updates` subcommands (not exported) |
+| `src/cli.ts` | `runFlowSubcommand()` | Shared logic for `saaga run <flow>` (not exported) |
 | `src/engine/runner.ts` | `runAgentStep()` | Renders prompt, appends `saagaRules`, and invokes agent for a single step, forwarding `permissions` and `onEvent` (not exported) |
 | `src/engine/runner.ts` | `assertFileExists()` | Checks `expect_file` existence (not exported) |
 
 ## Integration Points
 
 - **Depends on**: Agent backend CLIs (`cursor-agent`, `copilot`, `claude`), prompt templates in `prompts/`, flow YAML definitions in `flows/`, permission profile from `src/agent/permissions.ts`, event system from `src/agent/events.ts`
-- **Used by**: Four CLI subcommands (`init`, `update`, `quick-update`, `verify-quick-updates`) — every subcommand except `install-rules` and `doctor` resolves an agent and executes a flow containing agent steps
+- **Used by**: `saaga run <flow>` for bundled flows (`init`, `update`, `quick-update`, `verify-quick-updates`) — every invocation except `install-rules` and `doctor` resolves an agent and executes a flow containing agent steps
 - **External systems**: External agent CLI binaries invoked via `execa`
 
 ## Extension Guide

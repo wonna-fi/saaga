@@ -128,7 +128,7 @@ interface RunFlowDeps {
 ## Integration Points
 
 - **Depends on**: Agent backend (via `RunFlowDeps.agent`), template rendering (`renderPromptFile`), script registry (`defaultScriptRegistry`), expression engine (`interpolate`, `resolveValue`, `evaluatePredicate`), `Logger` (via `RunFlowDeps.logger`, optional), `PhaseTracker` (`src/engine/phases.ts`), `OutputSink` (`src/output.ts`), `formatDuration()` (`src/output.ts`)
-- **Used by**: CLI subcommands (`init`, `update`, `quick-update`, `verify-quick-updates`) which load a flow and call `runFlow()`
+- **Used by**: `saaga run <flow>` which loads a flow and calls `runFlow()`
 - **External systems**: Filesystem (via `readFile` in `read-file.ts`), log file (`run.log` in the run directory)
 
 ## Extension Guide
