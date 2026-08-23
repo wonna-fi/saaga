@@ -131,6 +131,7 @@ async function runOnce(
 
     const { exitCode } = await agent.run(prompt, agentOpts);
     const metrics = collectMetrics(events, Date.now() - t0);
+    metrics.docsReads = await countDocsReads(logFile);
     const check = await task.check(makeCheckCtx(sandbox.sandboxDir));
     return { ...base, exitCode, pass: check.pass, checkDetail: check.detail, metrics };
   } catch (err) {
@@ -144,6 +145,23 @@ async function runOnce(
   } finally {
     clearTimeout(timeout);
     await sandbox.cleanup();
+  }
+}
+
+/** Tool calls opening a corpus file, as they appear in the NDJSON transcript. */
+const DOCS_READ_PATTERN = /"file_path"\s*:\s*"[^"]*saaga-docs\//g;
+
+/**
+ * Count corpus-file opens in a run's transcript. undefined when the
+ * transcript is missing/unreadable (fake-agent runs write no log), so
+ * "unknown" stays distinct from a measured zero.
+ */
+export async function countDocsReads(logFile: string): Promise<number | undefined> {
+  try {
+    const text = await readFile(logFile, "utf8");
+    return (text.match(DOCS_READ_PATTERN) ?? []).length;
+  } catch {
+    return undefined;
   }
 }
 

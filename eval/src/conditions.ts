@@ -1,4 +1,4 @@
-import { readFile, rm, writeFile } from "node:fs/promises";
+import { readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { cp } from "node:fs/promises";
 import { basename, join } from "node:path";
 import type { ConditionId } from "./types.js";
@@ -66,6 +66,9 @@ export async function applyCondition(
     case "no-docs":
       await stripDocsSurfaces(sandboxDir);
       return;
+    case "docs-only":
+      await stripToDocsOnly(sandboxDir);
+      return;
     case "openwiki": {
       if (!opts.openwikiDir) {
         throw new Error(
@@ -78,6 +81,30 @@ export async function applyCondition(
       });
       return;
     }
+  }
+}
+
+/**
+ * Files a docs-only sandbox keeps. Everything else is answer-bearing and
+ * removed: source, tests, flows/prompts, README/DEVELOPING (they would
+ * measure README quality, not the corpus), and .saaga/config.yaml (it
+ * literally contains answers such as the fallback-backend field).
+ * CLAUDE.md is the symlink to AGENTS.md; .gitignore keeps the run dir
+ * out of git status during the run.
+ */
+const DOCS_ONLY_KEEP = new Set(["saaga-docs", "AGENTS.md", "CLAUDE.md", ".gitignore"]);
+
+/**
+ * The closed-book condition: the agent gets the corpus and its routing,
+ * nothing else. Measures corpus coverage/depth (neutral half) and corpus
+ * accuracy (defect half: a faithful agent repeating a stale claim fails
+ * the check, which is the corpus being wrong, measured). Immune to the
+ * ceiling effect where a strong model answers everything from source.
+ */
+async function stripToDocsOnly(sandboxDir: string): Promise<void> {
+  for (const entry of await readdir(sandboxDir)) {
+    if (DOCS_ONLY_KEEP.has(entry)) continue;
+    await rm(join(sandboxDir, entry), { recursive: true, force: true });
   }
 }
 

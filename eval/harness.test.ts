@@ -144,7 +144,8 @@ describe("eval pipeline with the fake agent", () => {
     expect(report).toContain("## Defect half");
     expect(report).toContain("| defect/pass-a | 2/2 | 2/2 |");
     expect(report).toContain("| neutral/fail-d | 0/2 | 0/2 |");
-    expect(report).toMatch(/\| no-docs \| 2\/4 \| 3 \| 1200 \| 300 \| \d+s \|/);
+    // Fake runs write no transcript: cache-read and corpus-opened are n/a.
+    expect(report).toMatch(/\| no-docs \| 2\/4 \| 3 \| 1200 \| n\/a \| 300 \| n\/a \| \d+s \|/);
   }, 120_000);
 
   test("a scenario miss becomes a recorded error, not a crash", async () => {

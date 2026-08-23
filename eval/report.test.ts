@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { collectMetrics, formatSpread, spread } from "./src/metrics.js";
-import { generateReport, reportBaseName } from "./src/report-gen.js";
+import { generateComparison, generateReport, reportBaseName } from "./src/report-gen.js";
 import type { EvalRunSummary, RunMetrics, TaskResult } from "./src/types.js";
 
 describe("metrics", () => {
@@ -43,7 +43,14 @@ describe("metrics", () => {
 
 describe("generateReport", () => {
   function result(over: Partial<TaskResult> & Pick<TaskResult, "taskId" | "half">): TaskResult {
-    const metrics: RunMetrics = over.metrics ?? { elapsedMs: 10_000, turns: 5, inputTokens: 1000, outputTokens: 200 };
+    const metrics: RunMetrics = over.metrics ?? {
+      elapsedMs: 10_000,
+      turns: 5,
+      inputTokens: 1000,
+      outputTokens: 200,
+      cacheReadTokens: 50_000,
+      docsReads: 2,
+    };
     return {
       condition: "no-docs",
       rep: 1,
@@ -92,11 +99,11 @@ describe("generateReport", () => {
     expect(report.indexOf("## Neutral half")).toBeLessThan(report.indexOf("## Defect half"));
   });
 
-  test("aggregates show spread, not point estimates", () => {
+  test("aggregates show spread, cache-read context, and corpus usage", () => {
     const report = generateReport(summary);
     // Aggregates are per half: the neutral half's no-docs arm failed 2/2.
-    expect(report).toMatch(/\| no-docs \| 0\/2 \| 5 \| 1000 \| 200 \| 10s \|/);
-    expect(report).toMatch(/\| no-docs \| 1\/2 \| 5 \| 1000 \| 200 \| 10s \|/);
+    expect(report).toMatch(/\| no-docs \| 0\/2 \| 5 \| 1000 \| 50000 \| 200 \| 2\/2 runs \| 10s \|/);
+    expect(report).toMatch(/\| no-docs \| 1\/2 \| 5 \| 1000 \| 50000 \| 200 \| 2\/2 runs \| 10s \|/);
     expect(report).toContain("## Per-rep detail");
     expect(report).toContain("error: timeout");
   });
@@ -119,5 +126,83 @@ describe("generateReport", () => {
     };
     expect(generateReport(single)).toContain("fewer than 2 repetitions");
     expect(generateReport(summary)).not.toContain("fewer than 2 repetitions");
+  });
+});
+
+describe("generateComparison", () => {
+  const base: EvalRunSummary = {
+    schemaVersion: 1,
+    spec: {
+      schemaVersion: 1,
+      backend: "claude",
+      model: "sonnet",
+      modelKey: "medium",
+      rev: "oldrev",
+      conditions: ["no-docs", "saaga-docs"],
+      reps: 2,
+      taskIds: ["neutral/a", "defect/b"],
+      startedAt: "2026-08-23T08:00:00.000Z",
+    },
+    results: (["no-docs", "saaga-docs"] as const).flatMap((condition) =>
+      [1, 2].flatMap((rep) => [
+        {
+          taskId: "neutral/a",
+          half: "neutral" as const,
+          condition,
+          rep,
+          exitCode: 0,
+          pass: condition === "saaga-docs",
+          metrics: { elapsedMs: 20_000, turns: 8, cacheReadTokens: 100_000, outputTokens: 1500, docsReads: condition === "saaga-docs" ? 3 : 0 },
+          logFile: "x",
+        },
+        {
+          taskId: "defect/b",
+          half: "defect" as const,
+          condition,
+          rep,
+          exitCode: 0,
+          pass: true,
+          metrics: { elapsedMs: 20_000, turns: 8, cacheReadTokens: 100_000, outputTokens: 1500, docsReads: condition === "saaga-docs" ? 1 : 0 },
+          logFile: "x",
+        },
+      ]),
+    ),
+    finishedAt: "2026-08-23T09:00:00.000Z",
+  };
+
+  test("reports success deltas, task flips, and cost deltas", () => {
+    const candidate = structuredClone(base);
+    candidate.spec.rev = "newrev";
+    for (const r of candidate.results) {
+      r.pass = true; // the candidate corpus fixes neutral/a in the no-docs arm
+      if (typeof r.metrics.cacheReadTokens === "number") {
+        r.metrics.cacheReadTokens = 50_000; // and halves context
+      }
+    }
+
+    const report = generateComparison(base, candidate);
+    expect(report).toContain("| neutral | no-docs | 0/2 | 2/2 | +2 |");
+    expect(report).toContain("| neutral | saaga-docs | 2/2 | 2/2 | 0 |");
+    expect(report).toContain("| neutral/a | no-docs | 0/2 | 2/2 |");
+    expect(report).not.toContain("| defect/b | no-docs |");
+    expect(report).toContain("100000 → 50000 (-50%)");
+  });
+
+  test("identical runs report no task-level changes", () => {
+    const report = generateComparison(base, structuredClone(base));
+    expect(report).toContain("No task changed its pass rate");
+  });
+
+  test("refuses to compare different task sets", () => {
+    const candidate = structuredClone(base);
+    candidate.spec.taskIds = ["neutral/a"];
+    expect(() => generateComparison(base, candidate)).toThrow(/task sets differ/);
+  });
+
+  test("warns when the model differs between runs", () => {
+    const candidate = structuredClone(base);
+    candidate.spec.model = "haiku";
+    candidate.spec.modelKey = "low";
+    expect(generateComparison(base, candidate)).toContain("backend/model differ");
   });
 });

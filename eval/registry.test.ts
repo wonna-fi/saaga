@@ -41,7 +41,7 @@ describe("condition blindness", () => {
 
     // Tasks must not name the docs corpus, the routing files, or the
     // condition machinery: prompts and checks stay condition-blind.
-    const forbidden = ["saaga-docs", "AGENTS.md", "CLAUDE.md", "ConditionId", "no-docs", "openwiki"];
+    const forbidden = ["saaga-docs", "AGENTS.md", "CLAUDE.md", "ConditionId", "no-docs", "docs-only", "openwiki"];
     for (const file of files) {
       const content = await readFile(file, "utf8");
       for (const needle of forbidden) {

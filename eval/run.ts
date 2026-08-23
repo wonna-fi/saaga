@@ -24,7 +24,7 @@ const repoRoot = fileURLToPath(new URL("..", import.meta.url));
 const USAGE = `Usage: pnpm eval -- [options]
 
 Options:
-  --conditions <csv>   Conditions to run (default: no-docs,saaga-docs)
+  --conditions <csv>   no-docs, saaga-docs, docs-only, openwiki (default: no-docs,saaga-docs)
   --reps <n>           Repetitions per condition (default: 2)
   --tasks <csv>        Task ids or "defect/*" / "neutral/*" (default: all)
   --backend <name>     Agent backend (default: claude)

@@ -14,6 +14,7 @@ published package.
 |---|---|
 | `no-docs` | `saaga-docs/` deleted; the `## Documentation` routing section stripped from AGENTS.md (CLAUDE.md is a symlink to it); `.saagarules`, `.cursor/rules/`, `.github/instructions/` removed if present |
 | `saaga-docs` | The tracked tree as-is |
+| `docs-only` | **Closed-book**: only `saaga-docs/`, AGENTS.md (+ CLAUDE.md symlink) and `.gitignore` survive — source, tests, flows, prompts, README/DEVELOPING and `.saaga/` are removed. Neutral half measures corpus **coverage/depth**; defect half measures corpus **accuracy** (an agent faithfully repeating a stale claim fails, which is the corpus being wrong, measured). Immune to the ceiling effect where a strong model answers everything from source |
 | `openwiki` | **Stubbed.** Requires `--openwiki-dir <pre-generated wiki>`; applies the no-docs strip, then copies the wiki in. Generating a wiki is not implemented |
 
 Each (task × condition × repetition) gets a fresh sandbox: the tracked tree is exported with
@@ -57,6 +58,11 @@ Any check edit after a pilot run must be recorded in the PR description that mak
 - **success**: binary, from the task's check script.
 - **turns / tokens / cost**: parsed from the claude CLI's terminal NDJSON `result` message
   (emitted as a `usage` event by `src/agent/claude-agent.ts`). Other backends report "n/a".
+  Note that `tokens in` is the raw `input_tokens` figure only — the bulk of context arrives
+  as **cache read** tokens, reported in its own column; judge context cost from that one.
+- **docs reads / corpus opened**: how many corpus files the agent opened, counted from the
+  run's NDJSON transcript by the runner (backfilled from `logs/` by `eval:report` for older
+  runs). Distinguishes "docs ignored" from "docs read but unhelpful/overridden".
 - **elapsed**: harness wall-clock, always present.
 
 At least 2 repetitions per condition; the report shows `median (min–max)` spread, never bare
@@ -76,6 +82,33 @@ Raw results land in `eval/results/` (gitignored). Committed reports live in `eva
 as a markdown report plus the `summary.json` that regenerates it, named
 `<date>-<time>-<backend>-<modelKey>` from the run's start time so repeated runs never
 overwrite each other.
+
+### Comparing two runs
+
+```bash
+pnpm eval:report --base <run-dir|summary.json> --candidate <run-dir|summary.json>
+```
+
+Emits a machine-generated delta report (success deltas per half and condition, per-task
+pass-rate changes, cost-median deltas, corpus-opened rates) into `eval/reports/`. The tool
+**refuses** to compare runs whose task sets differ — comparability requires the identical
+pre-registered task set, so after any task change both sides must be re-run. Reports are
+never edited by hand; everything needed for comparison is computed from `summary.json`.
+
+### Pre-registered design for the corpus-regeneration comparison
+
+Committed before the regenerated corpus exists. Old corpus (base) vs new corpus (candidate)
+will be judged on, in this order, with the identical task set and checks throughout:
+
+1. **Non-regression** on the neutral half at sonnet tier (`saaga-docs` arm) — at the observed
+   ceiling, holding the pass rate after shrinking the corpus is the claim, and any drop is
+   the over-trim the depth-preservation probes exist to catch.
+2. **Context-cost delta** — cache-read tokens in the `saaga-docs` arm; the old corpus measured
+   as pure overhead versus `no-docs`, so a smaller corpus should shrink it.
+3. **Closed-book delta** — the `docs-only` condition, immune to the ceiling: neutral half =
+   coverage/depth, defect half = accuracy (the four stale claims must stop failing).
+4. **Sensitivity run** at haiku tier (`--model low`), where doc leverage and doc harm have
+   room to appear below the ceiling.
 
 ## Adding a task
 

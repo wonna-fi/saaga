@@ -9,9 +9,14 @@ import type { Backend } from "../../src/cli/backend.js";
  * See eval/README.md for method and caveats.
  */
 
-export type ConditionId = "no-docs" | "saaga-docs" | "openwiki";
+export type ConditionId = "no-docs" | "saaga-docs" | "docs-only" | "openwiki";
 
-export const ALL_CONDITIONS: readonly ConditionId[] = ["no-docs", "saaga-docs", "openwiki"];
+export const ALL_CONDITIONS: readonly ConditionId[] = [
+  "no-docs",
+  "saaga-docs",
+  "docs-only",
+  "openwiki",
+];
 
 /**
  * Which half of the task set a task belongs to. The halves are reported
@@ -79,6 +84,12 @@ export interface RunMetrics {
   cacheReadTokens?: number;
   cacheCreationTokens?: number;
   costUsd?: number;
+  /**
+   * How many corpus files the agent opened during the run, counted from
+   * the NDJSON transcript. undefined when no transcript was written
+   * (fake-agent runs); 0 is a real measurement ("never opened the docs").
+   */
+  docsReads?: number;
 }
 
 export interface TaskResult {

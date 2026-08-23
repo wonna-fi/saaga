@@ -56,7 +56,7 @@ describe("createSandbox", () => {
     await Promise.all(sandboxes.map((s) => s.cleanup()));
   });
 
-  async function make(condition: "no-docs" | "saaga-docs"): Promise<Sandbox> {
+  async function make(condition: "no-docs" | "saaga-docs" | "docs-only"): Promise<Sandbox> {
     const sandbox = await createSandbox({ repoRoot, rev: "HEAD", condition });
     sandboxes.push(sandbox);
     return sandbox;
@@ -98,11 +98,28 @@ describe("createSandbox", () => {
   test("answer-key material is stripped from every condition", async () => {
     // eval/ (check regexes) and plans/ (seed analysis with labeled answers)
     // would let an agent look up graded answers; neither arm may see them.
-    for (const condition of ["no-docs", "saaga-docs"] as const) {
+    for (const condition of ["no-docs", "saaga-docs", "docs-only"] as const) {
       const { sandboxDir } = await make(condition);
       await expect(readdir(join(sandboxDir, "eval"))).rejects.toThrow();
       await expect(readdir(join(sandboxDir, "plans"))).rejects.toThrow();
     }
+  });
+
+  test("docs-only sandbox is closed-book: corpus and routing, nothing else", async () => {
+    const { sandboxDir } = await make("docs-only");
+
+    const docs = await readdir(join(sandboxDir, "saaga-docs"));
+    expect(docs).toContain("concepts");
+    const agentsMd = await readFile(join(sandboxDir, "AGENTS.md"), "utf8");
+    expect(agentsMd).toContain("## Documentation");
+    expect(await readlink(join(sandboxDir, "CLAUDE.md"))).toBe("AGENTS.md");
+
+    // Every answer-bearing surface is gone: source, tests, README, config.
+    const entries = (await readdir(sandboxDir)).filter((e) => e !== ".git" && e !== ".saaga-runs");
+    expect(entries.sort()).toEqual([".gitignore", "AGENTS.md", "CLAUDE.md", "saaga-docs"]);
+
+    const status = await execa("git", ["status", "--porcelain"], { cwd: sandboxDir });
+    expect(status.stdout.trim()).toBe("");
   });
 
   test("openwiki condition without a wiki dir is a hard error", async () => {
