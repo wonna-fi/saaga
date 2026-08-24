@@ -51,7 +51,7 @@ Before working with this feature, understand these concepts:
 | Backend | Restricted Mode Mechanism | Shell Policy |
 |---------|--------------------------|--------------|
 | Cursor | `--trust` flag + `cli-config.json` with deny rules under `<runDir>/.cursor-cli/`; `CURSOR_CONFIG_DIR` env override | `read-only-git`: `allow` entries for git subcommands |
-| Copilot | `--available-tools view,create,edit,glob,grep` + `--disallow-temp-dir` + `--allow-all-tools` | `none`: shell is removed entirely (no middle ground between bash and no shell) |
+| Copilot | `--available-tools view create edit glob grep [bash]` + `--allow-tool write,[shell patterns]` + `--disallow-temp-dir` | `restricted`: `bash` added to `--available-tools`, shell command patterns (from `ALLOWED_SHELL_COMMANDS`) added to `--allow-tool`; `none`: `bash` omitted, no shell rules granted |
 | Claude | `--permission-mode dontAsk` + `--settings` JSON with `allow`/`deny`/`additionalDirectories` + `--strict-mcp-config` | `none`: `Bash` tool denied (deny rule defeats any narrower allow) |
 
 ### Precedence Chain (Backend Resolution)

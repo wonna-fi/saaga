@@ -65,7 +65,7 @@ Before working with this feature, understand these concepts:
 
 1. User runs `saaga run` with no flow name → CLI calls `listFlows()`, prints each flow name and optional `description`, prints usage `saaga run <flow> [dir]`, and exits 0
 2. User runs `saaga run <flow> [dir] [flags]` (dir defaults to the current working directory)
-3. If the flow name is unknown, CLI calls `flowExists(flow)` / `listFlows()` and throws `Error: Unknown flow '<flow>. Available flows: …'`
+3. If the flow name is unknown, CLI calls `flowExists(flow)` / `listFlows()` and throws `Error: Unknown flow '<flow>'. Available flows: …`
 4. CLI validates the `dir` argument:
    - Must exist on disk (otherwise: `Error: "Directory not found: <dir>"`)
    - Must be a directory (otherwise: `Error: "Not a directory: <dir>"`)
@@ -121,7 +121,7 @@ Before working with this feature, understand these concepts:
 | `--dangerously-allow-all` set | Agent runs without permission restrictions; a warning is printed to stderr |
 | `--audit-permissions` without a profile | Warning logged; flag has no effect |
 | Doctor probes fail | Throws `DoctorError`; exit code 1 (failed) or 2 (could not run) |
-| Unknown flow name to `saaga run` | Throws `Error: Unknown flow '<flow>. Available flows: …'` |
+| Unknown flow name to `saaga run` | Throws `Error: Unknown flow '<flow>'. Available flows: …` |
 | Legacy top-level flow command (`saaga init`, etc.) | Throws `DeprecatedCommandError` with message `'saaga <cmd>' has moved — use: saaga run <cmd>`; exit code 1 |
 
 ## Technical Implementation
@@ -176,6 +176,8 @@ The program uses Commander's `exitOverride()` to prevent Commander from calling 
 | `src/cli/confirm.ts` | `CostConfirmationInput` (interface) | Extended input shape for `confirmAgentCosts()` |
 | `src/run-context.ts` | `createRunContext()` | Generate run ID and create run directory |
 | `src/engine/loader.ts` | `loadFlow()` | Load and parse a flow YAML file |
+| `src/engine/loader.ts` | `listFlows()` | List bundled flows as sorted `FlowInfo[]` (name + optional description) for `saaga run` listing |
+| `src/engine/loader.ts` | `flowExists()` | Check whether a named flow file exists under `FLOWS_DIR` |
 | `src/engine/runner.ts` | `runFlow()` | Execute a flow definition with scope and deps |
 | `src/engine/runner.ts` | `AgentStepFailedError` (class) | Error for non-zero agent exit codes |
 | `src/agent/permissions.ts` | `buildProfile()` | Constructs an `AgentPermissions` profile from app path, docs dir, run dir, and extra allow-dirs |

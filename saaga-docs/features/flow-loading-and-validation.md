@@ -62,6 +62,7 @@ Each element in `steps` is validated by `parseStep()`:
 | `prompt` | Must be a string | `"'agent.prompt' must be a string (template name)"` |
 | `vars` | If present, must be a non-null, non-array object | `"'agent.vars' must be an object"` |
 | `expect_file` | If present, must be a string | `"'agent.expect_file' must be a string"` |
+| `label` | If present, must be a string | `"'agent.label' must be a string"` |
 
 #### Script Step Validation
 
@@ -70,6 +71,7 @@ Each element in `steps` is validated by `parseStep()`:
 | body | Must be a non-null, non-array object | `"'script' step body must be an object"` |
 | `name` | Must be a string | `"'script.name' must be a string"` |
 | `set` | If present, must be a string | `"'script.set' must be a string"` |
+| `label` | If present, must be a string | `"'script.label' must be a string"` |
 | Other keys | Collected as `args`, coerced to strings (null → `""`) | — |
 
 #### Foreach Step Validation
@@ -81,6 +83,7 @@ Each element in `steps` is validated by `parseStep()`:
 | `in` | Must be a string | `"'foreach.in' must be an expression string"` |
 | `do` | Must be an array | `"'foreach.do' must be an array of steps"` |
 | `when` | If present, must be a string | `"'foreach.when' must be a string predicate"` |
+| `label` | If present, must be a string | `"'foreach.label' must be a string"` |
 | `do` items | Recursively validated via `parseStep()` | — |
 
 #### Loop Step Validation
@@ -91,6 +94,7 @@ Each element in `steps` is validated by `parseStep()`:
 | `max` | Must be a positive integer | `"'loop.max' must be a positive integer"` |
 | `until` | Must be a string | `"'loop.until' must be a string predicate"` |
 | `do` | Must be an array | `"'loop.do' must be an array of steps"` |
+| `label` | If present, must be a string | `"'loop.label' must be a string"` |
 | `do` items | Recursively validated via `parseStep()` | — |
 
 #### If Step Validation
@@ -99,6 +103,8 @@ Each element in `steps` is validated by `parseStep()`:
 |-------|------------|-------|
 | `if` | Must be a string | `"'if' must be a string predicate"` |
 | `then` | Must be an array | `"'then' must be an array of steps"` |
+| `label` | If present, must be a string | `"'if.label' must be a string"` |
+| `skip_label` | If present, must be a string | `"'if.skip_label' must be a string"` |
 | `then` items | Recursively validated via `parseStep()` | — |
 
 #### Read-File Step Validation
@@ -109,6 +115,7 @@ Each element in `steps` is validated by `parseStep()`:
 | `path` | Must be a string | `"'read-file.path' must be a string"` |
 | `set` | Must be a string | `"'read-file.set' must be a string (variable name)"` |
 | `trim` | If present, must be a boolean | `"'read-file.trim' must be a boolean"` |
+| `label` | If present, must be a string | `"'read-file.label' must be a string"` |
 
 ### Edge Cases
 

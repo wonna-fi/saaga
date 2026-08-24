@@ -67,6 +67,7 @@ Fast single-session update using a cheaper/faster model by default. All agent an
    - `agent` — `quick-update` prompt: label: `updating documentation`; passes `docs_dir`; triage changes, update docs, write status (`UPDATED`/`SKIPPED`) and summary artifact to `${app_path}/${docs_dir}/metadata/quick_updates/${run_id}/summary.md`
    - `read-file` — reads the status file into scope as `status`
    - `if` — when `${status} == "UPDATED"`: runs `archive-quick-update` (label: `archiving update`) with `dest_dir` using `${docs_dir}` in the metadata path
+   - `if` — when `${status} != "UPDATED"`: runs `cleanup-quick-update-dir` (label: `cleaning up metadata`) to remove the pre-created metadata directory when the agent did not produce an update
    - `script` — `generate-baseline` regenerates the content manifest; label: `generating baseline`; passes `docs_dir`
 
 ### verify-quick-updates.flow.yaml

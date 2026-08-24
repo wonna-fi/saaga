@@ -100,7 +100,7 @@ Full-tier probes have a `kind` field that determines failure diagnosis behavior:
 
 | Model/Type | Key Fields | Purpose |
 |--------|------------|---------|
-| `DoctorOptions` | `backend`, `level`, `json`, `probe`, `model`, `backendModels`, `ci`, `cwd` | Input options for `runDoctor()` |
+| `DoctorOptions` | `backend`, `level`, `json`, `probe`, `modelOverrides`, `backendModels`, `ci`, `cwd` | Input options for `runDoctor()` |
 | `DoctorResult` | `schemaVersion`, `backends`, `exitCode`, `logDir` | Top-level result container (schema version is always `1`) |
 | `DoctorBackendResult` | `backend`, `available`, `reason`, `version`, `probes` | Per-backend availability and probe results |
 | `ProbeDefinition` | `id`, `description`, `level`, `backends` | Static probe metadata in the catalogue |

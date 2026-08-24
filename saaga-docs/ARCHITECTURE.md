@@ -303,7 +303,7 @@ Defines the flow DSL type system:
 
 | Type | Fields |
 |------|--------|
-| `FlowDefinition` | `name`, `steps: Step[]` |
+| `FlowDefinition` | `name`, `description?`, `steps: Step[]` |
 | `AgentStep` | `prompt`, `vars?`, `expect_file?`, `label?` |
 | `ScriptStep` | `name`, `args`, `set?`, `label?` |
 | `ForeachStep` | `var`, `in`, `when?`, `do: Step[]`, `label?` |
@@ -319,7 +319,7 @@ All step types support an optional `label` field used for phase progress display
 
 Reads a `.flow.yaml` file from the `flows/` directory, parses YAML, and validates the structure into a `FlowDefinition`.
 
-**Exports**: `loadFlow(name): Promise<FlowDefinition>`, `loadFlowFromFile(path)`, `parseFlowDefinition(raw)`
+**Exports**: `loadFlow(name): Promise<FlowDefinition>`, `loadFlowFromFile(path)`, `parseFlowDefinition(raw)`, `listFlows(): Promise<FlowInfo[]>`, `flowExists(name): Promise<boolean>`, `FlowInfo` (interface)
 
 #### PhaseTracker (`src/engine/phases.ts`)
 
@@ -368,7 +368,7 @@ Built-in script handlers invoked by `script` steps. Registered in a `ScriptRegis
 
 **Exports**: `defaultScriptRegistry: ScriptRegistry`, `ScriptHandler` type, `ScriptContext` type
 
-The default registry maps: `"parse-plan"` → `parsePlan`, `"detect-changes"` → `detectChanges`, `"generate-baseline"` → `generateBaseline`, `"archive-quick-update"` → `archiveQuickUpdate`, `"collect-quick-updates"` → `collectQuickUpdates`, `"remove-quick-updates"` → `removeQuickUpdates`, `"install-rules"` → `installRules`, `"ensure-gitignore"` → `ensureGitignore`.
+The default registry maps: `"parse-plan"` → `parsePlan`, `"detect-changes"` → `detectChanges`, `"generate-baseline"` → `generateBaseline`, `"archive-quick-update"` → `archiveQuickUpdate`, `"cleanup-quick-update-dir"` → `cleanupQuickUpdateDir`, `"collect-quick-updates"` → `collectQuickUpdates`, `"remove-quick-updates"` → `removeQuickUpdates`, `"install-rules"` → `installRules`, `"ensure-gitignore"` → `ensureGitignore`.
 
 #### parse-plan (`src/scripts/parse-plan.ts`)
 
@@ -519,7 +519,7 @@ YAML files that define the step sequence for each subcommand. The engine loads t
 |------|------------|-------|
 | `init.flow.yaml` | `init` | Ensure-gitignore → architecture → plan → phase-0 slice → install-rules → foreach phase (slice + verify/fix loop) → generate baseline. All script/prompt steps receive `docs_dir` from scope. |
 | `update.flow.yaml` | `update` | Detect changes → if changes exist: plan → foreach phase (slice + verify/fix loop) → regenerate baseline. All script/prompt steps receive `docs_dir` from scope. |
-| `quick-update.flow.yaml` | `quick-update` | Detect changes → if changes exist: agent quick-update → read status → if UPDATED: archive-quick-update → generate baseline. Metadata paths use `${docs_dir}`. |
+| `quick-update.flow.yaml` | `quick-update` | Detect changes → if changes exist: agent quick-update → read status → if UPDATED: archive-quick-update → if NOT UPDATED: cleanup-quick-update-dir → generate baseline. Metadata paths use `${docs_dir}`. |
 | `verify-quick-updates.flow.yaml` | `verify-quick-updates` | Collect quick-updates → if any: plan → foreach phase (slice + verify/fix loop) → remove processed artifacts. Metadata paths use `${docs_dir}`. |
 
 ### Prompt Templates (`prompts/`)
