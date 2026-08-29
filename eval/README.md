@@ -84,6 +84,33 @@ same way.
 Reading reports, one sanity indicator to expect: the `corpus opened` column must be `0/N` in
 every `no-docs` arm — a measured negative control that condition isolation held for that run.
 
+### Reading a per-cell result: the variance rule
+
+**A single task × condition cell at 2 reps is a hypothesis, not a finding.** Before any cell
+informs a decision — a prompt change, a doc rewrite, a milestone claim — confirm it at **8
+reps per arm on that task alone**:
+
+```bash
+pnpm eval --tasks <task-id> --model low --reps 8
+```
+
+The standing runs use 2 reps per condition, which is sound for *aggregate* rates (32 runs per
+arm in a paired run) and nearly worthless per cell. At n=2 a clean 2/2-vs-0/2 split arises
+easily from noise; it has happened twice here and reversed both times (`defect/term-scope`
+v1→v2, and `neutral/code-saagarules`, whose baseline 2/2-vs-0/2 became 6/8-vs-7/8 on
+confirmation). By Fisher exact, 8/8 vs 0/8 is p ≈ 0.0002 while 4/4 vs 0/4 is only p ≈ 0.03 —
+hence the bar at 8.
+
+Then read the failure **pattern**, not just the count. The same test failing every time, with
+the same mechanism visible in the captured implementations under `<run>/artifacts/`, is a
+finding. Different tests across failures, or the correct mechanism present in a failing
+implementation, is noise — that is what settled `code-saagarules` before any p-value did.
+
+Confirmation runs are cheap and structurally safe: ~10 minutes at haiku tier, no
+`TASK_SET_VERSION` bump (nothing about the task set changes), and the compare tool refuses to
+treat one as a baseline anyway because its `taskIds` set differs. Do not commit their reports
+alongside the baselines.
+
 ### Primary endpoints (pre-registered)
 
 1. **Code-task pass rate**, `no-docs` vs `saaga-docs` (the instrument with dynamic range).
