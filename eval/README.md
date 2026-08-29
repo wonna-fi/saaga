@@ -96,8 +96,20 @@ every `no-docs` arm — a measured negative control that condition isolation hel
 `TASK_SET_VERSION` (`eval/src/registry.ts`) is stamped into every run's spec and bumped on
 ANY change to task membership, a prompt, a check predicate, a `prepare()`/stub fixture, or
 condition scoping. `eval:report --base/--candidate` refuses to compare different versions —
-a bump means both sides of any comparison must be re-run. The committed 2026-08-23 baselines
-are **v1** (17 answer tasks) and remain valid v1 evidence; v2 starts a fresh baseline set.
+a bump means both sides of any comparison must be re-run.
+
+Committed baselines, all against the **old (pre-regeneration) corpus**:
+
+| Report | Set | Condition(s) | Model |
+|---|---|---|---|
+| `2026-08-23-080004` | v1 | no-docs, saaga-docs | sonnet |
+| `2026-08-23-094657` | v1 | docs-only | sonnet |
+| `2026-08-23-110012` | v2 | no-docs, saaga-docs | sonnet |
+| `2026-08-29-140926` | v2 | docs-only | sonnet |
+| `2026-08-29-141313` | v2 | no-docs, saaga-docs | haiku |
+
+The v1 pair remains valid v1 evidence but is never compared against v2; the three v2 runs are
+the baselines the regenerated corpus will be measured against.
 
 Trim-verification probes from the seed file are deliberately *not* tasks: rewarding recall of
 over-documented trivia would score the very over-documentation the docs refactor removes. They
