@@ -629,11 +629,6 @@ itself.
 See [DEVELOPING.md](./DEVELOPING.md) for instructions on building and
 developing Saaga itself.
 
-The repository also ships a paired eval harness under `eval/` (not part of
-the published package) that measures whether the generated documentation
-corpus helps a coding agent; see [eval/README.md](./eval/README.md) for the
-method and caveats.
-
 ## License
 
 MIT — see [LICENSE](./LICENSE).
