@@ -2,6 +2,7 @@ import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { parseArgs } from "node:util";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
+import { evalArgv } from "./src/argv.js";
 import { generateComparison, generateReport, reportBaseName } from "./src/report-gen.js";
 import { countDocsReads } from "./src/runner.js";
 import type { EvalRunSummary } from "./src/types.js";
@@ -47,8 +48,7 @@ async function backfillDocsReads(summary: EvalRunSummary, runDir: string): Promi
 
 async function main(): Promise<number> {
   const { values } = parseArgs({
-    // pnpm forwards the "--" separator itself; tolerate it as a positional.
-    allowPositionals: true,
+    args: evalArgv(),
     options: {
       run: { type: "string" },
       base: { type: "string" },

@@ -179,6 +179,7 @@ pnpm eval --dry-run       # print the run matrix
 pnpm eval --tasks defect/shell-policy-values --reps 1 --model low   # cheap pilot
 pnpm eval                 # real run: no-docs vs saaga-docs, 2 reps, claude/medium
 pnpm eval:report --run eval/results/run-<timestamp>                 # write eval/reports/<name>.md
+pnpm eval:artifact        # rebuild the HTML readout from every committed report
 ```
 
 Raw results land in `eval/results/` (gitignored). Committed reports live in `eval/reports/`
@@ -197,6 +198,23 @@ pass-rate changes, cost-median deltas, corpus-opened rates) into `eval/reports/`
 **refuses** to compare runs whose task sets differ — comparability requires the identical
 pre-registered task set, so after any task change both sides must be re-run. Reports are
 never edited by hand; everything needed for comparison is computed from `summary.json`.
+
+### Visual readout
+
+```bash
+pnpm eval:artifact        # -> eval/reports/eval-readout.html
+```
+
+One self-contained HTML page over every committed `summary.json`: a single-run view (per-arm
+pass rates by half, the task x condition matrix with per-cell failure detail on hover, cost
+medians, a full per-run table) and a base-vs-candidate compare view that differences two runs
+cell by cell. Compare mode defaults to the newest run against the newest earlier run that
+shares its task set, model and arms — the pairing whose delta is attributable to the corpus —
+and prints comparability chips (task set, shared arms, model) whenever it is not.
+
+Like the markdown reports, the page is generated and never hand-edited: it is a rendering of
+the committed summaries, byte-identical for the same inputs, so re-running it after the corpus
+is regenerated puts the new run beside the old ones with no figure ever retyped.
 
 ### Pre-registered design for the corpus-regeneration comparison
 

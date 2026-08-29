@@ -42,6 +42,7 @@ an agent CLI and spend tokens:
 pnpm eval --dry-run                                  # print the run matrix
 pnpm eval                                            # no-docs vs saaga-docs, 2 reps
 pnpm eval:report --run eval/results/run-<timestamp>  # write eval/reports/<name>.md
+pnpm eval:artifact                                   # HTML readout over all reports
 ```
 
 Raw results are gitignored under `eval/results/`; reports are committed

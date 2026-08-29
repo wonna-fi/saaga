@@ -47,6 +47,7 @@
     "test:watch": "vitest",
     "eval": "tsx eval/run.ts",
     "eval:report": "tsx eval/report.ts",
+    "eval:artifact": "tsx eval/artifact.ts",
     "prepublishOnly": "pnpm run build"
   },
   "dependencies": {

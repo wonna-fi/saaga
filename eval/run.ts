@@ -2,6 +2,7 @@ import { parseArgs } from "node:util";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { execa } from "execa";
+import { evalArgv } from "./src/argv.js";
 import { createAgent, resolveModel, type Backend } from "../src/cli/backend.js";
 import { TASK_SET_VERSION, selectTasks, validateRegistry } from "./src/registry.js";
 import { runEval } from "./src/runner.js";
@@ -38,8 +39,7 @@ Options:
 
 async function main(): Promise<number> {
   const { values } = parseArgs({
-    // pnpm forwards the "--" separator itself; tolerate it as a positional.
-    allowPositionals: true,
+    args: evalArgv(),
     options: {
       conditions: { type: "string", default: "no-docs,saaga-docs" },
       reps: { type: "string", default: "2" },
