@@ -85,6 +85,20 @@ export function createClaudeEventParser(): EventParser {
         events.push({ kind: "session", tools: obj.tools as string[] });
       }
 
+      if (obj.type === "result") {
+        const usage = (obj.usage ?? {}) as Record<string, unknown>;
+        events.push({
+          kind: "usage",
+          turns: asNumber(obj.num_turns),
+          inputTokens: asNumber(usage.input_tokens),
+          outputTokens: asNumber(usage.output_tokens),
+          cacheReadTokens: asNumber(usage.cache_read_input_tokens),
+          cacheCreationTokens: asNumber(usage.cache_creation_input_tokens),
+          costUsd: asNumber(obj.total_cost_usd),
+          durationMs: asNumber(obj.duration_ms),
+        });
+      }
+
       const message = obj.message as { content?: unknown } | undefined;
       const content = Array.isArray(message?.content) ? message.content : [];
       for (const block of content as Record<string, unknown>[]) {
@@ -114,6 +128,10 @@ export function createClaudeEventParser(): EventParser {
       return events;
     },
   };
+}
+
+function asNumber(value: unknown): number | undefined {
+  return typeof value === "number" ? value : undefined;
 }
 
 function extractText(content: unknown): string {

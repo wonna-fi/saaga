@@ -1,0 +1,862 @@
+<title>Corpus Eval Readout</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+  :root {
+    color-scheme: light;
+    --plane: #f9f9f7;
+    --panel: #fcfcfb;
+    --ink: #0b0b0b;
+    --ink-2: #52514e;
+    --ink-muted: #898781;
+    --rule: #e1e0d9;
+    --rule-strong: #c3c2b7;
+    --accent: #4a3aa7;
+    --accent-soft: #eceaf7;
+    --cond-1: #2a78d6;
+    --cond-2: #eb6834;
+    --cond-3: #1baf7a;
+    --good: #0ca30c;
+    --warn: #fab219;
+    --crit: #d03b3b;
+    --good-wash: #e6f5e6;
+    --warn-wash: #fdf1d8;
+    --crit-wash: #fae6e6;
+    --neutral-wash: #f0efec;
+    --up: #2a78d6;
+    --down: #d03b3b;
+    --shadow: 0 1px 2px rgba(11, 11, 11, .05), 0 8px 24px -16px rgba(11, 11, 11, .25);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --plane: #0d0d0d;
+      --panel: #1a1a19;
+      --ink: #ffffff;
+      --ink-2: #c3c2b7;
+      --ink-muted: #898781;
+      --rule: #2c2c2a;
+      --rule-strong: #383835;
+      --accent: #9085e9;
+      --accent-soft: #221f38;
+      --cond-1: #3987e5;
+      --cond-2: #d95926;
+      --cond-3: #199e70;
+      --good-wash: #143014;
+      --warn-wash: #33280d;
+      --crit-wash: #341717;
+      --neutral-wash: #262624;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px -16px rgba(0, 0, 0, .8);
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --plane: #0d0d0d;
+    --panel: #1a1a19;
+    --ink: #ffffff;
+    --ink-2: #c3c2b7;
+    --ink-muted: #898781;
+    --rule: #2c2c2a;
+    --rule-strong: #383835;
+    --accent: #9085e9;
+    --accent-soft: #221f38;
+    --cond-1: #3987e5;
+    --cond-2: #d95926;
+    --cond-3: #199e70;
+    --good-wash: #143014;
+    --warn-wash: #33280d;
+    --crit-wash: #341717;
+    --neutral-wash: #262624;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px -16px rgba(0, 0, 0, .8);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--plane);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .mono { font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  .eyebrow {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: .13em;
+    text-transform: uppercase;
+    color: var(--ink-muted);
+  }
+
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 28px; }
+
+  /* ---------- control strip ---------- */
+  .strip {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: color-mix(in srgb, var(--plane) 88%, transparent);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--rule);
+  }
+  .strip-inner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 18px;
+    padding-top: 14px;
+    padding-bottom: 14px;
+  }
+  .brand { display: flex; align-items: baseline; gap: 10px; margin-right: auto; }
+  .brand h1 {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -.01em;
+    margin: 0;
+  }
+  .brand span { font-size: 12px; color: var(--ink-muted); }
+
+  .modes { display: flex; gap: 2px; padding: 2px; background: var(--neutral-wash); border-radius: 7px; }
+  .modes button {
+    font: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    padding: 5px 13px;
+    border: 0;
+    border-radius: 5px;
+    background: transparent;
+    color: var(--ink-2);
+    cursor: pointer;
+  }
+  .modes button[aria-pressed="true"] { background: var(--panel); color: var(--ink); box-shadow: var(--shadow); }
+  .modes button:focus-visible, select:focus-visible, summary:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .picker { display: flex; align-items: center; gap: 8px; }
+  .picker label { font-size: 12px; color: var(--ink-muted); }
+  select {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12.5px;
+    color: var(--ink);
+    background: var(--panel);
+    border: 1px solid var(--rule-strong);
+    border-radius: 6px;
+    padding: 5px 8px;
+    max-width: 260px;
+  }
+
+  /* ---------- sections ---------- */
+  main { padding: 34px 0 80px; }
+  section { margin-bottom: 40px; }
+  .sec-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+  .sec-head h2 { font-size: 16px; font-weight: 600; margin: 0; letter-spacing: -.01em; }
+  .sec-head p { margin: 0; font-size: 13px; color: var(--ink-2); }
+
+  .ident {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 30px;
+    padding: 16px 20px;
+    background: var(--panel);
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+  }
+  .ident div { display: flex; flex-direction: column; gap: 2px; }
+  .ident dt, .ident .k { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-muted); font-family: "IBM Plex Mono", monospace; }
+  .ident .v { font-family: "IBM Plex Mono", monospace; font-size: 13.5px; font-variant-numeric: tabular-nums; }
+
+  /* ---------- checks ---------- */
+  .checks { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12.5px;
+    padding: 5px 11px 5px 9px;
+    border-radius: 999px;
+    border: 1px solid var(--rule-strong);
+    background: var(--panel);
+  }
+  .chip .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .chip.ok { background: var(--good-wash); border-color: transparent; }
+  .chip.ok .dot { background: var(--good); }
+  .chip.warn { background: var(--warn-wash); border-color: transparent; }
+  .chip.warn .dot { background: var(--warn); }
+  .chip.crit { background: var(--crit-wash); border-color: transparent; }
+  .chip.crit .dot { background: var(--crit); }
+
+  /* ---------- tiles ---------- */
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(232px, 1fr)); gap: 14px; }
+  .tile {
+    background: var(--panel);
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    padding: 16px 18px 18px;
+    box-shadow: var(--shadow);
+    border-top: 3px solid var(--tile-hue, var(--rule-strong));
+  }
+  .tile-name { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+  .tile-name .swatch { width: 10px; height: 10px; border-radius: 2px; background: var(--tile-hue); flex: none; }
+  .tile-name b { font-family: "IBM Plex Mono", monospace; font-size: 13px; font-weight: 600; }
+  .hero { display: flex; align-items: baseline; gap: 9px; }
+  .hero .big {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 34px;
+    font-weight: 600;
+    line-height: 1;
+    letter-spacing: -.02em;
+    font-variant-numeric: tabular-nums;
+  }
+  .hero .pct { font-family: "IBM Plex Mono", monospace; font-size: 13px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+  .hero-label { font-size: 12px; color: var(--ink-muted); margin-top: 3px; }
+  .tile-rows { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--rule); display: flex; flex-direction: column; gap: 6px; }
+  .tile-row { display: flex; justify-content: space-between; gap: 10px; font-size: 12.5px; }
+  .tile-row span:first-child { color: var(--ink-2); }
+  .tile-row span:last-child { font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; }
+
+  /* ---------- matrix ---------- */
+  .matrix-wrap { overflow-x: auto; background: var(--panel); border: 1px solid var(--rule); border-radius: 10px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  thead th {
+    text-align: left;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--ink-muted);
+    font-weight: 500;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--rule-strong);
+    white-space: nowrap;
+  }
+  thead th.cell-col { text-align: center; }
+  tbody td { padding: 7px 14px; border-bottom: 1px solid var(--rule); vertical-align: middle; }
+  tbody tr:last-child td { border-bottom: 0; }
+  td.task { font-family: "IBM Plex Mono", monospace; font-size: 12.5px; white-space: nowrap; }
+  td.task .kind { color: var(--ink-muted); }
+  .half-row td {
+    background: var(--neutral-wash);
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--ink-2);
+    padding: 7px 14px;
+  }
+  td.cell { text-align: center; padding: 6px 8px; }
+  .pill {
+    display: inline-block;
+    min-width: 54px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12.5px;
+    font-variant-numeric: tabular-nums;
+    border: 1px solid transparent;
+    cursor: default;
+  }
+  .pill.full { background: var(--good-wash); color: var(--ink); border-color: color-mix(in srgb, var(--good) 35%, transparent); }
+  .pill.part { background: var(--warn-wash); color: var(--ink); border-color: color-mix(in srgb, var(--warn) 45%, transparent); }
+  .pill.zero { background: var(--crit-wash); color: var(--ink); border-color: color-mix(in srgb, var(--crit) 40%, transparent); }
+  .pill.na { color: var(--ink-muted); }
+  .pill.up { background: color-mix(in srgb, var(--up) 16%, var(--panel)); border-color: color-mix(in srgb, var(--up) 45%, transparent); }
+  .pill.down { background: color-mix(in srgb, var(--down) 16%, var(--panel)); border-color: color-mix(in srgb, var(--down) 45%, transparent); }
+  .pill.same { background: var(--neutral-wash); color: var(--ink-2); }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 12px; font-size: 12px; color: var(--ink-2); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i { width: 11px; height: 11px; border-radius: 3px; display: inline-block; border: 1px solid transparent; }
+
+  /* ---------- cost ---------- */
+  .cost-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+  .cost-card { background: var(--panel); border: 1px solid var(--rule); border-radius: 10px; padding: 16px 18px 18px; }
+  .cost-card h3 { margin: 0 0 3px; font-size: 13.5px; font-weight: 600; }
+  .cost-card .sub { margin: 0 0 14px; font-size: 12px; color: var(--ink-muted); }
+  .bar-row { display: grid; grid-template-columns: 132px 1fr auto; align-items: center; gap: 11px; margin-bottom: 9px; }
+  .bar-row .lab { font-family: "IBM Plex Mono", monospace; font-size: 11.5px; color: var(--ink-2); white-space: nowrap; }
+  .track { height: 100%; }
+  .empty { padding: 18px 16px; color: var(--ink-muted); font-size: 13px; }
+  .bar {
+    height: 15px;
+    border-radius: 0 4px 4px 0;
+    background: var(--bar-hue);
+    min-width: 2px;
+  }
+  .bar-row .val { font-family: "IBM Plex Mono", monospace; font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .delta-note { font-size: 12px; color: var(--ink-2); margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--rule); }
+
+  /* ---------- detail table ---------- */
+  details {
+    background: var(--panel);
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  summary { padding: 14px 18px; cursor: pointer; font-size: 13.5px; font-weight: 500; }
+  summary::marker { color: var(--ink-muted); }
+  .detail-scroll { max-height: 460px; overflow: auto; border-top: 1px solid var(--rule); }
+  .detail-scroll table { font-size: 12px; }
+  .detail-scroll thead th { position: sticky; top: 0; background: var(--panel); z-index: 1; }
+  .detail-scroll td { padding: 5px 14px; }
+  .detail-scroll td.note { color: var(--ink-2); max-width: 380px; }
+  .status-mark { font-family: "IBM Plex Mono", monospace; font-weight: 600; }
+  .status-mark.p { color: var(--good); }
+  .status-mark.f { color: var(--crit); }
+
+  .foot { font-size: 12px; color: var(--ink-muted); margin-top: 34px; padding-top: 16px; border-top: 1px solid var(--rule); }
+  .foot code { font-family: "IBM Plex Mono", monospace; }
+
+  [hidden] { display: none !important; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+
+<header class="strip">
+  <div class="wrap strip-inner">
+    <div class="brand">
+      <h1>Corpus Eval Readout</h1>
+      <span id="brand-sub">saaga-docs</span>
+    </div>
+    <div class="modes" role="group" aria-label="View mode">
+      <button type="button" id="mode-single" aria-pressed="true">Single run</button>
+      <button type="button" id="mode-compare" aria-pressed="false">Compare</button>
+    </div>
+    <div class="picker" id="pick-single">
+      <label for="run-select">Run</label>
+      <select id="run-select"></select>
+    </div>
+    <div class="picker" id="pick-compare" hidden>
+      <label for="base-select">Base</label>
+      <select id="base-select"></select>
+      <label for="cand-select">Candidate</label>
+      <select id="cand-select"></select>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section id="identity">
+    <div class="ident" id="ident"></div>
+    <div class="checks" id="checks"></div>
+  </section>
+
+  <section id="summary">
+    <div class="sec-head">
+      <h2 id="summary-title">Per-arm readout</h2>
+      <p id="summary-sub"></p>
+    </div>
+    <div class="tiles" id="tiles"></div>
+  </section>
+
+  <section id="matrix">
+    <div class="sec-head">
+      <h2 id="matrix-title">Task &times; condition</h2>
+      <p id="matrix-sub"></p>
+    </div>
+    <div class="matrix-wrap"><table id="matrix-table"></table></div>
+    <div class="legend" id="matrix-legend"></div>
+  </section>
+
+  <section id="cost">
+    <div class="sec-head">
+      <h2>Cost to success</h2>
+      <p>Medians per condition. Cache-read tokens are the real context volume; raw input tokens are a sliver.</p>
+    </div>
+    <div class="cost-grid" id="cost-grid"></div>
+  </section>
+
+  <section id="detail">
+    <details>
+      <summary>Per-run detail (table view)</summary>
+      <div class="detail-scroll"><table id="detail-table"></table></div>
+    </details>
+  </section>
+
+  <p class="foot" id="foot"></p>
+</main>
+
+<script id="eval-data" type="application/json">{"runs":[]}</script>
+<script>
+(function () {
+  "use strict";
+  var DATA = JSON.parse(document.getElementById("eval-data").textContent);
+  var RUNS = DATA.runs || [];
+  var HUES = { "no-docs": "var(--cond-1)", "saaga-docs": "var(--cond-2)", "docs-only": "var(--cond-3)", "openwiki": "var(--accent)" };
+  var HALVES = [
+    { key: "neutral", label: "Neutral half", note: "carries the headline claim" },
+    { key: "defect", label: "Defect half", note: "fix-verification of known doc defects" }
+  ];
+
+  var $ = function (id) { return document.getElementById(id); };
+  var el = function (tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text !== undefined && text !== null) n.textContent = String(text);
+    return n;
+  };
+  var fmt = function (n) {
+    if (n === null || n === undefined || isNaN(n)) return "n/a";
+    if (n >= 1000000) return (n / 1000000).toFixed(2) + "M";
+    if (n >= 1000) return Math.round(n / 1000) + "k";
+    return String(Math.round(n));
+  };
+  var secs = function (ms) { return ms === null || ms === undefined ? "n/a" : Math.round(ms / 1000) + "s"; };
+  var median = function (xs) {
+    var v = xs.filter(function (x) { return typeof x === "number"; }).sort(function (a, b) { return a - b; });
+    if (!v.length) return null;
+    var m = Math.floor(v.length / 2);
+    return v.length % 2 ? v[m] : (v[m - 1] + v[m]) / 2;
+  };
+  var pick = function (run, pred) { return run.results.filter(pred); };
+  var rate = function (rs) {
+    return { pass: rs.filter(function (r) { return r.pass; }).length, total: rs.length };
+  };
+
+  /* ---------- population ---------- */
+  function fillSelect(sel, selectedId) {
+    sel.innerHTML = "";
+    RUNS.forEach(function (r) {
+      var o = el("option", null, r.label);
+      o.value = r.id;
+      if (r.id === selectedId) o.selected = true;
+      sel.appendChild(o);
+    });
+  }
+
+  /* Default the compare pair to the most recent run and the newest earlier
+     run that shares its task set and model — the only pairing whose delta
+     is attributable to the corpus. Falls back to the previous run, where
+     the comparability chips then say why the delta is not readable. */
+  function defaultBase(cand) {
+    var idx = RUNS.indexOf(cand);
+    var earlier = RUNS.slice(0, idx);
+    var tests = [
+      function (r) { return sameSet(r, cand) && r.model === cand.model && sharedConditions(r, cand).length; },
+      function (r) { return sameSet(r, cand) && sharedConditions(r, cand).length; },
+      function (r) { return sharedConditions(r, cand).length; }
+    ];
+    for (var t = 0; t < tests.length; t++) {
+      for (var i = earlier.length - 1; i >= 0; i--) if (tests[t](earlier[i])) return earlier[i];
+    }
+    return RUNS[Math.max(0, idx - 1)];
+  }
+  /* Same task set means the same task ids, not just the same version: a
+     same-version subset run (a single-task confirmation, say) must not be
+     picked as a default base only to be chipped not-comparable. */
+  function sameSet(a, b) {
+    return (a.taskSetVersion || 1) === (b.taskSetVersion || 1)
+      && a.taskIds.slice().sort().join() === b.taskIds.slice().sort().join();
+  }
+
+  var newest = RUNS.length ? RUNS[RUNS.length - 1] : null;
+  var state = {
+    mode: "single",
+    run: newest ? newest.id : null,
+    base: newest ? defaultBase(newest).id : null,
+    cand: newest ? newest.id : null
+  };
+  var byId = function (id) { return RUNS.filter(function (r) { return r.id === id; })[0]; };
+
+  /* ---------- identity ---------- */
+  function renderIdentity(runs) {
+    var box = $("ident");
+    box.innerHTML = "";
+    var fields = [];
+    if (runs.length === 1) {
+      var r = runs[0];
+      fields = [
+        ["Revision", r.rev.slice(0, 10)],
+        ["Backend / model", r.backend + " / " + r.model],
+        ["Task set", "v" + (r.taskSetVersion || 1) + " · " + r.taskIds.length + " tasks"],
+        ["Conditions", r.conditions.join(", ")],
+        ["Reps", String(r.reps)],
+        ["Started", r.startedAt.slice(0, 16).replace("T", " ") + "Z"],
+        ["Runs", String(r.results.length)]
+      ];
+    } else {
+      fields = [
+        ["Base", runs[0].label],
+        ["Candidate", runs[1].label],
+        ["Task set", "v" + (runs[0].taskSetVersion || 1) + " · " + runs[0].taskIds.length + " tasks"],
+        ["Shared conditions", sharedConditions(runs[0], runs[1]).join(", ") || "none"]
+      ];
+    }
+    fields.forEach(function (f) {
+      var d = el("div");
+      d.appendChild(el("span", "k", f[0]));
+      d.appendChild(el("span", "v", f[1]));
+      box.appendChild(d);
+    });
+  }
+
+  function sharedConditions(a, b) {
+    return a.conditions.filter(function (c) { return b.conditions.indexOf(c) !== -1; });
+  }
+
+  /* ---------- checks ---------- */
+  function renderChecks(runs) {
+    var box = $("checks");
+    box.innerHTML = "";
+    if (runs.length !== 1) {
+      var a = runs[0], b = runs[1];
+      var same = sameSet(a, b);
+      var shared = sharedConditions(a, b);
+      box.appendChild(chip(same ? "ok" : "crit",
+        same ? "Same task set v" + (a.taskSetVersion || 1)
+                           : "Not comparable: task set differs — re-run both sides"));
+      box.appendChild(chip(shared.length ? "ok" : "crit",
+        shared.length ? "Shared arms: " + shared.join(", ")
+                      : "Not comparable: no condition runs in both — nothing to difference"));
+      if (a.model !== b.model) box.appendChild(chip("warn", "Model differs (" + a.model + " → " + b.model + ") — deltas mix corpus and model effects"));
+      return;
+    }
+    var r = runs[0];
+    var nd = pick(r, function (x) { return x.condition === "no-docs"; });
+    if (nd.length) {
+      var opened = nd.filter(function (x) { return (x.docsReads || 0) > 0; }).length;
+      box.appendChild(chip(opened === 0 ? "ok" : "warn",
+        opened === 0 ? "Negative control held: corpus opened 0/" + nd.length + " in no-docs"
+                     : "Negative control: corpus opened " + opened + "/" + nd.length + " in no-docs"));
+    }
+    var timeouts = r.results.filter(function (x) { return x.exitCode === 143; }).length;
+    if (timeouts) box.appendChild(chip("warn", timeouts + " run" + (timeouts > 1 ? "s" : "") + " hit the per-task budget (exit 143)"));
+    var errors = r.results.filter(function (x) { return x.error; }).length;
+    if (errors) box.appendChild(chip("crit", errors + " harness error" + (errors > 1 ? "s" : "")));
+    if (r.reps < 2) box.appendChild(chip("warn", "Single rep — no spread; treat every number as one sample"));
+    var all = rate(r.results);
+    box.appendChild(chip("ok", all.pass + "/" + all.total + " runs passed"));
+  }
+
+  function chip(kind, text) {
+    var c = el("span", "chip " + kind);
+    c.appendChild(el("i", "dot"));
+    c.appendChild(el("span", null, text));
+    return c;
+  }
+
+  /* ---------- tiles ---------- */
+  function renderTiles(run) {
+    var box = $("tiles");
+    box.innerHTML = "";
+    $("summary-title").textContent = "Per-arm readout";
+    $("summary-sub").textContent = "Halves are scored separately — only the neutral half supports the headline claim.";
+    run.conditions.forEach(function (cond) {
+      var rs = pick(run, function (x) { return x.condition === cond; });
+      if (!rs.length) return;
+      var neutral = rate(rs.filter(function (x) { return x.half === "neutral"; }));
+      var defect = rate(rs.filter(function (x) { return x.half === "defect"; }));
+      var opened = rs.filter(function (x) { return (x.docsReads || 0) > 0; }).length;
+      var t = el("div", "tile");
+      t.style.setProperty("--tile-hue", HUES[cond] || "var(--rule-strong)");
+      var name = el("div", "tile-name");
+      name.appendChild(el("i", "swatch"));
+      name.appendChild(el("b", null, cond));
+      t.appendChild(name);
+      var hero = el("div", "hero");
+      hero.appendChild(el("span", "big", neutral.total ? neutral.pass + "/" + neutral.total : "–"));
+      if (neutral.total) hero.appendChild(el("span", "pct", Math.round((neutral.pass / neutral.total) * 100) + "%"));
+      t.appendChild(hero);
+      t.appendChild(el("div", "hero-label", "neutral half"));
+      var rows = el("div", "tile-rows");
+      rows.appendChild(row("defect half", defect.total ? defect.pass + "/" + defect.total : "–"));
+      rows.appendChild(row("cache read (med)", fmt(median(rs.map(function (x) { return x.cacheReadTokens; })))));
+      rows.appendChild(row("turns (med)", fmt(median(rs.map(function (x) { return x.turns; })))));
+      rows.appendChild(row("elapsed (med)", secs(median(rs.map(function (x) { return x.elapsedMs; })))));
+      rows.appendChild(row("corpus opened", opened + "/" + rs.length));
+      t.appendChild(rows);
+      box.appendChild(t);
+    });
+  }
+  function row(k, v) {
+    var r = el("div", "tile-row");
+    r.appendChild(el("span", null, k));
+    r.appendChild(el("span", null, v));
+    return r;
+  }
+
+  /* ---------- matrix ---------- */
+  function cellClass(p, n) {
+    if (!n) return "na";
+    if (p === n) return "full";
+    if (p === 0) return "zero";
+    return "part";
+  }
+
+  function renderMatrix(runs) {
+    var table = $("matrix-table");
+    table.innerHTML = "";
+    var compare = runs.length === 2;
+    var conds = compare ? sharedConditions(runs[0], runs[1]) : runs[0].conditions;
+    var taskIds = (compare ? runs[0] : runs[0]).taskIds;
+
+    $("matrix-title").textContent = compare ? "Task × condition — change" : "Task × condition";
+    $("matrix-sub").textContent = compare
+      ? "Change in passing reps, base → candidate. Hover a cell for both fractions."
+      : "Passing reps per task. Hover a cell for failure detail.";
+
+    if (!conds.length) {
+      table.appendChild(emptyRow("No condition runs in both — pick runs that share an arm."));
+      renderLegend(compare);
+      return;
+    }
+    var thead = el("thead");
+    var hr = el("tr");
+    hr.appendChild(el("th", null, "Task"));
+    conds.forEach(function (c) { hr.appendChild(el("th", "cell-col", c)); });
+    thead.appendChild(hr);
+    table.appendChild(thead);
+
+    var tbody = el("tbody");
+    HALVES.forEach(function (half) {
+      var ids = taskIds.filter(function (id) {
+        return runs[0].results.some(function (r) { return r.taskId === id && r.half === half.key; });
+      });
+      if (!ids.length) return;
+      var sep = el("tr", "half-row");
+      var sc = el("td", null, half.label + " — " + half.note);
+      sc.colSpan = conds.length + 1;
+      sep.appendChild(sc);
+      tbody.appendChild(sep);
+
+      ids.forEach(function (id) {
+        var tr = el("tr");
+        var td = el("td", "task");
+        var isCode = runs[0].results.some(function (r) { return r.taskId === id && r.kind === "code"; });
+        td.appendChild(el("span", null, id));
+        if (isCode) {
+          var k = el("span", "kind", "  code");
+          td.appendChild(k);
+        }
+        tr.appendChild(td);
+        conds.forEach(function (c) {
+          tr.appendChild(compare ? deltaCell(runs[0], runs[1], id, c) : passCell(runs[0], id, c));
+        });
+        tbody.appendChild(tr);
+      });
+    });
+    table.appendChild(tbody);
+    renderLegend(compare);
+  }
+
+  function passCell(run, taskId, cond) {
+    var rs = pick(run, function (x) { return x.taskId === taskId && x.condition === cond; });
+    var td = el("td", "cell");
+    var r = rate(rs);
+    var pill = el("span", "pill " + cellClass(r.pass, r.total), r.total ? r.pass + "/" + r.total : "–");
+    if (!r.total) {
+      pill.title = "not applicable in this condition";
+    } else {
+      var fails = rs.filter(function (x) { return !x.pass; });
+      pill.title = fails.length
+        ? fails.map(function (f) { return "rep " + f.rep + ": " + (f.error || f.checkDetail || "failed"); }).join("\n")
+        : "all reps passed";
+    }
+    td.appendChild(pill);
+    return td;
+  }
+
+  function deltaCell(base, cand, taskId, cond) {
+    var b = rate(pick(base, function (x) { return x.taskId === taskId && x.condition === cond; }));
+    var c = rate(pick(cand, function (x) { return x.taskId === taskId && x.condition === cond; }));
+    var td = el("td", "cell");
+    if (!b.total || !c.total) {
+      var na = el("span", "pill na", "–");
+      na.title = "not run in both";
+      td.appendChild(na);
+      return td;
+    }
+    var bp = b.pass / b.total, cp = c.pass / c.total;
+    var diff = Math.round((cp - bp) * c.total);
+    var cls = cp > bp ? "up" : (cp < bp ? "down" : "same");
+    var label = cp === bp ? "0" : (diff > 0 ? "+" + diff : String(diff));
+    var pill = el("span", "pill " + cls, label);
+    pill.title = b.pass + "/" + b.total + " → " + c.pass + "/" + c.total;
+    td.appendChild(pill);
+    return td;
+  }
+
+  function emptyRow(text) {
+    var tb = el("tbody");
+    var tr = el("tr");
+    var td = el("td", "empty", text);
+    td.colSpan = 3;
+    tr.appendChild(td);
+    tb.appendChild(tr);
+    return tb;
+  }
+
+  function renderLegend(compare) {
+    var box = $("matrix-legend");
+    box.innerHTML = "";
+    var items = compare
+      ? [["up", "improved"], ["same", "unchanged"], ["down", "regressed"], ["na", "not run in both"]]
+      : [["full", "all reps passed"], ["part", "some reps failed"], ["zero", "no reps passed"], ["na", "not applicable"]];
+    items.forEach(function (it) {
+      var s = el("span");
+      var i = el("i");
+      i.className = "";
+      i.style.background = swatchFor(it[0]);
+      i.style.borderColor = "var(--rule-strong)";
+      s.appendChild(i);
+      s.appendChild(el("span", null, it[1]));
+      box.appendChild(s);
+    });
+    var note = el("span", null, compare
+      ? "A cell at 2 reps is a hypothesis, not a finding — confirm at 8 reps per arm."
+      : "Cells carry their fraction as text; color repeats it, never replaces it.");
+    note.style.color = "var(--ink-muted)";
+    box.appendChild(note);
+  }
+  function swatchFor(kind) {
+    if (kind === "full") return "var(--good-wash)";
+    if (kind === "part") return "var(--warn-wash)";
+    if (kind === "zero") return "var(--crit-wash)";
+    if (kind === "up") return "color-mix(in srgb, var(--up) 16%, var(--panel))";
+    if (kind === "down") return "color-mix(in srgb, var(--down) 16%, var(--panel))";
+    if (kind === "same") return "var(--neutral-wash)";
+    return "transparent";
+  }
+
+  /* ---------- cost ---------- */
+  var METRICS = [
+    { key: "cacheReadTokens", title: "Context read", sub: "median cache-read tokens per run", fmt: fmt },
+    { key: "turns", title: "Turns", sub: "median agent turns per run", fmt: fmt },
+    { key: "elapsedMs", title: "Wall clock", sub: "median seconds per run", fmt: secs }
+  ];
+
+  function renderCost(runs) {
+    var box = $("cost-grid");
+    box.innerHTML = "";
+    var compare = runs.length === 2;
+    var conds = compare ? sharedConditions(runs[0], runs[1]) : runs[0].conditions;
+    if (!conds.length) {
+      box.appendChild(el("p", "empty", "No shared arm — cost cannot be differenced."));
+      return;
+    }
+
+    METRICS.forEach(function (m) {
+      var card = el("div", "cost-card");
+      card.appendChild(el("h3", null, m.title));
+      card.appendChild(el("p", "sub", m.sub));
+      var series = [];
+      conds.forEach(function (c) {
+        runs.forEach(function (run, i) {
+          var v = median(pick(run, function (x) { return x.condition === c; }).map(function (x) { return x[m.key]; }));
+          if (v !== null) series.push({ label: compare ? c + (i === 0 ? " base" : " cand") : c, cond: c, value: v, run: i });
+        });
+      });
+      var max = Math.max.apply(null, series.map(function (s) { return s.value; }).concat([1]));
+      series.forEach(function (s) {
+        var r = el("div", "bar-row");
+        r.appendChild(el("span", "lab", s.label));
+        var track = el("div", "track");
+        var bar = el("div", "bar");
+        bar.style.width = Math.max(2, (s.value / max) * 100) + "%";
+        bar.style.setProperty("--bar-hue", HUES[s.cond] || "var(--accent)");
+        if (compare && s.run === 0) bar.style.opacity = ".45";
+        track.appendChild(bar);
+        r.appendChild(track);
+        r.appendChild(el("span", "val", m.fmt(s.value)));
+        card.appendChild(r);
+      });
+      if (compare) {
+        var notes = conds.map(function (c) {
+          var b = median(pick(runs[0], function (x) { return x.condition === c; }).map(function (x) { return x[m.key]; }));
+          var cd = median(pick(runs[1], function (x) { return x.condition === c; }).map(function (x) { return x[m.key]; }));
+          if (b === null || cd === null || b === 0) return null;
+          var pctv = Math.round(((cd - b) / b) * 100);
+          return c + " " + (pctv > 0 ? "+" : "") + pctv + "%";
+        }).filter(Boolean);
+        if (notes.length) card.appendChild(el("div", "delta-note", "Change: " + notes.join(" · ")));
+      }
+      box.appendChild(card);
+    });
+  }
+
+  /* ---------- detail table ---------- */
+  function renderDetail(run) {
+    var table = $("detail-table");
+    table.innerHTML = "";
+    var thead = el("thead");
+    var hr = el("tr");
+    ["Task", "Condition", "Rep", "Pass", "Turns", "Cache read", "Out", "Docs", "Elapsed", "Note"].forEach(function (h) {
+      hr.appendChild(el("th", null, h));
+    });
+    thead.appendChild(hr);
+    table.appendChild(thead);
+    var tbody = el("tbody");
+    run.results.forEach(function (r) {
+      var tr = el("tr");
+      tr.appendChild(el("td", "task", r.taskId));
+      tr.appendChild(el("td", null, r.condition));
+      tr.appendChild(el("td", "num", r.rep));
+      var st = el("td");
+      st.appendChild(el("span", "status-mark " + (r.pass ? "p" : "f"), r.pass ? "PASS" : "FAIL"));
+      tr.appendChild(st);
+      tr.appendChild(el("td", "num", fmt(r.turns)));
+      tr.appendChild(el("td", "num", fmt(r.cacheReadTokens)));
+      tr.appendChild(el("td", "num", fmt(r.outputTokens)));
+      tr.appendChild(el("td", "num", r.docsReads === undefined || r.docsReads === null ? "n/a" : r.docsReads));
+      tr.appendChild(el("td", "num", secs(r.elapsedMs)));
+      tr.appendChild(el("td", "note", r.error || r.checkDetail || ""));
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+  }
+
+  /* ---------- orchestration ---------- */
+  function render() {
+    var compare = state.mode === "compare";
+    $("pick-single").hidden = compare;
+    $("pick-compare").hidden = !compare;
+    $("mode-single").setAttribute("aria-pressed", String(!compare));
+    $("mode-compare").setAttribute("aria-pressed", String(compare));
+    $("detail").hidden = compare;
+    $("summary").hidden = compare;
+
+    if (compare) {
+      var b = byId(state.base), c = byId(state.cand);
+      renderIdentity([b, c]);
+      renderChecks([b, c]);
+      renderMatrix([b, c]);
+      renderCost([b, c]);
+      $("brand-sub").textContent = "base → candidate";
+    } else {
+      var r = byId(state.run);
+      renderIdentity([r]);
+      renderChecks([r]);
+      renderTiles(r);
+      renderMatrix([r]);
+      renderCost([r]);
+      renderDetail(r);
+      $("brand-sub").textContent = r.backend + "/" + r.modelKey;
+    }
+    $("foot").textContent = "Generated from committed summary.json files by pnpm eval:artifact. "
+      + RUNS.length + " runs embedded. Every number here is regenerable from eval/reports/ — this page is never hand-edited.";
+  }
+
+  $("mode-single").addEventListener("click", function () { state.mode = "single"; render(); });
+  $("mode-compare").addEventListener("click", function () { state.mode = "compare"; render(); });
+  $("run-select").addEventListener("change", function (e) { state.run = e.target.value; render(); });
+  $("base-select").addEventListener("change", function (e) { state.base = e.target.value; render(); });
+  $("cand-select").addEventListener("change", function (e) { state.cand = e.target.value; render(); });
+
+  if (!RUNS.length) {
+    document.querySelector("main").innerHTML = "<p>No runs embedded. Generate with <code>pnpm eval:artifact</code>.</p>";
+  } else {
+    fillSelect($("run-select"), state.run);
+    fillSelect($("base-select"), state.base);
+    fillSelect($("cand-select"), state.cand);
+    render();
+  }
+})();
+</script>

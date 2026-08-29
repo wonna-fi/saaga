@@ -1,0 +1,86 @@
+import type { AgentEvent, DenialEvent } from "./events.js";
+import type { AgentPermissions } from "./permissions.js";
+
+/**
+ * What a refused tool call means, judged against the profile we asked for.
+ */
+export type DenialClass =
+  /** Refused inside a root we intended to grant — our profile is wrong. */
+  | "unexpected"
+  /** Wanted something outside the workspace; `--allow-dir` would fix it. */
+  | "out-of-workspace"
+  /** Refused a path we deliberately withheld. Working as intended. */
+  | "protected-path"
+  /** A command rather than a path. */
+  | "shell"
+  /** No path recovered, so it cannot be placed. */
+  | "unknown";
+
+export interface ClassifiedDenial {
+  event: DenialEvent;
+  className: DenialClass;
+  /** Absolute form of `event.path`, when one could be determined. */
+  resolvedPath?: string;
+}
+
+/**
+ * Place a denial against the profile.
+ *
+ * `cwd` is needed because copilot reports relative paths.
+ */
+export function classifyDenial(
+  event: DenialEvent,
+  perms: AgentPermissions,
+  cwd: string,
+): ClassifiedDenial {
+  void event;
+  void perms;
+  void cwd;
+  throw new Error("not implemented");
+}
+
+const CLASS_NOTES: Record<DenialClass, string> = {
+  unexpected:
+    "Refused inside a directory the profile grants. This is a saaga bug or backend drift; the run is silently degraded.",
+  "out-of-workspace":
+    "The agent wanted a path outside the workspace. Pass --allow-dir <path> if it genuinely needs it.",
+  "protected-path": "Refused a path the profile deliberately withholds.",
+  shell: "Refused a command. Expected under every backend profile.",
+  unknown: "The backend did not report which path was refused.",
+};
+void CLASS_NOTES;
+
+export interface AuditResult {
+  logPath: string;
+  counts: Record<DenialClass, number>;
+  /** Denials that indicate a broken profile rather than a working one. */
+  unexpected: ClassifiedDenial[];
+}
+
+/**
+ * Collects denial events over a run and writes a classified summary.
+ */
+export class PermissionAuditor {
+  constructor(
+    private readonly perms: AgentPermissions,
+    private readonly cwd: string,
+    private readonly logPath: string,
+  ) {
+    void this.perms;
+    void this.cwd;
+    void this.logPath;
+  }
+
+  record(event: AgentEvent): void {
+    void event;
+    throw new Error("not implemented");
+  }
+
+  get unexpected(): ClassifiedDenial[] {
+    throw new Error("not implemented");
+  }
+
+  async flush(): Promise<AuditResult> {
+    throw new Error("not implemented");
+  }
+}

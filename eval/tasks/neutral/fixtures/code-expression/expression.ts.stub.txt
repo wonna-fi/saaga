@@ -1,0 +1,37 @@
+import type { Scope } from "./types.js";
+
+export class ExpressionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ExpressionError";
+  }
+}
+
+/**
+ * Substitutes every `${name}` and `${name.field}` reference in `template`
+ * with its scope value, coercing the result to a string.
+ */
+export function interpolate(template: string, scope: Scope): string {
+  void template;
+  void scope;
+  throw new Error("not implemented");
+}
+
+/**
+ * If `expr` consists of exactly one `${...}` reference, returns the raw
+ * value. Otherwise interpolates and returns a string.
+ */
+export function resolveValue(expr: string, scope: Scope): unknown {
+  void expr;
+  void scope;
+  throw new Error("not implemented");
+}
+
+/**
+ * Evaluates a predicate expression used in `when:` and `until:` clauses.
+ */
+export function evaluatePredicate(expr: string, scope: Scope): boolean {
+  void expr;
+  void scope;
+  throw new Error("not implemented");
+}

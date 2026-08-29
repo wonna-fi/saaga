@@ -1,0 +1,1788 @@
+{
+  "schemaVersion": 1,
+  "spec": {
+    "schemaVersion": 1,
+    "backend": "claude",
+    "model": "sonnet",
+    "modelKey": "medium",
+    "rev": "69bbceb633f7656c9ec6107ac9e19981fa131204",
+    "conditions": [
+      "no-docs",
+      "saaga-docs"
+    ],
+    "reps": 2,
+    "taskIds": [
+      "defect/shell-policy-values",
+      "defect/copilot-restricted-flags",
+      "defect/config-default-backend",
+      "defect/fake-agent-shell-assert",
+      "defect/term-phase",
+      "defect/term-scope",
+      "defect/term-slice-vs-phase",
+      "neutral/change-classification",
+      "neutral/saagaignore-symlinks",
+      "neutral/denial-out-of-workspace",
+      "neutral/backend-deadlock",
+      "neutral/bash-deny-reasoning",
+      "neutral/anchor-model-defaults",
+      "neutral/anchor-doctor-catalogue",
+      "neutral/pr-01-run-command",
+      "neutral/pr-02-model-keys",
+      "neutral/pr-03-saagarules",
+      "neutral/code-saagarules",
+      "neutral/code-model-overrides",
+      "neutral/code-expression",
+      "neutral/code-unstable-features",
+      "neutral/code-denial-classify",
+      "neutral/code-file-manifest"
+    ],
+    "taskSetVersion": 2,
+    "startedAt": "2026-08-23T11:00:12.227Z"
+  },
+  "results": [
+    {
+      "taskId": "defect/shell-policy-values",
+      "half": "defect",
+      "condition": "no-docs",
+      "rep": 1,
+      "logFile": "logs/no-docs/defect--shell-policy-values--rep1.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 14115,
+        "turns": 4,
+        "inputTokens": 8,
+        "outputTokens": 610,
+        "cacheReadTokens": 51420,
+        "cacheCreationTokens": 18473,
+        "costUsd": 0.09488074999999999,
+        "docsReads": 0
+      }
+    },
+    {
+      "taskId": "defect/shell-policy-values",
+      "half": "defect",
+      "condition": "no-docs",
+      "rep": 2,
+      "logFile": "logs/no-docs/defect--shell-policy-values--rep2.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 18244,
+        "turns": 5,
+        "inputTokens": 8,
+        "outputTokens": 692,
+        "cacheReadTokens": 63573,
+        "cacheCreationTokens": 9781,
+        "costUsd": 0.06716165,
+        "docsReads": 0
+      }
+    },
+    {
+      "taskId": "defect/shell-policy-values",
+      "half": "defect",
+      "condition": "saaga-docs",
+      "rep": 1,
+      "logFile": "logs/saaga-docs/defect--shell-policy-values--rep1.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 29135,
+        "turns": 6,
+        "inputTokens": 12,
+        "outputTokens": 762,
+        "cacheReadTokens": 102005,
+        "cacheCreationTokens": 11609,
+        "costUsd": 0.08661324999999999,
+        "docsReads": 1
+      }
+    },
+    {
+      "taskId": "defect/shell-policy-values",
+      "half": "defect",
+      "condition": "saaga-docs",
+      "rep": 2,
+      "logFile": "logs/saaga-docs/defect--shell-policy-values--rep2.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 23746,
+        "turns": 5,
+        "inputTokens": 10,
+        "outputTokens": 655,
+        "cacheReadTokens": 84819,
+        "cacheCreationTokens": 11382,
+        "costUsd": 0.07899019999999998,
+        "docsReads": 1
+      }
+    },
+    {
+      "taskId": "defect/copilot-restricted-flags",
+      "half": "defect",
+      "condition": "no-docs",
+      "rep": 1,
+      "logFile": "logs/no-docs/defect--copilot-restricted-flags--rep1.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 21337,
+        "turns": 5,
+        "inputTokens": 8,
+        "outputTokens": 622,
+        "cacheReadTokens": 64323,
+        "cacheCreationTokens": 12458,
+        "costUsd": 0.0763964,
+        "docsReads": 0
+      }
+    },
+    {
+      "taskId": "defect/copilot-restricted-flags",
+      "half": "defect",
+      "condition": "no-docs",
+      "rep": 2,
+      "logFile": "logs/no-docs/defect--copilot-restricted-flags--rep2.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 26572,
+        "turns": 5,
+        "inputTokens": 8,
+        "outputTokens": 687,
+        "cacheReadTokens": 64434,
+        "cacheCreationTokens": 12554,
+        "costUsd": 0.0777647,
+        "docsReads": 0
+      }
+    },
+    {
+      "taskId": "defect/copilot-restricted-flags",
+      "half": "defect",
+      "condition": "saaga-docs",
+      "rep": 1,
+      "logFile": "logs/saaga-docs/defect--copilot-restricted-flags--rep1.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 23899,
+        "turns": 4,
+        "inputTokens": 8,
+        "outputTokens": 736,
+        "cacheReadTokens": 77299,
+        "cacheCreationTokens": 16818,
+        "costUsd": 0.09834920000000001,
+        "docsReads": 0
+      }
+    },
+    {
+      "taskId": "defect/copilot-restricted-flags",
+      "half": "defect",
+      "condition": "saaga-docs",
+      "rep": 2,
+      "logFile": "logs/saaga-docs/defect--copilot-restricted-flags--rep2.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 13825,
+        "turns": 4,
+        "inputTokens": 8,
+        "outputTokens": 552,
+        "cacheReadTokens": 64332,
+        "cacheCreationTokens": 11415,
+        "costUsd": 0.07143785,
+        "docsReads": 1
+      }
+    },
+    {
+      "taskId": "defect/config-default-backend",
+      "half": "defect",
+      "condition": "no-docs",
+      "rep": 1,
+      "logFile": "logs/no-docs/defect--config-default-backend--rep1.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 16887,
+        "turns": 5,
+        "inputTokens": 10,
+        "outputTokens": 585,
+        "cacheReadTokens": 78464,
+        "cacheCreationTokens": 8297,
+        "costUsd": 0.06447895000000001,
+        "docsReads": 0
+      }
+    },
+    {
+      "taskId": "defect/config-default-backend",
+      "half": "defect",
+      "condition": "no-docs",
+      "rep": 2,
+      "logFile": "logs/no-docs/defect--config-default-backend--rep2.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 15536,
+        "turns": 5,
+        "inputTokens": 10,
+        "outputTokens": 534,
+        "cacheReadTokens": 76266,
+        "cacheCreationTokens": 8249,
+        "costUsd": 0.06288455,
+        "docsReads": 0
+      }
+    },
+    {
+      "taskId": "defect/config-default-backend",
+      "half": "defect",
+      "condition": "saaga-docs",
+      "rep": 1,
+      "logFile": "logs/saaga-docs/defect--config-default-backend--rep1.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 16230,
+        "turns": 5,
+        "inputTokens": 10,
+        "outputTokens": 498,
+        "cacheReadTokens": 83233,
+        "cacheCreationTokens": 11948,
+        "costUsd": 0.0782959,
+        "docsReads": 1
+      }
+    },
+    {
+      "taskId": "defect/config-default-backend",
+      "half": "defect",
+      "condition": "saaga-docs",
+      "rep": 2,
+      "logFile": "logs/saaga-docs/defect--config-default-backend--rep2.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 9529,
+        "turns": 3,
+        "inputTokens": 6,
+        "outputTokens": 265,
+        "cacheReadTokens": 49135,
+        "cacheCreationTokens": 13273,
+        "costUsd": 0.06953825,
+        "docsReads": 0
+      }
+    },
+    {
+      "taskId": "defect/fake-agent-shell-assert",
+      "half": "defect",
+      "condition": "no-docs",
+      "rep": 1,
+      "logFile": "logs/no-docs/defect--fake-agent-shell-assert--rep1.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 54114,
+        "turns": 9,
+        "inputTokens": 18,
+        "outputTokens": 1112,
+        "cacheReadTokens": 151804,
+        "cacheCreationTokens": 11895,
+        "costUsd": 0.10790445,
+        "docsReads": 0
+      }
+    },
+    {
+      "taskId": "defect/fake-agent-shell-assert",
+      "half": "defect",
+      "condition": "no-docs",
+      "rep": 2,
+      "logFile": "logs/no-docs/defect--fake-agent-shell-assert--rep2.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 20173,
+        "turns": 7,
+        "inputTokens": 14,
+        "outputTokens": 834,
+        "cacheReadTokens": 116224,
+        "cacheCreationTokens": 11005,
+        "costUsd": 0.08970094999999999,
+        "docsReads": 0
+      }
+    },
+    {
+      "taskId": "defect/fake-agent-shell-assert",
+      "half": "defect",
+      "condition": "saaga-docs",
+      "rep": 1,
+      "logFile": "logs/saaga-docs/defect--fake-agent-shell-assert--rep1.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 39304,
+        "turns": 11,
+        "inputTokens": 22,
+        "outputTokens": 1347,
+        "cacheReadTokens": 189728,
+        "cacheCreationTokens": 11592,
+        "costUsd": 0.1216874,
+        "docsReads": 0
+      }
+    },
+    {
+      "taskId": "defect/fake-agent-shell-assert",
+      "half": "defect",
+      "condition": "saaga-docs",
+      "rep": 2,
+      "logFile": "logs/saaga-docs/defect--fake-agent-shell-assert--rep2.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 25876,
+        "turns": 9,
+        "inputTokens": 16,
+        "outputTokens": 1150,
+        "cacheReadTokens": 138912,
+        "cacheCreationTokens": 12609,
+        "costUsd": 0.10728335,
+        "docsReads": 1
+      }
+    },
+    {
+      "taskId": "defect/term-phase",
+      "half": "defect",
+      "condition": "no-docs",
+      "rep": 1,
+      "logFile": "logs/no-docs/defect--term-phase--rep1.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 36445,
+        "turns": 10,
+        "inputTokens": 12,
+        "outputTokens": 2813,
+        "cacheReadTokens": 119883,
+        "cacheCreationTokens": 18793,
+        "costUsd": 0.14968665,
+        "docsReads": 0
+      }
+    },
+    {
+      "taskId": "defect/term-phase",
+      "half": "defect",
+      "condition": "no-docs",
+      "rep": 2,
+      "logFile": "logs/no-docs/defect--term-phase--rep2.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 50738,
+        "turns": 11,
+        "inputTokens": 16,
+        "outputTokens": 3807,
+        "cacheReadTokens": 175832,
+        "cacheCreationTokens": 25008,
+        "costUsd": 0.2046996,
+        "docsReads": 0
+      }
+    },
+    {
+      "taskId": "defect/term-phase",
+      "half": "defect",
+      "condition": "saaga-docs",
+      "rep": 1,
+      "logFile": "logs/saaga-docs/defect--term-phase--rep1.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 32130,
+        "turns": 10,
+        "inputTokens": 10,
+        "outputTokens": 2597,
+        "cacheReadTokens": 89923,
+        "cacheCreationTokens": 18558,
+        "costUsd": 0.1365714,
+        "docsReads": 5
+      }
+    },
+    {
+      "taskId": "defect/term-phase",
+      "half": "defect",
+      "condition": "saaga-docs",
+      "rep": 2,
+      "logFile": "logs/saaga-docs/defect--term-phase--rep2.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 37048,
+        "turns": 10,
+        "inputTokens": 10,
+        "outputTokens": 2719,
+        "cacheReadTokens": 90651,
+        "cacheCreationTokens": 18796,
+        "costUsd": 0.1395123,
+        "docsReads": 5
+      }
+    },
+    {
+      "taskId": "defect/term-scope",
+      "half": "defect",
+      "condition": "no-docs",
+      "rep": 1,
+      "logFile": "logs/no-docs/defect--term-scope--rep1.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 58706,
+        "turns": 18,
+        "inputTokens": 22,
+        "outputTokens": 3682,
+        "cacheReadTokens": 224727,
+        "cacheCreationTokens": 16507,
+        "costUsd": 0.18562235000000002,
+        "docsReads": 0
+      }
+    },
+    {
+      "taskId": "defect/term-scope",
+      "half": "defect",
+      "condition": "no-docs",
+      "rep": 2,
+      "logFile": "logs/no-docs/defect--term-scope--rep2.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 56702,
+        "turns": 12,
+        "inputTokens": 24,
+        "outputTokens": 3749,
+        "cacheReadTokens": 249405,
+        "cacheCreationTokens": 17669,
+        "costUsd": 0.19838425,
+        "docsReads": 0
+      }
+    },
+    {
+      "taskId": "defect/term-scope",
+      "half": "defect",
+      "condition": "saaga-docs",
+      "rep": 1,
+      "logFile": "logs/saaga-docs/defect--term-scope--rep1.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 45720,
+        "turns": 12,
+        "inputTokens": 20,
+        "outputTokens": 3256,
+        "cacheReadTokens": 218616,
+        "cacheCreationTokens": 22791,
+        "costUsd": 0.20094804999999996,
+        "docsReads": 3
+      }
+    },
+    {
+      "taskId": "defect/term-scope",
+      "half": "defect",
+      "condition": "saaga-docs",
+      "rep": 2,
+      "logFile": "logs/saaga-docs/defect--term-scope--rep2.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 54141,
+        "turns": 12,
+        "inputTokens": 16,
+        "outputTokens": 3239,
+        "cacheReadTokens": 170440,
+        "cacheCreationTokens": 20779,
+        "costUsd": 0.17868325,
+        "docsReads": 4
+      }
+    },
+    {
+      "taskId": "defect/term-slice-vs-phase",
+      "half": "defect",
+      "condition": "no-docs",
+      "rep": 1,
+      "logFile": "logs/no-docs/defect--term-slice-vs-phase--rep1.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 31050,
+        "turns": 10,
+        "inputTokens": 12,
+        "outputTokens": 2306,
+        "cacheReadTokens": 113377,
+        "cacheCreationTokens": 19896,
+        "costUsd": 0.14426609999999998,
+        "docsReads": 0
+      }
+    },
+    {
+      "taskId": "defect/term-slice-vs-phase",
+      "half": "defect",
+      "condition": "no-docs",
+      "rep": 2,
+      "logFile": "logs/no-docs/defect--term-slice-vs-phase--rep2.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 34336,
+        "turns": 9,
+        "inputTokens": 12,
+        "outputTokens": 2197,
+        "cacheReadTokens": 129141,
+        "cacheCreationTokens": 22419,
+        "costUsd": 0.15682155,
+        "docsReads": 0
+      }
+    },
+    {
+      "taskId": "defect/term-slice-vs-phase",
+      "half": "defect",
+      "condition": "saaga-docs",
+      "rep": 1,
+      "logFile": "logs/saaga-docs/defect--term-slice-vs-phase--rep1.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 43251,
+        "turns": 11,
+        "inputTokens": 16,
+        "outputTokens": 2384,
+        "cacheReadTokens": 167295,
+        "cacheCreationTokens": 25593,
+        "costUsd": 0.18298725000000002,
+        "docsReads": 3
+      }
+    },
+    {
+      "taskId": "defect/term-slice-vs-phase",
+      "half": "defect",
+      "condition": "saaga-docs",
+      "rep": 2,
+      "logFile": "logs/saaga-docs/defect--term-slice-vs-phase--rep2.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 41500,
+        "turns": 14,
+        "inputTokens": 16,
+        "outputTokens": 2736,
+        "cacheReadTokens": 171601,
+        "cacheCreationTokens": 28451,
+        "costUsd": 0.20027655,
+        "docsReads": 4
+      }
+    },
+    {
+      "taskId": "neutral/change-classification",
+      "half": "neutral",
+      "condition": "no-docs",
+      "rep": 1,
+      "logFile": "logs/no-docs/neutral--change-classification--rep1.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 41564,
+        "turns": 9,
+        "inputTokens": 18,
+        "outputTokens": 1887,
+        "cacheReadTokens": 151522,
+        "cacheCreationTokens": 13604,
+        "costUsd": 0.1258966,
+        "docsReads": 0
+      }
+    },
+    {
+      "taskId": "neutral/change-classification",
+      "half": "neutral",
+      "condition": "no-docs",
+      "rep": 2,
+      "logFile": "logs/no-docs/neutral--change-classification--rep2.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 29642,
+        "turns": 8,
+        "inputTokens": 16,
+        "outputTokens": 1482,
+        "cacheReadTokens": 136648,
+        "cacheCreationTokens": 14064,
+        "costUsd": 0.1170784,
+        "docsReads": 0
+      }
+    },
+    {
+      "taskId": "neutral/change-classification",
+      "half": "neutral",
+      "condition": "saaga-docs",
+      "rep": 1,
+      "logFile": "logs/saaga-docs/neutral--change-classification--rep1.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 24791,
+        "turns": 9,
+        "inputTokens": 14,
+        "outputTokens": 1254,
+        "cacheReadTokens": 122394,
+        "cacheCreationTokens": 16653,
+        "costUsd": 0.11908495,
+        "docsReads": 4
+      }
+    },
+    {
+      "taskId": "neutral/change-classification",
+      "half": "neutral",
+      "condition": "saaga-docs",
+      "rep": 2,
+      "logFile": "logs/saaga-docs/neutral--change-classification--rep2.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 31841,
+        "turns": 10,
+        "inputTokens": 10,
+        "outputTokens": 1476,
+        "cacheReadTokens": 89991,
+        "cacheCreationTokens": 17527,
+        "costUsd": 0.11595955000000001,
+        "docsReads": 5
+      }
+    },
+    {
+      "taskId": "neutral/saagaignore-symlinks",
+      "half": "neutral",
+      "condition": "no-docs",
+      "rep": 1,
+      "logFile": "logs/no-docs/neutral--saagaignore-symlinks--rep1.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 48602,
+        "turns": 11,
+        "inputTokens": 16,
+        "outputTokens": 2652,
+        "cacheReadTokens": 133025,
+        "cacheCreationTokens": 12473,
+        "costUsd": 0.12756525,
+        "docsReads": 0
+      }
+    },
+    {
+      "taskId": "neutral/saagaignore-symlinks",
+      "half": "neutral",
+      "condition": "no-docs",
+      "rep": 2,
+      "logFile": "logs/no-docs/neutral--saagaignore-symlinks--rep2.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 37424,
+        "turns": 7,
+        "inputTokens": 14,
+        "outputTokens": 2607,
+        "cacheReadTokens": 110347,
+        "cacheCreationTokens": 11746,
+        "costUsd": 0.11734460000000001,
+        "docsReads": 0
+      }
+    },
+    {
+      "taskId": "neutral/saagaignore-symlinks",
+      "half": "neutral",
+      "condition": "saaga-docs",
+      "rep": 1,
+      "logFile": "logs/saaga-docs/neutral--saagaignore-symlinks--rep1.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 50032,
+        "turns": 14,
+        "inputTokens": 20,
+        "outputTokens": 3303,
+        "cacheReadTokens": 233052,
+        "cacheCreationTokens": 26741,
+        "costUsd": 0.22085535,
+        "docsReads": 4
+      }
+    },
+    {
+      "taskId": "neutral/saagaignore-symlinks",
+      "half": "neutral",
+      "condition": "saaga-docs",
+      "rep": 2,
+      "logFile": "logs/saaga-docs/neutral--saagaignore-symlinks--rep2.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 43302,
+        "turns": 11,
+        "inputTokens": 16,
+        "outputTokens": 2259,
+        "cacheReadTokens": 156797,
+        "cacheCreationTokens": 22400,
+        "costUsd": 0.1660281,
+        "docsReads": 6
+      }
+    },
+    {
+      "taskId": "neutral/denial-out-of-workspace",
+      "half": "neutral",
+      "condition": "no-docs",
+      "rep": 1,
+      "logFile": "logs/no-docs/neutral--denial-out-of-workspace--rep1.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 24551,
+        "turns": 7,
+        "inputTokens": 14,
+        "outputTokens": 1173,
+        "cacheReadTokens": 119032,
+        "cacheCreationTokens": 10161,
+        "costUsd": 0.09250535,
+        "docsReads": 0
+      }
+    },
+    {
+      "taskId": "neutral/denial-out-of-workspace",
+      "half": "neutral",
+      "condition": "no-docs",
+      "rep": 2,
+      "logFile": "logs/no-docs/neutral--denial-out-of-workspace--rep2.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 29490,
+        "turns": 7,
+        "inputTokens": 14,
+        "outputTokens": 1243,
+        "cacheReadTokens": 126197,
+        "cacheCreationTokens": 12819,
+        "costUsd": 0.10566235,
+        "docsReads": 0
+      }
+    },
+    {
+      "taskId": "neutral/denial-out-of-workspace",
+      "half": "neutral",
+      "condition": "saaga-docs",
+      "rep": 1,
+      "logFile": "logs/saaga-docs/neutral--denial-out-of-workspace--rep1.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 27426,
+        "turns": 5,
+        "inputTokens": 10,
+        "outputTokens": 1381,
+        "cacheReadTokens": 87753,
+        "cacheCreationTokens": 14018,
+        "costUsd": 0.1006934,
+        "docsReads": 0
+      }
+    },
+    {
+      "taskId": "neutral/denial-out-of-workspace",
+      "half": "neutral",
+      "condition": "saaga-docs",
+      "rep": 2,
+      "logFile": "logs/saaga-docs/neutral--denial-out-of-workspace--rep2.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 32264,
+        "turns": 7,
+        "inputTokens": 10,
+        "outputTokens": 1537,
+        "cacheReadTokens": 80356,
+        "cacheCreationTokens": 11085,
+        "costUsd": 0.08981555,
+        "docsReads": 0
+      }
+    },
+    {
+      "taskId": "neutral/backend-deadlock",
+      "half": "neutral",
+      "condition": "no-docs",
+      "rep": 1,
+      "logFile": "logs/no-docs/neutral--backend-deadlock--rep1.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 27387,
+        "turns": 5,
+        "inputTokens": 8,
+        "outputTokens": 1408,
+        "cacheReadTokens": 63283,
+        "cacheCreationTokens": 12693,
+        "costUsd": 0.08876165,
+        "docsReads": 0
+      }
+    },
+    {
+      "taskId": "neutral/backend-deadlock",
+      "half": "neutral",
+      "condition": "no-docs",
+      "rep": 2,
+      "logFile": "logs/no-docs/neutral--backend-deadlock--rep2.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 34010,
+        "turns": 10,
+        "inputTokens": 14,
+        "outputTokens": 1791,
+        "cacheReadTokens": 115721,
+        "cacheCreationTokens": 14889,
+        "costUsd": 0.11849105,
+        "docsReads": 0
+      }
+    },
+    {
+      "taskId": "neutral/backend-deadlock",
+      "half": "neutral",
+      "condition": "saaga-docs",
+      "rep": 1,
+      "logFile": "logs/saaga-docs/neutral--backend-deadlock--rep1.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 33261,
+        "turns": 5,
+        "inputTokens": 10,
+        "outputTokens": 1513,
+        "cacheReadTokens": 82997,
+        "cacheCreationTokens": 11536,
+        "costUsd": 0.0919181,
+        "docsReads": 1
+      }
+    },
+    {
+      "taskId": "neutral/backend-deadlock",
+      "half": "neutral",
+      "condition": "saaga-docs",
+      "rep": 2,
+      "logFile": "logs/saaga-docs/neutral--backend-deadlock--rep2.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 24893,
+        "turns": 6,
+        "inputTokens": 10,
+        "outputTokens": 1522,
+        "cacheReadTokens": 86128,
+        "cacheCreationTokens": 12929,
+        "costUsd": 0.09821615,
+        "docsReads": 2
+      }
+    },
+    {
+      "taskId": "neutral/bash-deny-reasoning",
+      "half": "neutral",
+      "condition": "no-docs",
+      "rep": 1,
+      "logFile": "logs/no-docs/neutral--bash-deny-reasoning--rep1.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 41014,
+        "turns": 7,
+        "inputTokens": 12,
+        "outputTokens": 1890,
+        "cacheReadTokens": 99663,
+        "cacheCreationTokens": 12374,
+        "costUsd": 0.1057144,
+        "docsReads": 0
+      }
+    },
+    {
+      "taskId": "neutral/bash-deny-reasoning",
+      "half": "neutral",
+      "condition": "no-docs",
+      "rep": 2,
+      "logFile": "logs/no-docs/neutral--bash-deny-reasoning--rep2.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 24778,
+        "turns": 6,
+        "inputTokens": 10,
+        "outputTokens": 1592,
+        "cacheReadTokens": 83158,
+        "cacheCreationTokens": 14259,
+        "costUsd": 0.10335565000000001,
+        "docsReads": 0
+      }
+    },
+    {
+      "taskId": "neutral/bash-deny-reasoning",
+      "half": "neutral",
+      "condition": "saaga-docs",
+      "rep": 1,
+      "logFile": "logs/saaga-docs/neutral--bash-deny-reasoning--rep1.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 32374,
+        "turns": 10,
+        "inputTokens": 20,
+        "outputTokens": 2025,
+        "cacheReadTokens": 172633,
+        "cacheCreationTokens": 13583,
+        "costUsd": 0.13419314999999998,
+        "docsReads": 0
+      }
+    },
+    {
+      "taskId": "neutral/bash-deny-reasoning",
+      "half": "neutral",
+      "condition": "saaga-docs",
+      "rep": 2,
+      "logFile": "logs/saaga-docs/neutral--bash-deny-reasoning--rep2.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 25210,
+        "turns": 8,
+        "inputTokens": 14,
+        "outputTokens": 1670,
+        "cacheReadTokens": 119807,
+        "cacheCreationTokens": 12740,
+        "costUsd": 0.10984609999999999,
+        "docsReads": 1
+      }
+    },
+    {
+      "taskId": "neutral/anchor-model-defaults",
+      "half": "neutral",
+      "condition": "no-docs",
+      "rep": 1,
+      "logFile": "logs/no-docs/neutral--anchor-model-defaults--rep1.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 18862,
+        "turns": 6,
+        "inputTokens": 12,
+        "outputTokens": 1069,
+        "cacheReadTokens": 102431,
+        "cacheCreationTokens": 12433,
+        "costUsd": 0.09442405000000001,
+        "docsReads": 0
+      }
+    },
+    {
+      "taskId": "neutral/anchor-model-defaults",
+      "half": "neutral",
+      "condition": "no-docs",
+      "rep": 2,
+      "logFile": "logs/no-docs/neutral--anchor-model-defaults--rep2.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 18202,
+        "turns": 7,
+        "inputTokens": 12,
+        "outputTokens": 1077,
+        "cacheReadTokens": 108702,
+        "cacheCreationTokens": 13977,
+        "costUsd": 0.10222035,
+        "docsReads": 0
+      }
+    },
+    {
+      "taskId": "neutral/anchor-model-defaults",
+      "half": "neutral",
+      "condition": "saaga-docs",
+      "rep": 1,
+      "logFile": "logs/saaga-docs/neutral--anchor-model-defaults--rep1.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 22477,
+        "turns": 8,
+        "inputTokens": 14,
+        "outputTokens": 1268,
+        "cacheReadTokens": 125085,
+        "cacheCreationTokens": 13846,
+        "costUsd": 0.10951499999999999,
+        "docsReads": 3
+      }
+    },
+    {
+      "taskId": "neutral/anchor-model-defaults",
+      "half": "neutral",
+      "condition": "saaga-docs",
+      "rep": 2,
+      "logFile": "logs/saaga-docs/neutral--anchor-model-defaults--rep2.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 21882,
+        "turns": 7,
+        "inputTokens": 14,
+        "outputTokens": 1088,
+        "cacheReadTokens": 124511,
+        "cacheCreationTokens": 12698,
+        "costUsd": 0.10233280000000002,
+        "docsReads": 1
+      }
+    },
+    {
+      "taskId": "neutral/anchor-doctor-catalogue",
+      "half": "neutral",
+      "condition": "no-docs",
+      "rep": 1,
+      "logFile": "logs/no-docs/neutral--anchor-doctor-catalogue--rep1.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 114438,
+        "turns": 5,
+        "inputTokens": 8,
+        "outputTokens": 1140,
+        "cacheReadTokens": 69031,
+        "cacheCreationTokens": 18131,
+        "costUsd": 0.10683355,
+        "docsReads": 0
+      }
+    },
+    {
+      "taskId": "neutral/anchor-doctor-catalogue",
+      "half": "neutral",
+      "condition": "no-docs",
+      "rep": 2,
+      "logFile": "logs/no-docs/neutral--anchor-doctor-catalogue--rep2.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 18348,
+        "turns": 6,
+        "inputTokens": 12,
+        "outputTokens": 819,
+        "cacheReadTokens": 102279,
+        "cacheCreationTokens": 14130,
+        "costUsd": 0.09699619999999999,
+        "docsReads": 0
+      }
+    },
+    {
+      "taskId": "neutral/anchor-doctor-catalogue",
+      "half": "neutral",
+      "condition": "saaga-docs",
+      "rep": 1,
+      "logFile": "logs/saaga-docs/neutral--anchor-doctor-catalogue--rep1.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 36156,
+        "turns": 13,
+        "inputTokens": 22,
+        "outputTokens": 2148,
+        "cacheReadTokens": 208649,
+        "cacheCreationTokens": 16896,
+        "costUsd": 0.1592447,
+        "docsReads": 1
+      }
+    },
+    {
+      "taskId": "neutral/anchor-doctor-catalogue",
+      "half": "neutral",
+      "condition": "saaga-docs",
+      "rep": 2,
+      "logFile": "logs/saaga-docs/neutral--anchor-doctor-catalogue--rep2.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 18347,
+        "turns": 7,
+        "inputTokens": 12,
+        "outputTokens": 1086,
+        "cacheReadTokens": 116688,
+        "cacheCreationTokens": 15387,
+        "costUsd": 0.11002765,
+        "docsReads": 1
+      }
+    },
+    {
+      "taskId": "neutral/pr-01-run-command",
+      "half": "neutral",
+      "condition": "no-docs",
+      "rep": 1,
+      "logFile": "logs/no-docs/neutral--pr-01-run-command--rep1.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 50618,
+        "turns": 10,
+        "inputTokens": 20,
+        "outputTokens": 1584,
+        "cacheReadTokens": 168570,
+        "cacheCreationTokens": 11035,
+        "costUsd": 0.11679225,
+        "docsReads": 0
+      }
+    },
+    {
+      "taskId": "neutral/pr-01-run-command",
+      "half": "neutral",
+      "condition": "no-docs",
+      "rep": 2,
+      "logFile": "logs/no-docs/neutral--pr-01-run-command--rep2.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 44106,
+        "turns": 10,
+        "inputTokens": 20,
+        "outputTokens": 1456,
+        "cacheReadTokens": 166833,
+        "cacheCreationTokens": 10511,
+        "costUsd": 0.11238615,
+        "docsReads": 0
+      }
+    },
+    {
+      "taskId": "neutral/pr-01-run-command",
+      "half": "neutral",
+      "condition": "saaga-docs",
+      "rep": 1,
+      "logFile": "logs/saaga-docs/neutral--pr-01-run-command--rep1.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 63894,
+        "turns": 19,
+        "inputTokens": 32,
+        "outputTokens": 3886,
+        "cacheReadTokens": 435725,
+        "cacheCreationTokens": 25800,
+        "costUsd": 0.28687349999999995,
+        "docsReads": 2
+      }
+    },
+    {
+      "taskId": "neutral/pr-01-run-command",
+      "half": "neutral",
+      "condition": "saaga-docs",
+      "rep": 2,
+      "logFile": "logs/saaga-docs/neutral--pr-01-run-command--rep2.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 47482,
+        "turns": 14,
+        "inputTokens": 18,
+        "outputTokens": 3042,
+        "cacheReadTokens": 204813,
+        "cacheCreationTokens": 21815,
+        "costUsd": 0.18995415,
+        "docsReads": 2
+      }
+    },
+    {
+      "taskId": "neutral/pr-02-model-keys",
+      "half": "neutral",
+      "condition": "no-docs",
+      "rep": 1,
+      "logFile": "logs/no-docs/neutral--pr-02-model-keys--rep1.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 36664,
+        "turns": 13,
+        "inputTokens": 24,
+        "outputTokens": 2211,
+        "cacheReadTokens": 205572,
+        "cacheCreationTokens": 13772,
+        "costUsd": 0.14756860000000002,
+        "docsReads": 0
+      }
+    },
+    {
+      "taskId": "neutral/pr-02-model-keys",
+      "half": "neutral",
+      "condition": "no-docs",
+      "rep": 2,
+      "logFile": "logs/no-docs/neutral--pr-02-model-keys--rep2.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 32281,
+        "turns": 10,
+        "inputTokens": 20,
+        "outputTokens": 1622,
+        "cacheReadTokens": 164283,
+        "cacheCreationTokens": 11899,
+        "costUsd": 0.11931115000000002,
+        "docsReads": 0
+      }
+    },
+    {
+      "taskId": "neutral/pr-02-model-keys",
+      "half": "neutral",
+      "condition": "saaga-docs",
+      "rep": 1,
+      "logFile": "logs/saaga-docs/neutral--pr-02-model-keys--rep1.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 35120,
+        "turns": 11,
+        "inputTokens": 16,
+        "outputTokens": 2258,
+        "cacheReadTokens": 159223,
+        "cacheCreationTokens": 24156,
+        "costUsd": 0.1732849,
+        "docsReads": 2
+      }
+    },
+    {
+      "taskId": "neutral/pr-02-model-keys",
+      "half": "neutral",
+      "condition": "saaga-docs",
+      "rep": 2,
+      "logFile": "logs/saaga-docs/neutral--pr-02-model-keys--rep2.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 26185,
+        "turns": 8,
+        "inputTokens": 12,
+        "outputTokens": 1737,
+        "cacheReadTokens": 108370,
+        "cacheCreationTokens": 13274,
+        "costUsd": 0.1093945,
+        "docsReads": 0
+      }
+    },
+    {
+      "taskId": "neutral/pr-03-saagarules",
+      "half": "neutral",
+      "condition": "no-docs",
+      "rep": 1,
+      "logFile": "logs/no-docs/neutral--pr-03-saagarules--rep1.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 63655,
+        "turns": 8,
+        "inputTokens": 14,
+        "outputTokens": 2361,
+        "cacheReadTokens": 139245,
+        "cacheCreationTokens": 17640,
+        "costUsd": 0.1443965,
+        "docsReads": 0
+      }
+    },
+    {
+      "taskId": "neutral/pr-03-saagarules",
+      "half": "neutral",
+      "condition": "no-docs",
+      "rep": 2,
+      "logFile": "logs/no-docs/neutral--pr-03-saagarules--rep2.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 39312,
+        "turns": 9,
+        "inputTokens": 18,
+        "outputTokens": 2695,
+        "cacheReadTokens": 181094,
+        "cacheCreationTokens": 15873,
+        "costUsd": 0.15535695000000002,
+        "docsReads": 0
+      }
+    },
+    {
+      "taskId": "neutral/pr-03-saagarules",
+      "half": "neutral",
+      "condition": "saaga-docs",
+      "rep": 1,
+      "logFile": "logs/saaga-docs/neutral--pr-03-saagarules--rep1.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 25118,
+        "turns": 6,
+        "inputTokens": 10,
+        "outputTokens": 1686,
+        "cacheReadTokens": 82527,
+        "cacheCreationTokens": 10629,
+        "costUsd": 0.09095285,
+        "docsReads": 1
+      }
+    },
+    {
+      "taskId": "neutral/pr-03-saagarules",
+      "half": "neutral",
+      "condition": "saaga-docs",
+      "rep": 2,
+      "logFile": "logs/saaga-docs/neutral--pr-03-saagarules--rep2.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 50952,
+        "turns": 7,
+        "inputTokens": 12,
+        "outputTokens": 1793,
+        "cacheReadTokens": 101493,
+        "cacheCreationTokens": 11524,
+        "costUsd": 0.10161989999999999,
+        "docsReads": 1
+      }
+    },
+    {
+      "taskId": "neutral/code-saagarules",
+      "half": "neutral",
+      "condition": "no-docs",
+      "rep": 1,
+      "logFile": "logs/no-docs/neutral--code-saagarules--rep1.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 22105,
+        "turns": 4,
+        "inputTokens": 6,
+        "outputTokens": 2111,
+        "cacheReadTokens": 44226,
+        "cacheCreationTokens": 10682,
+        "costUsd": 0.0860893,
+        "docsReads": 0
+      }
+    },
+    {
+      "taskId": "neutral/code-saagarules",
+      "half": "neutral",
+      "condition": "no-docs",
+      "rep": 2,
+      "logFile": "logs/no-docs/neutral--code-saagarules--rep2.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 21974,
+        "turns": 4,
+        "inputTokens": 6,
+        "outputTokens": 2146,
+        "cacheReadTokens": 44219,
+        "cacheCreationTokens": 10641,
+        "costUsd": 0.08644345,
+        "docsReads": 0
+      }
+    },
+    {
+      "taskId": "neutral/code-saagarules",
+      "half": "neutral",
+      "condition": "saaga-docs",
+      "rep": 1,
+      "logFile": "logs/saaga-docs/neutral--code-saagarules--rep1.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 41555,
+        "turns": 10,
+        "inputTokens": 16,
+        "outputTokens": 3088,
+        "cacheReadTokens": 155426,
+        "cacheCreationTokens": 14746,
+        "costUsd": 0.14938429999999997,
+        "docsReads": 1
+      }
+    },
+    {
+      "taskId": "neutral/code-saagarules",
+      "half": "neutral",
+      "condition": "saaga-docs",
+      "rep": 2,
+      "logFile": "logs/saaga-docs/neutral--code-saagarules--rep2.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 66854,
+        "turns": 14,
+        "inputTokens": 18,
+        "outputTokens": 3652,
+        "cacheReadTokens": 170547,
+        "cacheCreationTokens": 16465,
+        "costUsd": 0.16880784999999998,
+        "docsReads": 1
+      }
+    },
+    {
+      "taskId": "neutral/code-model-overrides",
+      "half": "neutral",
+      "condition": "no-docs",
+      "rep": 1,
+      "logFile": "logs/no-docs/neutral--code-model-overrides--rep1.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 61078,
+        "turns": 11,
+        "inputTokens": 20,
+        "outputTokens": 5565,
+        "cacheReadTokens": 234644,
+        "cacheCreationTokens": 21209,
+        "costUsd": 0.23454295,
+        "docsReads": 0
+      }
+    },
+    {
+      "taskId": "neutral/code-model-overrides",
+      "half": "neutral",
+      "condition": "no-docs",
+      "rep": 2,
+      "logFile": "logs/no-docs/neutral--code-model-overrides--rep2.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 107157,
+        "turns": 14,
+        "inputTokens": 24,
+        "outputTokens": 6433,
+        "cacheReadTokens": 272909,
+        "cacheCreationTokens": 22340,
+        "costUsd": 0.2633157,
+        "docsReads": 0
+      }
+    },
+    {
+      "taskId": "neutral/code-model-overrides",
+      "half": "neutral",
+      "condition": "saaga-docs",
+      "rep": 1,
+      "logFile": "logs/saaga-docs/neutral--code-model-overrides--rep1.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 66132,
+        "turns": 13,
+        "inputTokens": 24,
+        "outputTokens": 5703,
+        "cacheReadTokens": 280524,
+        "cacheCreationTokens": 21951,
+        "costUsd": 0.25316645,
+        "docsReads": 0
+      }
+    },
+    {
+      "taskId": "neutral/code-model-overrides",
+      "half": "neutral",
+      "condition": "saaga-docs",
+      "rep": 2,
+      "logFile": "logs/saaga-docs/neutral--code-model-overrides--rep2.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 95983,
+        "turns": 14,
+        "inputTokens": 26,
+        "outputTokens": 7128,
+        "cacheReadTokens": 317705,
+        "cacheCreationTokens": 23614,
+        "costUsd": 0.29195299999999996,
+        "docsReads": 0
+      }
+    },
+    {
+      "taskId": "neutral/code-expression",
+      "half": "neutral",
+      "condition": "no-docs",
+      "rep": 1,
+      "logFile": "logs/no-docs/neutral--code-expression--rep1.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 92488,
+        "turns": 14,
+        "inputTokens": 24,
+        "outputTokens": 7910,
+        "cacheReadTokens": 251172,
+        "cacheCreationTokens": 20040,
+        "costUsd": 0.2702946,
+        "docsReads": 0
+      }
+    },
+    {
+      "taskId": "neutral/code-expression",
+      "half": "neutral",
+      "condition": "no-docs",
+      "rep": 2,
+      "logFile": "logs/no-docs/neutral--code-expression--rep2.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 50635,
+        "turns": 11,
+        "inputTokens": 18,
+        "outputTokens": 3312,
+        "cacheReadTokens": 170075,
+        "cacheCreationTokens": 15284,
+        "costUsd": 0.15915249999999997,
+        "docsReads": 0
+      }
+    },
+    {
+      "taskId": "neutral/code-expression",
+      "half": "neutral",
+      "condition": "saaga-docs",
+      "rep": 1,
+      "logFile": "logs/saaga-docs/neutral--code-expression--rep1.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 36619,
+        "turns": 8,
+        "inputTokens": 10,
+        "outputTokens": 3313,
+        "cacheReadTokens": 88414,
+        "cacheCreationTokens": 15208,
+        "costUsd": 0.1343702,
+        "docsReads": 2
+      }
+    },
+    {
+      "taskId": "neutral/code-expression",
+      "half": "neutral",
+      "condition": "saaga-docs",
+      "rep": 2,
+      "logFile": "logs/saaga-docs/neutral--code-expression--rep2.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 58602,
+        "turns": 11,
+        "inputTokens": 12,
+        "outputTokens": 4721,
+        "cacheReadTokens": 109617,
+        "cacheCreationTokens": 16505,
+        "costUsd": 0.16668585000000002,
+        "docsReads": 2
+      }
+    },
+    {
+      "taskId": "neutral/code-unstable-features",
+      "half": "neutral",
+      "condition": "no-docs",
+      "rep": 1,
+      "logFile": "logs/no-docs/neutral--code-unstable-features--rep1.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 14991,
+        "turns": 4,
+        "inputTokens": 6,
+        "outputTokens": 1167,
+        "cacheReadTokens": 43657,
+        "cacheCreationTokens": 9176,
+        "costUsd": 0.0661291,
+        "docsReads": 0
+      }
+    },
+    {
+      "taskId": "neutral/code-unstable-features",
+      "half": "neutral",
+      "condition": "no-docs",
+      "rep": 2,
+      "logFile": "logs/no-docs/neutral--code-unstable-features--rep2.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 22849,
+        "turns": 7,
+        "inputTokens": 12,
+        "outputTokens": 1422,
+        "cacheReadTokens": 100742,
+        "cacheCreationTokens": 10910,
+        "costUsd": 0.0935951,
+        "docsReads": 0
+      }
+    },
+    {
+      "taskId": "neutral/code-unstable-features",
+      "half": "neutral",
+      "condition": "saaga-docs",
+      "rep": 1,
+      "logFile": "logs/saaga-docs/neutral--code-unstable-features--rep1.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 38943,
+        "turns": 8,
+        "inputTokens": 10,
+        "outputTokens": 1800,
+        "cacheReadTokens": 87363,
+        "cacheCreationTokens": 13270,
+        "costUsd": 0.1040904,
+        "docsReads": 2
+      }
+    },
+    {
+      "taskId": "neutral/code-unstable-features",
+      "half": "neutral",
+      "condition": "saaga-docs",
+      "rep": 2,
+      "logFile": "logs/saaga-docs/neutral--code-unstable-features--rep2.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 31118,
+        "turns": 6,
+        "inputTokens": 10,
+        "outputTokens": 1329,
+        "cacheReadTokens": 85238,
+        "cacheCreationTokens": 12050,
+        "costUsd": 0.0918079,
+        "docsReads": 0
+      }
+    },
+    {
+      "taskId": "neutral/code-denial-classify",
+      "half": "neutral",
+      "condition": "no-docs",
+      "rep": 1,
+      "logFile": "logs/no-docs/neutral--code-denial-classify--rep1.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 310278,
+        "turns": 19,
+        "inputTokens": 32,
+        "outputTokens": 21048,
+        "cacheReadTokens": 566772,
+        "cacheCreationTokens": 47806,
+        "costUsd": 0.6661930999999999,
+        "docsReads": 0
+      }
+    },
+    {
+      "taskId": "neutral/code-denial-classify",
+      "half": "neutral",
+      "condition": "no-docs",
+      "rep": 2,
+      "logFile": "logs/no-docs/neutral--code-denial-classify--rep2.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 215125,
+        "turns": 16,
+        "inputTokens": 26,
+        "outputTokens": 17937,
+        "cacheReadTokens": 432694,
+        "cacheCreationTokens": 40889,
+        "costUsd": 0.5534229500000001,
+        "docsReads": 0
+      }
+    },
+    {
+      "taskId": "neutral/code-denial-classify",
+      "half": "neutral",
+      "condition": "saaga-docs",
+      "rep": 1,
+      "logFile": "logs/saaga-docs/neutral--code-denial-classify--rep1.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 235244,
+        "turns": 13,
+        "inputTokens": 20,
+        "outputTokens": 20220,
+        "cacheReadTokens": 341800,
+        "cacheCreationTokens": 38736,
+        "costUsd": 0.5522779999999999,
+        "docsReads": 0
+      }
+    },
+    {
+      "taskId": "neutral/code-denial-classify",
+      "half": "neutral",
+      "condition": "saaga-docs",
+      "rep": 2,
+      "logFile": "logs/saaga-docs/neutral--code-denial-classify--rep2.ndjson",
+      "exitCode": 143,
+      "pass": false,
+      "checkDetail": "Tests \u001b[22m \u001b[1m\u001b[31m7 failed\u001b[39m\u001b[22m\u001b[2m | \u001b[22m\u001b[1m\u001b[32m9 passed\u001b[39m\u001b[22m\u001b[90m (16)\u001b[39m",
+      "metrics": {
+        "elapsedMs": 600582,
+        "docsReads": 0
+      }
+    },
+    {
+      "taskId": "neutral/code-file-manifest",
+      "half": "neutral",
+      "condition": "no-docs",
+      "rep": 1,
+      "logFile": "logs/no-docs/neutral--code-file-manifest--rep1.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 300036,
+        "turns": 25,
+        "inputTokens": 34,
+        "outputTokens": 28478,
+        "cacheReadTokens": 659196,
+        "cacheCreationTokens": 55974,
+        "costUsd": 0.8360242999999999,
+        "docsReads": 0
+      }
+    },
+    {
+      "taskId": "neutral/code-file-manifest",
+      "half": "neutral",
+      "condition": "no-docs",
+      "rep": 2,
+      "logFile": "logs/no-docs/neutral--code-file-manifest--rep2.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 312541,
+        "turns": 28,
+        "inputTokens": 42,
+        "outputTokens": 25300,
+        "cacheReadTokens": 847297,
+        "cacheCreationTokens": 49251,
+        "costUsd": 0.8195973499999999,
+        "docsReads": 0
+      }
+    },
+    {
+      "taskId": "neutral/code-file-manifest",
+      "half": "neutral",
+      "condition": "saaga-docs",
+      "rep": 1,
+      "logFile": "logs/saaga-docs/neutral--code-file-manifest--rep1.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 255474,
+        "turns": 21,
+        "inputTokens": 28,
+        "outputTokens": 24172,
+        "cacheReadTokens": 537336,
+        "cacheCreationTokens": 54648,
+        "costUsd": 0.7298958000000001,
+        "docsReads": 2
+      }
+    },
+    {
+      "taskId": "neutral/code-file-manifest",
+      "half": "neutral",
+      "condition": "saaga-docs",
+      "rep": 2,
+      "logFile": "logs/saaga-docs/neutral--code-file-manifest--rep2.ndjson",
+      "exitCode": 0,
+      "pass": true,
+      "metrics": {
+        "elapsedMs": 293838,
+        "turns": 24,
+        "inputTokens": 32,
+        "outputTokens": 29008,
+        "cacheReadTokens": 696641,
+        "cacheCreationTokens": 58587,
+        "costUsd": 0.8650005500000001,
+        "docsReads": 2
+      }
+    }
+  ],
+  "finishedAt": "2026-08-23T12:35:15.135Z"
+}

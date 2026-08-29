@@ -1,0 +1,35 @@
+export interface FileEntry {
+  hash: string;
+  path: string;
+}
+
+/**
+ * Compute a git-compatible blob hash for a buffer.
+ */
+export function gitBlobHash(buf: Buffer): string {
+  void buf;
+  throw new Error("not implemented");
+}
+
+/**
+ * Walk `appDir` recursively, apply `.gitignore` + `.saagaignore` exclusion
+ * rules, and return a sorted manifest of `{ hash, path }` entries for
+ * every in-scope file.
+ */
+export async function computeManifest(
+  appDir: string,
+  docsDir: string,
+): Promise<FileEntry[]> {
+  void appDir;
+  void docsDir;
+  throw new Error("not implemented");
+}
+
+/**
+ * Check whether a path still exists on disk as a manifest-eligible entry
+ * (a regular file or a symlink).
+ */
+export async function fileExists(path: string): Promise<boolean> {
+  void path;
+  throw new Error("not implemented");
+}
