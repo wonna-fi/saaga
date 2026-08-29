@@ -65,6 +65,37 @@ After `saaga run init`, your project contains:
 - **`saaga-docs/BASELINE`** — a content manifest that lets `saaga run update`
   detect what changed and re-document only the affected areas.
 
+- **`saaga-docs/FORMAT`** — the corpus format version (see
+  [Corpus format version](#corpus-format-version)).
+
+Every generated document opens with a YAML frontmatter block:
+
+```markdown
+---
+title: Scope and Expressions
+type: concept
+last_verified: 2026-08-29
+sources:
+  - src/engine/expression.ts
+---
+```
+
+| Field | Written by | Meaning |
+| ----- | ---------- | ------- |
+| `title` | the writer | The document's title — the same text as its heading. |
+| `type` | the writer | `concept`, `pattern`, `feature`, `architecture`, or `index`. |
+| `sources` | the writer | Source paths and globs whose behaviour the document's claims describe. |
+| `last_verified` | verification only, on PASS | ISO date of the last verification pass that found no errors. |
+
+`sources` and `last_verified` are what later runs use to tell a fresh document
+from a stale one: a document whose sources changed after it was last verified
+is a candidate for re-verification. Field names follow OKF v0.1 where they
+overlap, so external tooling can read the corpus without a translation layer.
+
+Documents written before this format existed have no frontmatter. Saaga
+tolerates them everywhere — they flow through every command unchanged — but
+they cannot participate in staleness selection until they are regenerated.
+
 ## Prerequisites
 
 Saaga runs on **Linux** and **macOS**. Windows is not tested natively;
@@ -189,6 +220,37 @@ saaga doctor                    Check backend CLI availability and
   `<project>/.saaga-runs/<run-id>/prompts/`, exactly as the agent
   received them. Together with the plan they make a run reproducible.
 - **Generated docs** land in `<project>/saaga-docs/`.
+
+### Corpus format version
+
+`saaga-docs/FORMAT` records which corpus format the documentation follows:
+
+```yaml
+format_version: 1
+```
+
+The version covers the whole corpus format — the directory layout, the document
+templates, and the frontmatter schema — and it travels with the corpus rather
+than living in `.saaga/config.yaml`, so a checkout or a copy carries its own
+format identity.
+
+Verification compares each document against the templates of the Saaga that is
+running. Pointing a newer Saaga at an older corpus would therefore fail every
+touched document on structure alone and send the fix loop into an expensive,
+unintended rewrite. To prevent that, every flow checks the version before doing
+anything else:
+
+| Situation | Result |
+| --------- | ------ |
+| No corpus (`saaga-docs/` absent or empty) | Passes. `saaga run init` builds the corpus and stamps the version. |
+| Corpus at the current version | Passes. |
+| Corpus at a different version — including one with no `FORMAT` file, which reads as version 0 | `update`, `quick-update`, and `verify-quick-updates` stop immediately with an error naming both versions and the upgrade path. |
+| `init` over any existing corpus | Stops immediately: delete `saaga-docs/` first, so re-initialising is never a silent overwrite. |
+
+The check runs as the first step of the flow, before any agent is invoked, so a
+mismatch costs no tokens. To upgrade a corpus, delete `saaga-docs/` and run
+`saaga run init` to regenerate it. (A `saaga migrate` command will upgrade in
+place once the format is frozen.)
 
 ## Runtime and cost
 
@@ -406,7 +468,7 @@ Two guarantees hold on every backend:
 
 Within the workspace, writes are meant to be limited to
 `<app>/<docs_dir>/**` and the run directory, leaving source code, rule
-files, and `BASELINE` untouched. How completely that holds depends on the
+files, `BASELINE`, and `FORMAT` untouched. How completely that holds depends on the
 backend, because the three CLIs expose very different permission systems:
 
 | Backend | Mechanism | Writes scoped in workspace | Restricted shell |

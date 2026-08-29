@@ -2,6 +2,7 @@ import { mkdtemp, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
+import { parseDoc } from "../src/docs/frontmatter.js";
 import { createRunContext } from "../src/run-context.js";
 
 const RUN_ID_RE =
@@ -70,5 +71,36 @@ describe("createRunContext", () => {
     expect(ctx.app).toBe("salesforce");
     expect(ctx.appPath).toBe(appDir);
     expect(ctx.subcommand).toBe("slice");
+  });
+
+  test("exposes the run date in both run-id and ISO calendar form", async () => {
+    const appDir = await mkdtemp(join(tmpdir(), "saaga-app-"));
+    const ctx = await createRunContext({
+      app: "myapp",
+      subcommand: "init",
+      appPath: appDir,
+      now: new Date(2026, 7, 9, 13, 45, 12),
+    });
+
+    // `date` formats the run id; `isoDate` is what document frontmatter stores.
+    expect(ctx.date).toBe("20260809");
+    expect(ctx.isoDate).toBe("2026-08-09");
+  });
+
+  test("isoDate is a valid frontmatter date", async () => {
+    const appDir = await mkdtemp(join(tmpdir(), "saaga-app-"));
+    const ctx = await createRunContext({
+      app: "myapp",
+      subcommand: "init",
+      appPath: appDir,
+    });
+
+    // The verify prompt writes this value straight into `last_verified`, so the
+    // frontmatter parser has to accept it verbatim.
+    const { frontmatter, errors } = parseDoc(
+      `---\ntitle: T\ntype: concept\nlast_verified: ${ctx.isoDate}\n---\n\n# T\n`,
+    );
+    expect(errors).toEqual([]);
+    expect(frontmatter?.last_verified).toBe(ctx.isoDate);
   });
 });

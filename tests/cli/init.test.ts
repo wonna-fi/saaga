@@ -7,6 +7,12 @@ import {
   type FakeScenarioValue,
 } from "../../src/agent/fake-agent.js";
 import { runCli } from "../../src/cli.js";
+import { DEFAULT_DOCS_DIR } from "../../src/cli/config.js";
+import {
+  CURRENT_FORMAT_VERSION,
+  readFormatVersion,
+  writeFormatVersion,
+} from "../../src/docs/format-version.js";
 
 /** App dir with a single file on disk. */
 async function tmpAppEnv(name: string) {
@@ -376,5 +382,81 @@ describe("saaga run init > prompt archive", () => {
         call.prompt,
       );
     }
+  });
+});
+
+describe("saaga run init: corpus format version", () => {
+  test("a successful run stamps the corpus with the format version", async () => {
+    const { app } = await tmpAppEnv("stamped");
+    const planScenario = planInitScenario(SINGLE_PHASE_PLAN);
+
+    const fake = new FakeAgent({
+      "Document the Architecture": { exitCode: 0 },
+      "Plan Domain Documentation": planScenario.scenario,
+      "Document a Plan Slice": { exitCode: 0 },
+    });
+
+    const exitCode = await runCli(["run", "init", app], { agent: fake });
+
+    expect(exitCode).toBe(0);
+    expect(await readFormatVersion(join(app, DEFAULT_DOCS_DIR))).toEqual({
+      state: "corpus",
+      version: CURRENT_FORMAT_VERSION,
+    });
+  });
+
+  test("refuses to overwrite an existing corpus", async () => {
+    const { app } = await tmpAppEnv("existing");
+    await mkdir(join(app, DEFAULT_DOCS_DIR), { recursive: true });
+    await writeFile(
+      join(app, DEFAULT_DOCS_DIR, "ARCHITECTURE.md"),
+      "# Existing\n",
+      "utf8",
+    );
+    const fake = new FakeAgent({});
+
+    await expect(runCli(["run", "init", app], { agent: fake })).rejects.toThrow(
+      /does not overwrite an existing corpus/,
+    );
+    // The gate runs before anything else, so no agent was paid for.
+    expect(fake.calls).toHaveLength(0);
+  });
+
+  test("refuses even when the existing corpus is at the current version", async () => {
+    const { app } = await tmpAppEnv("current");
+    await writeFormatVersion(join(app, DEFAULT_DOCS_DIR));
+    const fake = new FakeAgent({});
+
+    await expect(runCli(["run", "init", app], { agent: fake })).rejects.toThrow(
+      /delete saaga-docs/,
+    );
+  });
+
+  test("the verify prompt receives a real ISO date, not a placeholder", async () => {
+    const { app } = await tmpAppEnv("isodate");
+    const planScenario = planInitScenario(ONE_NONZERO_PHASE_PLAN);
+    const fake = new FakeAgent({
+      "Document the Architecture": { exitCode: 0 },
+      "Plan Domain Documentation": planScenario.scenario,
+      "Document a Plan Slice": { exitCode: 0 },
+      "Verify Domain Documentation Slice": verifyScenario(() => "PASS"),
+    });
+
+    const exitCode = await runCli(["run", "init", app], { agent: fake });
+    expect(exitCode).toBe(0);
+
+    const verifyPrompt = fake.calls.find((c) =>
+      c.prompt.includes("Verify Domain Documentation Slice"),
+    )?.prompt;
+    expect(verifyPrompt).toBeDefined();
+
+    // The date reaches the prompt as a real YYYY-MM-DD value. An unresolved
+    // `${iso_date}` or the run-id's YYYYMMDD form would both produce a
+    // `last_verified` the frontmatter parser rejects.
+    const line = verifyPrompt!
+      .split("\n")
+      .find((l) => l.includes("Today's date"));
+    expect(line).toMatch(/\d{4}-\d{2}-\d{2}/);
+    expect(line).not.toContain("iso_date");
   });
 });

@@ -10,6 +10,8 @@ Execute this protocol before marking any document as complete.
 
 **Step 3: Document Review Checklist** - A final self-check confirming: every function name was searched in source, accessibility was verified for each, all public API items are correctly listed, and internal functions are properly noted.
 
+**Step 4: Sources Completeness** - List every source file the document makes a signature or behavioural claim about, including any cited only under "Reference Implementations", and confirm each one appears in the frontmatter `sources`. A file the document merely mentions in passing does not need to be listed; a file whose change would make the document wrong does. An incomplete `sources` list is an error: it is what makes the document invisible to staleness detection later.
+
 Adapt the specific verification commands to the technology (e.g., `Grep: "export.*functionName"` for TypeScript, `Grep: "public.*methodName"` for Apex/Java). The plan's **Template Adaptations** section records the checks chosen for this repository.
 
 **Internal Consistency Check** - After completing all documents in a slice, cross-reference behavior descriptions across concept, pattern, and feature docs. Verify claims don't contradict each other and update conflicting documents to be consistent with the actual code behavior.

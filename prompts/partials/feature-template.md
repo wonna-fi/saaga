@@ -3,6 +3,13 @@
 File location: `{docs_dir}/features/{feature-name}.md`
 
 ```markdown
+---
+title: "Feature: {Feature Name}"
+type: feature
+sources:
+  - {source path or glob this feature describes}
+---
+
 # Feature: {Feature Name}
 
 ## Overview

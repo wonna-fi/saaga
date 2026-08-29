@@ -4,6 +4,13 @@ description: >-
   Produces a metadata artifact for later verification.
 steps:
   - script:
+      name: check-format-version
+      label: checking corpus format version
+      app_dir: ${app_path}
+      docs_dir: ${docs_dir}
+      mode: update
+
+  - script:
       name: detect-changes
       label: detecting changes
       app_dir: ${app_path}

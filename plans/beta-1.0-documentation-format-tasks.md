@@ -83,13 +83,13 @@ moves its home.
 
 ## Track A — Deterministic infrastructure (code)
 
-### Task 1: Frontmatter and layout-version foundation *(prompt edits depend on task 0)*
+### Task 1: Frontmatter and format-version foundation *(prompt edits depend on task 0)*
 
 **Motivation.** Staleness is the one proven failure mode (4 confirmed stale claims survived multiple
 update passes). Docs need machine-readable metadata: when a doc was last verified and which source
 files it covers. Making the fields OKF-compatible is free interop — OpenWiki's visualizer already
 renders `saaga-docs/` (verified: 39 nodes, 123 edges) but collapses all nodes to one untyped color
-without frontmatter. The corpus additionally needs a **layout version**: the verify loop compares
+without frontmatter. The corpus additionally needs a **format version**: the verify loop compares
 document structure against the templates, so running an upgraded Saaga (new templates) against a
 pre-beta corpus would structurally fail every touched doc and send the fix loop on an unplanned,
 token-burning rewrite. A version gate turns that into a clear error instead.
@@ -104,22 +104,22 @@ token-burning rewrite. A version gate turns that into a clear error instead.
 - Prompt edits: the document template partials (`prompts/partials/`, from task 0) instruct emitting
   frontmatter; `prompts/verify-domain-documentation.md` instructs updating `last_verified` on PASS;
   `prompts/quick-update.md` instructs preserving it.
-- **Corpus layout version.** A small metadata file inside `saaga-docs/` (it must travel with the
-  corpus, so not `.saaga/config.yaml`) carrying `layout_version: 1`, written by init/update. In an
+- **Corpus format version.** A small metadata file inside `saaga-docs/` (it must travel with the
+  corpus, so not `.saaga/config.yaml`) carrying `format_version: 1`, written by init/update. In an
   existing corpus, a missing file means version 0 (pre-beta) — every existing corpus is
   identifiable retroactively. An absent or empty docs directory is not a corpus at all
   (greenfield), never version 0. Corpus-level, not per-doc: migrations act on the whole tree, and
   per-doc stamps invite mixed-version states.
 - **Version gate.** A built-in script, run as the first step of every flow, resolving three
   states: (1) *no corpus* — docs directory absent or empty — passes; `init` proceeds and stamps
-  `layout_version` on the tree it creates. (2) *Corpus present at a mismatched version* (a missing
+  `format_version` on the tree it creates. (2) *Corpus present at a mismatched version* (a missing
   file in an existing corpus reads as version 0) — the update-family flows (`update`,
   `quick-update`, `verify-quick-updates`) fail fast with a message naming the upgrade path.
   (3) *`init` over an existing corpus* (any version) — fails with a message instructing to delete
   the old corpus first (or, once it exists, run `saaga migrate`), making re-init an explicit
   two-step rather than a silent overwrite. Explicitly a gate, not a migration framework — one
   known transition exists; numbered up/down migration machinery is premature.
-- Distinct axes, kept distinct: `layout_version` says which format the corpus follows;
+- Distinct axes, kept distinct: `format_version` says which format the corpus follows;
   `last_verified` says how fresh a document's content is.
 
 **Out of scope.** Consuming `sources` for staleness selection (task 7). The `saaga migrate` command
@@ -417,7 +417,7 @@ Once the beta format is frozen, add a `saaga migrate` command for existing (vers
 with honest division of labor: structural steps run deterministically in code (frontmatter
 skeletons, category moves, regenerating README/GLOSSARY/INDEXes — machinery tasks 2 and 3 already
 build), while semantic upgrades (LOD trims, dedup merges, budget enforcement) are delegated to the
-agent flows that own them (docs-gc or re-init). The `layout_version` gate from task 1 tells each
+agent flows that own them (docs-gc or re-init). The `format_version` gate from task 1 tells each
 corpus which mix it needs; until migrate exists, the gate's error message recommends re-init —
 delete the old corpus, then run `saaga init`, which the gate's greenfield state permits.
 
@@ -440,7 +440,7 @@ this section refines *how* it is executed. Each Trello card carries its wave ass
 
 Several tasks split into a code half and a prompt half, which allows more parallelism than the
 track summary suggests: task 2 is pure script + flow wiring and does not need task 0; task 1's
-frontmatter module, layout-version file, and version gate are pure code — only its prompt edits
+frontmatter module, format-version file, and version gate are pure code — only its prompt edits
 wait on task 0.
 
 | Wave | Tasks | Notes |
@@ -494,13 +494,13 @@ Two equivalent mitigations — pick one:
 
 - **Manual:** disable the two doc workflow schedules when the first format-changing task merges,
   and re-enable them in the regeneration PR.
-- **Automatic:** land task 1's version gate early (it is wave 0 anyway) and bump the layout
+- **Automatic:** land task 1's version gate early (it is wave 0 anyway) and bump the format
   version Saaga *writes* alongside the first format-changing merge — the update-family flows then
   fail fast on the version-0 corpus with a clear error, pausing doc automation without a manual
   toggle. Note the nightly runs stay red until regeneration; treat that as expected.
 
 The regeneration PR itself stays atomic: delete old `saaga-docs/`, commit new corpus + BASELINE +
-layout-version file, tag the parent commit, re-enable the workflows. Publishing the beta to npm
+format-version file, tag the parent commit, re-enable the workflows. Publishing the beta to npm
 is still a milestone step, but it protects external users — it plays no role in protecting this
 repo's corpus, since the actions never consume the published package.
 
@@ -512,7 +512,7 @@ stretch before the milestone — that is tokens spent hardening docs scheduled f
 
 ### Amendment: version-gate states (from PR #42 review)
 
-Task 1's gate originally read a missing `layout_version` file as version 0 unconditionally, which
+Task 1's gate originally read a missing `format_version` file as version 0 unconditionally, which
 would have blocked greenfield `init` — and with it the gate's own recommended re-init upgrade
 path. The task now distinguishes three states: no corpus passes (greenfield init), a mismatched
 existing corpus fails the update-family flows with the upgrade-path message, and `init` over an

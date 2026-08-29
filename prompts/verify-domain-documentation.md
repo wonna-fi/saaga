@@ -7,6 +7,7 @@
 3. Write the verification report to: `{review_path}`
 4. Write the verification status to: `{status_path}` -- write exactly `PASS` if 0 errors found, or `FAIL` otherwise. Nothing else in this file.
 5. Changes source directory: `{changes_dir}` -- the directory holding the raw change reports this slice is supposed to cover. If this value is `none` (or remains an unfilled placeholder), there is no coverage source: skip the coverage check in Step 3d entirely.
+6. Today's date: `{date}` -- used to stamp `last_verified` in Step 7. Use this value verbatim; do not compute a date yourself.
 
 If any input is missing, ask the user.
 
@@ -110,11 +111,29 @@ Write the verification status to `{status_path}`:
 
 The status file must contain only `PASS` or `FAIL` -- nothing else.
 
+## Step 7: Stamp `last_verified` (PASS only)
+
+**Only if Step 6 wrote `PASS`.** For every document you reviewed in this slice,
+set `last_verified: {date}` in its YAML frontmatter — updating the field if it
+is already there, adding it if it is not. Change nothing else in the document.
+
+This is the only edit verification is ever allowed to make, and the only place
+`last_verified` is ever written: it records that these documents were checked
+against the source and found correct on this date. A later run uses it to decide
+which documents have gone stale, so a date that does not correspond to a real
+passing review is worse than no date at all.
+
+If the status was `FAIL`, do not touch any document — the fix step runs next,
+and the documents will be re-verified afterwards.
+
+A document without frontmatter is a pre-beta document: leave it alone rather
+than adding a frontmatter block to it here.
+
 ## Notes
 
 - Base ALL conclusions on evidence from the source code. Never assume correctness.
 - If a claim cannot be verified (e.g., the source file doesn't exist in the repo), flag it as unverifiable rather than assuming it's wrong.
-- Do NOT fix the documents during review. Only report findings. Fixes are a separate step.
+- Do NOT fix the documents during review. Only report findings. Fixes are a separate step. The single exception is the `last_verified` stamp in Step 7, which is written only on PASS — that is, only when there was nothing to fix.
 - Be thorough. A missed error here becomes permanent misinformation for future AI agents.
 - You don't necessarily find any errors if the documentation is of excellent quality. That's okay! It
   only means that the documenter has done an excellent job and we should be happy for it.

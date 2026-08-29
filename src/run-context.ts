@@ -21,6 +21,12 @@ export interface RunContext {
   runDir: string;
   /** Date portion of the run timestamp, formatted as YYYYMMDD. */
   date: string;
+  /**
+   * The same date as an ISO calendar date (YYYY-MM-DD). Document frontmatter
+   * stores dates in this form, so `date`'s run-id formatting cannot be reused
+   * there.
+   */
+  isoDate: string;
 }
 
 /**
@@ -48,6 +54,7 @@ export async function createRunContext(
     runId,
     runDir,
     date: formatDate(now),
+    isoDate: formatIsoDate(now),
   };
 }
 
@@ -66,4 +73,11 @@ function formatDate(date: Date): string {
   const mm = (date.getMonth() + 1).toString().padStart(2, "0");
   const dd = date.getDate().toString().padStart(2, "0");
   return `${yyyy}${mm}${dd}`;
+}
+
+function formatIsoDate(date: Date): string {
+  const yyyy = date.getFullYear().toString().padStart(4, "0");
+  const mm = (date.getMonth() + 1).toString().padStart(2, "0");
+  const dd = date.getDate().toString().padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
 }

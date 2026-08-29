@@ -67,10 +67,31 @@ For each affected area, read the relevant source code and update the documentati
 2. Read the changed source code
 3. Apply targeted edits: update tables, add/remove entries, fix descriptions
 4. Preserve the existing document structure
+5. Preserve the YAML frontmatter block exactly as it is, with one exception: if
+   your edit makes the document cover a source file that `sources` does not list
+   yet, add that path. **Never touch `last_verified`** — a quick update is not a
+   verification, so bumping it would hide a stale document from the next
+   staleness sweep. A document without frontmatter is a pre-beta document; leave
+   it without one.
 
 ### For new documentation:
 
-Create new files following these structural conventions:
+Start every new file with a YAML frontmatter block, then follow these structural
+conventions:
+
+```markdown
+---
+title: {Document Title}
+type: {concept|pattern|feature}
+sources:
+  - {source path or glob this document describes}
+---
+```
+
+`title` matches the `#` heading; `type` matches the directory the file goes in;
+`sources` lists the paths whose behaviour the document describes. Do not write
+`last_verified` — only a verification pass sets that field.
+
 
 - **Concepts** → `{docs_dir}/concepts/{name}.md`: Business Definition, Configuration, Data Storage, Key Services/Functions, Reference Implementations, Related Concepts
 - **Patterns** → `{docs_dir}/patterns/{name}.md`: When to Use, Pattern (code example), Key Points, Reference Implementations, Anti-Patterns

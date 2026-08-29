@@ -12,6 +12,7 @@
 - **[VERIFICATION]** All constants/values lists are complete (check source-of-truth file)
 - **[MANDATORY]** For EVERY function in "Key Services/Functions": Verify it is part of the public API
 - **[MANDATORY]** Internal functions are NOT in "Key Services/Functions" — move to "Internal Implementation" section
+- **[VERIFICATION]** Frontmatter `sources` lists every file the document makes a claim about
 
 ### Pattern Doc Checklist
 
@@ -24,6 +25,7 @@
 - All referenced files/functions actually exist in the codebase
 - **[VERIFICATION]** Function parameter types match actual signatures
 - **[MANDATORY]** For EVERY function in "Reference Implementations": Verify it is part of the public API
+- **[VERIFICATION]** Frontmatter `sources` lists every file the document makes a claim about
 
 ### Feature Doc Checklist
 
@@ -37,3 +39,4 @@
 - **[VERIFICATION]** All component/screen names actually exist (search the codebase)
 - **[VERIFICATION]** Behavior claims are consistent with other docs in the slice
 - **[MANDATORY]** For EVERY function in "Services/Functions" table: Verify it is part of the public API
+- **[VERIFICATION]** Frontmatter `sources` lists every file the document makes a claim about

@@ -4,6 +4,13 @@ description: >-
   regenerate affected slices, refresh BASELINE.
 steps:
   - script:
+      name: check-format-version
+      label: checking corpus format version
+      app_dir: ${app_path}
+      docs_dir: ${docs_dir}
+      mode: update
+
+  - script:
       name: detect-changes
       label: detecting changes
       app_dir: ${app_path}
@@ -57,6 +64,7 @@ steps:
                         status_path: ${run_dir}/slice-${phase.number}/status-${iteration}.txt
                         changes_dir: none
                         docs_dir: ${docs_dir}
+                        date: ${iso_date}
 
                   - read-file:
                       path: ${run_dir}/slice-${phase.number}/status-${iteration}.txt

@@ -7,12 +7,15 @@ import {
   type FakeScenarioValue,
 } from "../../src/agent/fake-agent.js";
 import { runCli } from "../../src/cli.js";
+import { DEFAULT_DOCS_DIR } from "../../src/cli/config.js";
+import { writeFormatVersion } from "../../src/docs/format-version.js";
 
 async function tmpVerifyEnv(name: string) {
   const root = await mkdtemp(join(tmpdir(), "saaga-verify-qu-"));
   const app = join(root, name);
   await mkdir(app);
   await writeFile(join(app, "src.ts"), "alpha", "utf8");
+  await writeFormatVersion(join(app, DEFAULT_DOCS_DIR));
   return { root, app };
 }
 
