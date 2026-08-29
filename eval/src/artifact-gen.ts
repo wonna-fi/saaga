@@ -1,3 +1,4 @@
+import { stripAnsi } from "./checks.js";
 import type { EvalRunSummary, TaskResult } from "./types.js";
 
 /**
@@ -79,8 +80,11 @@ function compact(result: TaskResult, kinds: ReadonlyMap<string, string>): Artifa
     rep: result.rep,
     pass: result.pass,
     exitCode: result.exitCode,
-    checkDetail: result.checkDetail,
-    error: result.error,
+    // Baselines recorded before the checker stripped colors carry raw
+    // escapes; strip on the way into the page so the hover that explains a
+    // red cell reads as text rather than as a vitest color sequence.
+    checkDetail: result.checkDetail === undefined ? undefined : stripAnsi(result.checkDetail),
+    error: result.error === undefined ? undefined : stripAnsi(result.error),
     elapsedMs: metrics.elapsedMs,
     turns: metrics.turns,
     inputTokens: metrics.inputTokens,

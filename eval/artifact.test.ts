@@ -90,6 +90,12 @@ describe("artifact data", () => {
     });
   });
 
+  test("strips vitest colors from detail recorded before the checker did", () => {
+    const raw = "Tests \u001b[22m \u001b[1m\u001b[31m7 failed\u001b[39m\u001b[22m | 9 passed";
+    const data = toArtifactData([summary({}, [result({ pass: false, checkDetail: raw })])]);
+    expect(data.runs[0].results[0].checkDetail).toBe("Tests  7 failed | 9 passed");
+  });
+
   test("keeps failure detail so the matrix can explain a red cell", () => {
     const data = toArtifactData([
       summary({}, [result({ pass: false, exitCode: 143, checkDetail: "Tests 7 failed" })]),
@@ -99,6 +105,31 @@ describe("artifact data", () => {
       exitCode: 143,
       checkDetail: "Tests 7 failed",
     });
+  });
+});
+
+describe("compare-mode defaults (mirrors the template's sameSet)", () => {
+  /* The page picks a default base with the same task set; "same" has to mean
+     the same task ids, or a same-version subset run is offered as base and
+     then chipped not-comparable. Guarded here so an edit to either the
+     template or this rule breaks a test rather than the page. */
+  function sameSet(a: { taskSetVersion?: number; taskIds: string[] }, b: typeof a): boolean {
+    return (
+      (a.taskSetVersion ?? 1) === (b.taskSetVersion ?? 1) &&
+      [...a.taskIds].sort().join() === [...b.taskIds].sort().join()
+    );
+  }
+
+  test("a same-version subset run is not the same task set", () => {
+    const full = toArtifactData([summary({ taskIds: ["a", "b"] })]).runs[0];
+    const subset = toArtifactData([summary({ taskIds: ["a"] })]).runs[0];
+    expect(sameSet(full, subset)).toBe(false);
+    expect(sameSet(full, toArtifactData([summary({ taskIds: ["b", "a"] })]).runs[0])).toBe(true);
+  });
+
+  test("the template's sameSet compares task ids, not just the version", async () => {
+    const template = await readFile(templatePath, "utf8");
+    expect(template).toMatch(/function sameSet[\s\S]{0,240}taskIds/);
   });
 });
 

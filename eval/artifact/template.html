@@ -449,7 +449,13 @@
     }
     return RUNS[Math.max(0, idx - 1)];
   }
-  function sameSet(a, b) { return (a.taskSetVersion || 1) === (b.taskSetVersion || 1); }
+  /* Same task set means the same task ids, not just the same version: a
+     same-version subset run (a single-task confirmation, say) must not be
+     picked as a default base only to be chipped not-comparable. */
+  function sameSet(a, b) {
+    return (a.taskSetVersion || 1) === (b.taskSetVersion || 1)
+      && a.taskIds.slice().sort().join() === b.taskIds.slice().sort().join();
+  }
 
   var newest = RUNS.length ? RUNS[RUNS.length - 1] : null;
   var state = {
@@ -502,11 +508,10 @@
     box.innerHTML = "";
     if (runs.length !== 1) {
       var a = runs[0], b = runs[1];
-      var sameSet = a.taskIds.slice().sort().join() === b.taskIds.slice().sort().join();
-      var sameVer = (a.taskSetVersion || 1) === (b.taskSetVersion || 1);
+      var same = sameSet(a, b);
       var shared = sharedConditions(a, b);
-      box.appendChild(chip(sameSet && sameVer ? "ok" : "crit",
-        sameSet && sameVer ? "Same task set v" + (a.taskSetVersion || 1)
+      box.appendChild(chip(same ? "ok" : "crit",
+        same ? "Same task set v" + (a.taskSetVersion || 1)
                            : "Not comparable: task set differs — re-run both sides"));
       box.appendChild(chip(shared.length ? "ok" : "crit",
         shared.length ? "Shared arms: " + shared.join(", ")
