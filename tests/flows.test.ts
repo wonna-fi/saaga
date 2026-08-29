@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { listFlows, loadFlow } from "../src/engine/loader.js";
-import type { ScriptStep, Step } from "../src/engine/types.js";
+import type { AgentStep, ScriptStep, Step } from "../src/engine/types.js";
 
 const UPDATE_FAMILY = ["update", "quick-update", "verify-quick-updates"];
 
@@ -45,4 +45,49 @@ describe("format-version gate wiring", () => {
 
     expect(names).not.toContain("stamp-format-version");
   });
+});
+
+/** Every agent step in the flow, including ones nested in foreach/loop/if. */
+function agentSteps(steps: Step[]): AgentStep[] {
+  const out: AgentStep[] = [];
+  for (const step of steps) {
+    switch (step.type) {
+      case "agent":
+        out.push(step);
+        break;
+      case "foreach":
+      case "loop":
+        out.push(...agentSteps(step.do));
+        break;
+      case "if":
+        out.push(...agentSteps(step.then));
+        break;
+      default:
+        break;
+    }
+  }
+  return out;
+}
+
+describe("verify receives an ISO date for the last_verified stamp", () => {
+  /**
+   * `${date}` is the run-id form (YYYYMMDD) and is NOT a valid frontmatter
+   * date; `${iso_date}` is. Passing the wrong one produces a `last_verified`
+   * the parser rejects, which silently removes the document from staleness
+   * detection — so the wiring is asserted rather than assumed.
+   */
+  test.each(["init", "update", "verify-quick-updates"])(
+    "%s passes iso_date to every verify step",
+    async (name) => {
+      const flow = await loadFlow(name);
+      const verifiers = agentSteps(flow.steps).filter(
+        (s) => s.prompt === "verify-domain-documentation",
+      );
+
+      expect(verifiers.length).toBeGreaterThan(0);
+      for (const step of verifiers) {
+        expect(step.vars?.date).toBe("${iso_date}");
+      }
+    },
+  );
 });

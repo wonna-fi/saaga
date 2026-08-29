@@ -431,4 +431,32 @@ describe("saaga run init: corpus format version", () => {
       /delete saaga-docs/,
     );
   });
+
+  test("the verify prompt receives a real ISO date, not a placeholder", async () => {
+    const { app } = await tmpAppEnv("isodate");
+    const planScenario = planInitScenario(ONE_NONZERO_PHASE_PLAN);
+    const fake = new FakeAgent({
+      "Document the Architecture": { exitCode: 0 },
+      "Plan Domain Documentation": planScenario.scenario,
+      "Document a Plan Slice": { exitCode: 0 },
+      "Verify Domain Documentation Slice": verifyScenario(() => "PASS"),
+    });
+
+    const exitCode = await runCli(["run", "init", app], { agent: fake });
+    expect(exitCode).toBe(0);
+
+    const verifyPrompt = fake.calls.find((c) =>
+      c.prompt.includes("Verify Domain Documentation Slice"),
+    )?.prompt;
+    expect(verifyPrompt).toBeDefined();
+
+    // The date reaches the prompt as a real YYYY-MM-DD value. An unresolved
+    // `${iso_date}` or the run-id's YYYYMMDD form would both produce a
+    // `last_verified` the frontmatter parser rejects.
+    const line = verifyPrompt!
+      .split("\n")
+      .find((l) => l.includes("Today's date"));
+    expect(line).toMatch(/\d{4}-\d{2}-\d{2}/);
+    expect(line).not.toContain("iso_date");
+  });
 });

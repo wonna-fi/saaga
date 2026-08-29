@@ -66,7 +66,7 @@ steps:
                         status_path: ${run_dir}/slice-${phase.number}/status-${iteration}.txt
                         changes_dir: ${app_path}/${docs_dir}/metadata/quick_updates
                         docs_dir: ${docs_dir}
-                        date: ${date}
+                        date: ${iso_date}
 
                   - read-file:
                       path: ${run_dir}/slice-${phase.number}/status-${iteration}.txt

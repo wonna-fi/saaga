@@ -613,6 +613,7 @@ async function runFlowSubcommand(input: RunFlowSubcommandInput): Promise<void> {
         run_id: runCtx.runId,
         run_dir: runCtx.runDir,
         date: runCtx.date,
+        iso_date: runCtx.isoDate,
         ...extraScope,
       },
       {

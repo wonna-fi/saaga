@@ -31,8 +31,13 @@ Rules:
   the directory the document lives in; INDEX.md files are `index`;
   ARCHITECTURE.md is `architecture`.
 - `sources` is the list you would re-read to check whether this document is
-  still true. List the files and globs the document actually describes — not
-  every file you happened to open. An index that only links to other documents
-  may omit `sources`.
+  still true. The test is per claim, not per topic: **every file the document
+  makes a signature or behavioural claim about belongs in `sources`**, including
+  one cited only under "Reference Implementations". A file you merely opened
+  while researching does not. An index that only links to other documents may
+  omit `sources` entirely.
+- Getting this wrong is not cosmetic. A claim whose file is missing from
+  `sources` cannot be flagged when that file changes, so the document rots
+  silently — which is the exact failure this metadata exists to prevent.
 - Never invent a `last_verified` date and never copy one from another document.
   A document you wrote or edited but did not verify has no `last_verified`.

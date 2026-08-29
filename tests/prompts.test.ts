@@ -173,6 +173,20 @@ describe("frontmatter instructions reach the prompts that write documents", () =
     const out = await render("quick-update");
     expect(out).toContain("Start every new file with a YAML frontmatter block");
   });
+
+  test("the writer is told sources must cover every claim", async () => {
+    const out = await render("slice-doc");
+    expect(out).toContain("The test is per claim, not per topic");
+    expect(out).toContain("cannot be flagged when that file changes");
+  });
+
+  test("verify audits sources completeness", async () => {
+    const out = await render("verify-domain-documentation");
+    expect(out).toContain("**Step 4: Sources Completeness**");
+    expect(out).toContain(
+      "Frontmatter `sources` lists every file the document makes a claim about",
+    );
+  });
 });
 
 describe("planning prompts no longer re-emit the methodology", () => {
