@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join } from "node:path";
 import { describe, expect, test } from "vitest";
@@ -342,5 +342,39 @@ phases:
     expect(fake.calls[0].prompt.split(/\r?\n/)[0]).toBe(
       "# Document the Architecture of an Application",
     );
+  });
+});
+
+describe("saaga run init > prompt archive", () => {
+  test("writes every rendered agent prompt into the run directory", async () => {
+    const { app } = await tmpAppEnv("salesforce");
+    const planScenario = planInitScenario(SINGLE_PHASE_PLAN);
+
+    const fake = new FakeAgent({
+      "Document the Architecture": { exitCode: 0 },
+      "Plan Domain Documentation": planScenario.scenario,
+      "Document a Plan Slice": { exitCode: 0 },
+    });
+
+    const exitCode = await runCli(["run", "init", app], { agent: fake });
+    expect(exitCode).toBe(0);
+
+    const runDirs = await readdir(join(app, ".saaga-runs"));
+    expect(runDirs).toHaveLength(1);
+    const promptsDir = join(app, ".saaga-runs", runDirs[0], "prompts");
+    const archived = (await readdir(promptsDir)).sort();
+
+    // One archived file per agent call, in call order, byte-identical to
+    // what the agent received.
+    expect(archived).toEqual([
+      "01-document-architecture.md",
+      "02-plan-init.md",
+      "03-slice-doc-phase0.md",
+    ]);
+    for (const [i, call] of fake.calls.entries()) {
+      expect(await readFile(join(promptsDir, archived[i]), "utf8")).toBe(
+        call.prompt,
+      );
+    }
   });
 });

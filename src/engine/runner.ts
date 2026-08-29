@@ -11,6 +11,7 @@ import { appendSaagaRules } from "../saaga-rules.js";
 import { renderPromptFile } from "../templates.js";
 import { evaluatePredicate, interpolate, resolveValue } from "./expression.js";
 import { PhaseTracker } from "./phases.js";
+import { createPromptArchive, type PromptArchive } from "./prompt-archive.js";
 import { runForeachStep } from "./primitives/foreach.js";
 import { runIfStep } from "./primitives/if.js";
 import { runLoopStep } from "./primitives/loop.js";
@@ -46,6 +47,11 @@ export interface RunFlowDeps {
   auditor?: PermissionAuditor;
   /** Pre-loaded `.saagarules` content snapshot, appended to every agent prompt. */
   saagaRules?: string;
+  /**
+   * Archives each rendered prompt into the run directory. Set up by
+   * `runFlow()` from the flow's `run_dir`; absent when there is none.
+   */
+  promptArchive?: PromptArchive;
 }
 
 export async function runFlow(
@@ -54,7 +60,13 @@ export async function runFlow(
   deps: RunFlowDeps,
 ): Promise<void> {
   const logger = deps.logger ?? silentLogger();
-  const effectiveDeps: RunFlowDeps = { ...deps, logger };
+  const runDir =
+    typeof initialScope.run_dir === "string" ? initialScope.run_dir : undefined;
+  const effectiveDeps: RunFlowDeps = {
+    ...deps,
+    logger,
+    promptArchive: deps.promptArchive ?? createPromptArchive(runDir),
+  };
   const scope: Scope = { ...initialScope };
   const tracker = new PhaseTracker(flow);
 
@@ -256,9 +268,28 @@ async function runAgentStep(
     renderedVars[key] = interpolate(raw, scope);
   }
 
+  // `includeRoots` is the shared-partial search path. It is a list so that a
+  // project's own prompt directory can be prepended ahead of the package's
+  // when custom prompts land, without changing the resolver.
   const prompt = appendSaagaRules(
-    await renderPromptFile(promptPath, renderedVars),
+    await renderPromptFile(promptPath, renderedVars, {
+      includeRoots: [PROMPTS_DIR],
+    }),
     deps.saagaRules,
+  );
+
+  // Archive exactly the bytes the agent receives, so a run stays
+  // reconstructible now that the plan no longer carries the methodology.
+  // `iteration` is a loop-scope value rather than a step var, so it is read
+  // from the scope; the archive's own counter is what keeps names unique.
+  await deps.promptArchive?.record(
+    step.prompt,
+    {
+      phase: renderedVars.phase_number,
+      iteration:
+        scope.iteration != null ? String(scope.iteration) : undefined,
+    },
+    prompt,
   );
 
   const runDir = typeof scope.run_dir === "string" ? scope.run_dir : undefined;
