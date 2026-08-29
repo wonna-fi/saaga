@@ -6,6 +6,7 @@ import { describe, expect, test } from "vitest";
 import { FakeAgent } from "../../src/agent/fake-agent.js";
 import { runCli } from "../../src/cli.js";
 import { DEFAULT_DOCS_DIR } from "../../src/cli/config.js";
+import { writeFormatVersion } from "../../src/docs/format-version.js";
 import { generateBaseline } from "../../src/scripts/generate-baseline.js";
 
 class StringWritable extends Writable {
@@ -36,6 +37,7 @@ async function tmpApp(name: string, configYaml?: string) {
     { app_dir: app, docs_dir: DEFAULT_DOCS_DIR },
     { cwd: app },
   );
+  await writeFormatVersion(join(app, DEFAULT_DOCS_DIR));
   return { root, app };
 }
 

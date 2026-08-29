@@ -40,6 +40,20 @@ If a `.saagaignore` file exists at the project root, it lists paths and patterns
 ## Notes
 
 - Write the document to `{docs_dir}/ARCHITECTURE.md`. Create the `{docs_dir}/` directory if it does not exist.
+- Start the document with a YAML frontmatter block, before the `#` title line:
+
+  ```markdown
+  ---
+  title: Architecture
+  type: architecture
+  sources:
+    - {top-level source paths or globs this document describes}
+  ---
+  ```
+
+  `sources` lists the paths you would re-read to check whether this document is
+  still true — the top-level modules the architecture describes, not every file.
+  Do not write a `last_verified` field; only verification sets that.
 - If you create diagrams, draw them as mermaid charts with accessible colors.
 - A high quality document is imperative. Write it with professional pride.
 - Do NOT modify repository source code, configuration, or any files outside `{docs_dir}/` and `{scratch_path}`.

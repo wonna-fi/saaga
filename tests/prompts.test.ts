@@ -25,6 +25,7 @@ const FLOW_VARS: Record<string, Record<string, string>> = {
     status_path: "/run/slice-1/status-1.txt",
     changes_dir: "none",
     docs_dir: "saaga-docs",
+    date: "2026-08-29",
   },
   "fix-documentation": {
     plan: "/run/plan.md",
@@ -116,6 +117,61 @@ describe("methodology reaches the writer and verifier directly", () => {
     const out = await render("verify-domain-documentation");
     expect(out).not.toContain("The **Quality Checklists** (to know what to verify");
     expect(out).not.toContain("The **Mandatory Verification Protocol** (the step-by-step");
+  });
+});
+
+/**
+ * Task 1: the frontmatter rules have to reach every prompt that writes or
+ * touches a document, not just the plan.
+ */
+describe("frontmatter instructions reach the prompts that write documents", () => {
+  test("slice-doc carries the frontmatter schema", async () => {
+    const out = await render("slice-doc");
+    expect(out).toContain("### DOCUMENT FRONTMATTER");
+    expect(out).toContain("last_verified");
+    expect(out).toContain("`type` follows the document's kind");
+  });
+
+  test("the doc templates themselves mandate frontmatter", async () => {
+    const out = await render("slice-doc");
+    expect(out).toContain("type: concept");
+    expect(out).toContain("type: pattern");
+    expect(out).toContain("type: feature");
+    expect(out).toContain("type: index");
+  });
+
+  test("fix-documentation carries the frontmatter schema", async () => {
+    const out = await render("fix-documentation");
+    expect(out).toContain("### DOCUMENT FRONTMATTER");
+  });
+
+  test("document-architecture asks for architecture-typed frontmatter", async () => {
+    const out = await render("document-architecture");
+    expect(out).toContain("type: architecture");
+    expect(out).toContain("Do not write a `last_verified` field");
+  });
+
+  test("verify stamps last_verified only on PASS", async () => {
+    const out = await render("verify-domain-documentation");
+    expect(out).toContain("## Step 7: Stamp `last_verified` (PASS only)");
+    expect(out).toContain("set `last_verified: 2026-08-29`");
+    expect(out).toContain("If the status was `FAIL`, do not touch any document");
+  });
+
+  test("verify takes the date from the flow rather than computing one", async () => {
+    const out = await render("verify-domain-documentation");
+    expect(out).toContain("Use this value verbatim; do not compute a date yourself.");
+  });
+
+  test("quick-update preserves frontmatter and never bumps last_verified", async () => {
+    const out = await render("quick-update");
+    expect(out).toContain("Preserve the YAML frontmatter block exactly as it is");
+    expect(out).toContain("**Never touch `last_verified`**");
+  });
+
+  test("quick-update emits frontmatter on new documents", async () => {
+    const out = await render("quick-update");
+    expect(out).toContain("Start every new file with a YAML frontmatter block");
   });
 });
 

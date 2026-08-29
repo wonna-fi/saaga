@@ -3,6 +3,13 @@
 File location: `{docs_dir}/patterns/{pattern-name}.md`
 
 ````markdown
+---
+title: {Pattern Name}
+type: pattern
+sources:
+  - {source path or glob this pattern describes}
+---
+
 # {Pattern Name}
 
 ## When to Use

@@ -5,6 +5,13 @@ description: >-
   loop per phase, then removes processed artifacts.
 steps:
   - script:
+      name: check-format-version
+      label: checking corpus format version
+      app_dir: ${app_path}
+      docs_dir: ${docs_dir}
+      mode: update
+
+  - script:
       name: collect-quick-updates
       label: collecting quick updates
       metadata_dir: ${app_path}/${docs_dir}/metadata/quick_updates
@@ -59,6 +66,7 @@ steps:
                         status_path: ${run_dir}/slice-${phase.number}/status-${iteration}.txt
                         changes_dir: ${app_path}/${docs_dir}/metadata/quick_updates
                         docs_dir: ${docs_dir}
+                        date: ${date}
 
                   - read-file:
                       path: ${run_dir}/slice-${phase.number}/status-${iteration}.txt

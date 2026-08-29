@@ -3,6 +3,13 @@
 File location: `{docs_dir}/concepts/{concept-name}.md`
 
 ```markdown
+---
+title: {Concept Name}
+type: concept
+sources:
+  - {source path or glob this concept describes}
+---
+
 # {Concept Name}
 
 ## Business Definition

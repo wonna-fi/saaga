@@ -1,4 +1,5 @@
 import { archiveQuickUpdate } from "./archive-quick-update.js";
+import { checkFormatVersion } from "./check-format-version.js";
 import { cleanupQuickUpdateDir } from "./cleanup-quick-update-dir.js";
 import { collectQuickUpdates } from "./collect-quick-updates.js";
 import { detectChanges } from "./detect-changes.js";
@@ -7,6 +8,7 @@ import { generateBaseline } from "./generate-baseline.js";
 import { installRules } from "./install-rules.js";
 import { parsePlan } from "./parse-plan.js";
 import { removeQuickUpdates } from "./remove-quick-updates.js";
+import { stampFormatVersion } from "./stamp-format-version.js";
 
 export interface ScriptContext {
   /** Working directory: the application being documented. */
@@ -35,4 +37,6 @@ export const defaultScriptRegistry: ScriptRegistry = {
   "remove-quick-updates": removeQuickUpdates as unknown as ScriptHandler,
   "install-rules": installRules as unknown as ScriptHandler,
   "ensure-gitignore": ensureGitignore as unknown as ScriptHandler,
+  "check-format-version": checkFormatVersion as unknown as ScriptHandler,
+  "stamp-format-version": stampFormatVersion as unknown as ScriptHandler,
 };

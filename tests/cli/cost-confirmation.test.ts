@@ -12,6 +12,7 @@ import {
   buildCostSummary,
   confirmAgentCosts,
 } from "../../src/cli/confirm.js";
+import { writeFormatVersion } from "../../src/docs/format-version.js";
 import { generateBaseline } from "../../src/scripts/generate-baseline.js";
 
 class StringWritable extends Writable {
@@ -67,6 +68,7 @@ async function tmpUnchangedApp(name: string, configYaml?: string) {
     { app_dir: app, docs_dir: DEFAULT_DOCS_DIR },
     { cwd: app },
   );
+  await writeFormatVersion(join(app, DEFAULT_DOCS_DIR));
   return { root, app };
 }
 

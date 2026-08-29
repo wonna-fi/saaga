@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { describe, expect, test } from "vitest";
@@ -8,6 +8,10 @@ import {
 } from "../../src/agent/fake-agent.js";
 import { runCli } from "../../src/cli.js";
 import { DEFAULT_DOCS_DIR } from "../../src/cli/config.js";
+import {
+  FORMAT_FILE,
+  writeFormatVersion,
+} from "../../src/docs/format-version.js";
 import { generateBaseline } from "../../src/scripts/generate-baseline.js";
 
 async function tmpUpdateEnv(name: string) {
@@ -17,6 +21,7 @@ async function tmpUpdateEnv(name: string) {
   await writeFile(join(app, "src.ts"), "alpha", "utf8");
   await writeFile(join(app, "README.md"), "readme", "utf8");
   await generateBaseline({ app_dir: app, docs_dir: DEFAULT_DOCS_DIR }, { cwd: app });
+  await writeFormatVersion(join(app, DEFAULT_DOCS_DIR));
   return { root, app };
 }
 
@@ -166,5 +171,30 @@ phases:
     expect(fake.calls[2].prompt).toContain("Verify Domain Documentation Slice");
     expect(fake.calls[3].prompt).toContain("Fix Documentation Errors");
     expect(fake.calls[4].prompt).toContain("Verify Domain Documentation Slice");
+  });
+});
+
+describe("saaga run update: corpus format version", () => {
+  test("fails fast on a pre-beta corpus without spending an agent call", async () => {
+    const { app } = await tmpUpdateEnv("prebeta");
+    // A version-0 corpus: documents on disk, no format stamp.
+    await rm(join(app, DEFAULT_DOCS_DIR, FORMAT_FILE));
+    await writeFile(join(app, "src.ts"), "alpha-modified", "utf8");
+    const fake = new FakeAgent({});
+
+    await expect(
+      runCli(["run", "update", app], { agent: fake }),
+    ).rejects.toThrow(/is at format version 0/);
+    expect(fake.calls).toHaveLength(0);
+  });
+
+  test("the failure names the delete-and-init upgrade path", async () => {
+    const { app } = await tmpUpdateEnv("upgradepath");
+    await rm(join(app, DEFAULT_DOCS_DIR, FORMAT_FILE));
+    const fake = new FakeAgent({});
+
+    await expect(
+      runCli(["run", "update", app], { agent: fake }),
+    ).rejects.toThrow(/delete saaga-docs\/ and run 'saaga run init'/);
   });
 });

@@ -66,6 +66,7 @@ export function buildProfile(input: BuildProfileInput): AgentPermissions {
     resolve(appPath, ".github/instructions/**"),
     resolve(appPath, ".saagarules"),
     resolve(docsPath, "BASELINE"),
+    resolve(docsPath, "FORMAT"),
   ];
 
   return {
