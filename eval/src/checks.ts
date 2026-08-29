@@ -42,6 +42,15 @@ export interface CheckTestsOptions {
   timeoutMs?: number;
 }
 
+/** Keeps `checkDetail` readable when a stub breaks a whole suite. */
+const MAX_NAMED_FAILURES = 4;
+
+const ANSI_PATTERN = /\u001b\[[0-9;]*[A-Za-z]/g;
+
+export function stripAnsi(text: string): string {
+  return text.replace(ANSI_PATTERN, "");
+}
+
 /**
  * Execution-based grading for code tasks: run the feature's existing
  * vitest files against the sandbox, host-side, AFTER the agent finished
@@ -99,11 +108,20 @@ export function checkTests(
         },
       );
       if (res.exitCode === 0) return { pass: true };
-      const out = `${res.stdout}\n${res.stderr}`;
+      // vitest colors its output even under FORCE_COLOR=0, and raw escapes
+      // corrupt both the report tables and any regex over the text.
+      const out = stripAnsi(`${res.stdout}\n${res.stderr}`);
       const summary =
-        /Tests\s+[^\n]*/.exec(out)?.[0] ??
+        /Tests\s+[^\n]*/.exec(out)?.[0]?.trim() ??
         (res.timedOut ? "vitest timed out" : `vitest exit ${String(res.exitCode)}`);
-      return { pass: false, detail: summary.trim() };
+      // Name the failing tests: the summary line alone says how many broke,
+      // never which behavior, which is the part a corpus finding turns on.
+      const failed = [...out.matchAll(/^\s*(?:FAIL|×)\s+(.+?)\s*$/gm)]
+        .map((m) => m[1].trim())
+        .filter((name, i, all) => all.indexOf(name) === i)
+        .slice(0, MAX_NAMED_FAILURES);
+      const detail = failed.length > 0 ? `${summary} — ${failed.join("; ")}` : summary;
+      return { pass: false, detail };
     } finally {
       await rm(link, { recursive: true, force: true });
     }

@@ -75,6 +75,12 @@ haiku run exists to capture. Such runs appear with exit 143 and n/a usage metric
 was killed before its terminal usage message), while the checker still grades the partial
 work into `checkDetail`.
 
+When a code task fails, `checkDetail` names the failing tests (not just vitest's count), and
+the agent's final version of each `targetFile` is saved under
+`<run>/artifacts/<condition>/<task>--rep<n>/` before the sandbox is destroyed — the evidence
+a corpus finding turns on, without mining transcripts. Answer tasks save `ANSWER.md` the
+same way.
+
 Reading reports, one sanity indicator to expect: the `corpus opened` column must be `0/N` in
 every `no-docs` arm — a measured negative control that condition isolation held for that run.
 
@@ -112,11 +118,15 @@ Any check edit after a pilot run must be recorded in the PR description that mak
   (emitted as a `usage` event by `src/agent/claude-agent.ts`). Other backends report "n/a".
   Note that `tokens in` is the raw `input_tokens` figure only — the bulk of context arrives
   as **cache read** tokens, reported in its own column; judge context cost from that one.
-- **docs reads / corpus opened**: how many corpus files the agent opened, counted from the
-  run's NDJSON transcript by the runner (backfilled from `logs/` by `eval:report` for older
-  runs). Distinguishes "docs ignored" from "docs read but unhelpful/overridden". This is a
-  **lower bound**: it counts Read-tool `file_path`s only, so corpus content reached via Grep
-  output is not counted (v1 runs showed passing answers with zero counted reads).
+- **docs reads / corpus opened**: how many corpus files the agent **successfully** read,
+  counted from the run's NDJSON transcript by pairing each corpus-path tool call with its
+  result (backfilled from `logs/` by `eval:report` for older runs). Distinguishes "docs
+  ignored" from "docs read but unhelpful/overridden". This is a **lower bound**: corpus text
+  reached via Grep output is not counted (runs show passing answers with zero counted reads).
+  Failed reads are excluded deliberately — before that fix, a weak model guessing a
+  `saaga-docs/...` path that does not exist scored as corpus access and broke the negative
+  control; the two `1/32` and `1/14` cells in the committed haiku baseline are that artifact,
+  not an isolation leak.
 - **elapsed**: harness wall-clock, always present.
 
 At least 2 repetitions per condition; the report shows `median (min–max)` spread, never bare
