@@ -9,7 +9,10 @@ vi.mock("execa", () => {
 });
 
 import { execa } from "execa";
-import { ClaudeAgent } from "../../src/agent/claude-agent.js";
+import {
+  CLAUDE_RESTRICTED_TOOLS,
+  ClaudeAgent,
+} from "../../src/agent/claude-agent.js";
 import {
   ALLOWED_SHELL_COMMANDS,
   type AgentPermissions,
@@ -217,6 +220,68 @@ describe("ClaudeAgent", () => {
     }
     for (const rule of settings.permissions.deny) {
       expect(rule).not.toMatch(/^Bash\(/);
+    }
+  });
+
+  // Claude has no exclusive allowlist, so the deny list is open-ended: a tool
+  // introduced in a later CLI release arrives enabled until it is named here.
+  // Pinning the exact set means an omission fails in unit tests rather than
+  // only in the live `claude/tool-surface` probe, which needs a model call.
+  test("denies every tool outside the restricted profile by name", async () => {
+    mockExeca.mockReturnValue(Promise.resolve({ exitCode: 0 }) as any);
+
+    const cwd = await mkdtemp(join(tmpdir(), "claude-agent-"));
+    const permissions: AgentPermissions = {
+      readRoots: [cwd],
+      writeRoots: [resolve(cwd, "docs")],
+      denyPaths: [],
+      shell: "restricted",
+    };
+
+    const agent = new ClaudeAgent({ model: "opus" });
+    await agent.run("p", { cwd, permissions });
+
+    const [, args] = mockExeca.mock.calls[0] as any[];
+    const settings = JSON.parse(args[args.indexOf("--settings") + 1]);
+    // Bare tool names, leaving out the scoped Bash(...) and Edit(...) rules.
+    const toolDenies = settings.permissions.deny.filter(
+      (rule: string) => !rule.includes("("),
+    );
+
+    expect(toolDenies).toEqual([
+      "CronCreate",
+      "CronDelete",
+      "CronList",
+      "DesignSync",
+      "EnterWorktree",
+      "ExitWorktree",
+      // Enumerates other agent sessions to message.
+      "ListAgents",
+      "Monitor",
+      "NotebookEdit",
+      "PushNotification",
+      // Schedules work that would run outside the sandbox.
+      "RemoteTrigger",
+      "ReportFindings",
+      "ScheduleWakeup",
+      "SendMessage",
+      "Skill",
+      "Task",
+      "TaskCreate",
+      "TaskGet",
+      "TaskList",
+      "TaskOutput",
+      "TaskStop",
+      "TaskUpdate",
+      "ToolSearch",
+      "WebFetch",
+      "WebSearch",
+      "Workflow",
+    ]);
+
+    // A denied name must never be one the profile depends on.
+    for (const tool of CLAUDE_RESTRICTED_TOOLS) {
+      expect(toolDenies).not.toContain(tool);
     }
   });
 
