@@ -45,7 +45,14 @@ last_verified: 2026-08-29
     expect(frontmatter?.last_verified).toBe("2026-08-29");
   });
 
-  test.each(["concept", "pattern", "feature", "architecture", "index"])(
+  test.each([
+    "concept",
+    "pattern",
+    "convention",
+    "feature",
+    "architecture",
+    "index",
+  ])(
     "accepts type %s",
     (type) => {
       const { frontmatter, errors } = parseDoc(

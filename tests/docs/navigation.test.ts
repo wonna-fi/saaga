@@ -214,7 +214,29 @@ describe("parseIndex", () => {
 });
 
 describe("collectIndexRows", () => {
-  test("orders rows concepts, patterns, features regardless of directory order", () => {
+  test("orders rows concepts, patterns, conventions, features regardless of directory order", () => {
+    const docs = [
+      doc("features/INDEX.md", index("Features", "| [F](./f.md) | f |")),
+      doc("features/f.md", "# F\n"),
+      doc("conventions/INDEX.md", index("Conventions", "| [V](./v.md) | v |")),
+      doc("conventions/v.md", "# V\n"),
+      doc("patterns/INDEX.md", index("Patterns", "| [P](./p.md) | p |")),
+      doc("patterns/p.md", "# P\n"),
+      doc("concepts/INDEX.md", index("Concepts", "| [C](./c.md) | c |")),
+      doc("concepts/c.md", "# C\n"),
+    ];
+
+    expect(collectIndexRows(docs).rows.map((r) => r.name)).toEqual([
+      "C",
+      "P",
+      "V",
+      "F",
+    ]);
+  });
+
+  test("a corpus without conventions keeps the other three in order", () => {
+    // The category is optional — most repositories have no lexical rules worth
+    // a document — so its absence must not disturb anything.
     const docs = [
       doc("features/INDEX.md", index("Features", "| [F](./f.md) | f |")),
       doc("features/f.md", "# F\n"),

@@ -29,7 +29,7 @@ The quick-update ran with a cheaper model under time pressure and may have **sil
 
 1. From `changes.md`, enumerate the documentation-worthy changes: new/changed public APIs, exported functions/classes/modules, new features or user-facing flows, data-model or validation changes, integration/configuration changes, and architectural shifts. Ignore non-doc-worthy noise (pure styling, assets, tests, lockfiles, whitespace/comment-only edits, internal refactors that preserve public behavior).
 2. Compare that list against `docs_touched` and the current documentation. Any doc-worthy change that has **no corresponding documentation** is a **coverage gap**.
-3. Record each coverage gap (the source surface, and the concept/pattern/feature doc that should exist for it). These gaps MUST be scoped into the artifact's phase so the slice re-documentation step creates the missing documentation — not just verifies existing docs.
+3. Record each coverage gap (the source surface, and the concept/pattern/convention/feature doc that should exist for it). These gaps MUST be scoped into the artifact's phase so the slice re-documentation step creates the missing documentation — not just verifies existing docs.
 
 ## Step 3: Consolidation
 
@@ -56,6 +56,8 @@ Verify that all three INDEX files exist:
 - `{docs_dir}/features/INDEX.md`
 
 If any are missing, note it in the plan as a prerequisite issue.
+`{docs_dir}/conventions/INDEX.md` is optional — the category exists only in
+repositories that have convention families. Its absence is not an issue.
 
 ## Step 5: Adapt Templates to the Technology
 
@@ -105,7 +107,7 @@ A table of all quick-update artifacts being processed:
 
 State how this run groups the work into phases and why. Documentation is produced
 in vertical slices — concepts first, then the patterns that use them, then the
-features built on both. Slices are flexible: not all three doc types are required
+features built on both. Slices are flexible: not all doc types are required
 for every phase, only what is warranted.
 
 #### 3. Template Adaptations
@@ -116,9 +118,11 @@ by their own prompts. Do NOT reproduce them here. In particular, never restate t
 budget bands or the consequence test — the per-document budget you assign is a
 decision and belongs in the plan; the rules behind it do not.
 
-Record only the **deltas** this repository needs — for example "rename User Flow
-to Execution Flow for engine features", or "treat a symbol as public only if it
-is re-exported from `src/index.ts`". Include:
+Record only the **deltas** this repository needs — for example "treat a symbol as
+public only if it is re-exported from `src/index.ts`", or a table column this
+codebase needs that the template lacks. Optional sections, the User Flow /
+Mechanism choice, and the conventions category are already part of the templates:
+they are not deltas and do not belong here. Include:
 
 - **Template deltas**: any section renamed, added, or justifiably omitted for this codebase.
 - **Verification checks**: the technology-specific verification summary table for this repository, derived from Step 5.

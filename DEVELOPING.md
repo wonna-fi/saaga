@@ -57,7 +57,7 @@ under `eval/reports/`. Method and caveats: [eval/README.md](./eval/README.md).
 | `prompts/` | Prompt templates with `{var}` placeholders |
 | `prompts/partials/` | Shared methodology pulled in with `{include:...}` |
 | `rules/` | Rule stub templates installed by `install-rules` |
-| `saaga-docs/` | Domain documentation (concepts, features, patterns) |
+| `saaga-docs/` | Domain documentation (concepts, features, patterns, conventions) |
 | `examples/` | Dockerfile, agent install scripts |
 | `eval/` | Paired documentation-value eval harness (not shipped) |
 | `.devcontainer/` | Dev container configuration |
@@ -74,6 +74,9 @@ exploring source code.**
   specifications (init workflow, update workflow, verify/fix loop).
 - [Patterns](./saaga-docs/patterns/INDEX.md) — how to do common
   operations (adding backends, adding flow primitives, creating prompts).
+- Conventions — what things must be named or shaped like. This category is
+  optional and Saaga's own corpus has none yet; when it does, its index is at
+  `saaga-docs/conventions/INDEX.md`.
 
 ## Extending Saaga
 

@@ -25,6 +25,7 @@ export interface ValidateDocsResult {
   broken_links: number;
   invalid_diagrams: number;
   orphans: number;
+  oversized_conventions: number;
 }
 
 /** Name of the report written into the run directory. */
@@ -42,8 +43,12 @@ const MAX_WARNINGS = 10;
  * agent sessions per slice. They are structural facts, so they belong here,
  * which also frees the verify prompt for the semantic rot only a model catches.
  *
- * Broken links and invalid diagrams fail the flow; orphans only warn, because a
- * document that nothing links to is still correct, just unreachable.
+ * Broken links, invalid diagrams, and over-cap convention documents fail the
+ * flow; orphans only warn, because a document that nothing links to is still
+ * correct, just unreachable. The convention cap is fatal because it is the only
+ * thing holding the conventions/patterns split apart: the verify loop applies
+ * line budgets with deliberate tolerance, and a cap read as a tolerance lets a
+ * convention grow back into the pattern it was extracted from.
  *
  * `generate-navigation` runs immediately before this script, so the corpus
  * checked here includes the generated `README.md` and `GLOSSARY.md` — a
@@ -83,6 +88,7 @@ export async function validateDocs(
       broken_links: 0,
       invalid_diagrams: 0,
       orphans: 0,
+      oversized_conventions: 0,
     };
   }
 
@@ -107,11 +113,15 @@ export async function validateDocs(
     ctx.warn?.(`…and ${hidden} more orphan(s), see ${reportPath}`);
   }
 
-  const fatal = report.brokenLinks.length + report.invalidMermaid.length;
+  const fatal =
+    report.brokenLinks.length +
+    report.invalidMermaid.length +
+    report.oversizedConventions.length;
   if (fatal > 0) {
     throw new Error(
-      `validate-docs: ${docsDir}/ has ${count(report.brokenLinks.length, "broken link")} ` +
-        `and ${count(report.invalidMermaid.length, "invalid Mermaid diagram")}. ` +
+      `validate-docs: ${docsDir}/ has ${count(report.brokenLinks.length, "broken link")}, ` +
+        `${count(report.invalidMermaid.length, "invalid Mermaid diagram")}, and ` +
+        `${count(report.oversizedConventions.length, "over-cap convention document")}. ` +
         `See the report at ${reportPath}.`,
     );
   }
@@ -122,6 +132,7 @@ export async function validateDocs(
     broken_links: report.brokenLinks.length,
     invalid_diagrams: report.invalidMermaid.length,
     orphans: report.orphans.length,
+    oversized_conventions: report.oversizedConventions.length,
   };
 }
 
@@ -133,12 +144,14 @@ function renderReport(report: ValidationReport, docsDir: string): string {
     "",
     `Summary: ${count(report.brokenLinks.length, "broken link")}, ` +
       `${count(report.invalidMermaid.length, "invalid diagram")}, ` +
-      `${count(report.orphans.length, "orphan")}.`,
+      `${count(report.orphans.length, "orphan")}, ` +
+      `${count(report.oversizedConventions.length, "over-cap convention")}.`,
     "",
   ];
 
   section(lines, "Broken Links", report.brokenLinks);
   section(lines, "Invalid Mermaid Diagrams", report.invalidMermaid);
+  section(lines, "Over-Cap Convention Documents", report.oversizedConventions);
   section(lines, "Orphan Documents", report.orphans);
 
   return lines.join("\n") + "\n";

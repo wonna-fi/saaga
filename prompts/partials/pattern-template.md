@@ -2,6 +2,11 @@
 
 File location: `{docs_dir}/patterns/{pattern-name}.md`
 
+A rule that requires reading code flow is a **pattern**.
+A rule you could check with grep is a **convention** — write it in
+`{docs_dir}/conventions/` instead, and do not restate it here. A pattern links to
+the convention its code example obeys.
+
 ````markdown
 ---
 title: {Pattern Name}

@@ -1,4 +1,5 @@
 import { posix } from "node:path";
+import { parseDoc } from "./frontmatter.js";
 import {
   extractLinks,
   extractMermaidFences,
@@ -7,7 +8,7 @@ import {
 
 /** A single structural defect found in the corpus. */
 export interface DocProblem {
-  kind: "broken-link" | "invalid-mermaid" | "orphan";
+  kind: "broken-link" | "invalid-mermaid" | "orphan" | "oversized-convention";
   /** POSIX path relative to the docs root. */
   file: string;
   /** 1-based line number; absent for whole-document problems (orphans). */
@@ -19,6 +20,7 @@ export interface ValidationReport {
   brokenLinks: DocProblem[];
   invalidMermaid: DocProblem[];
   orphans: DocProblem[];
+  oversizedConventions: DocProblem[];
   filesChecked: number;
 }
 
@@ -70,11 +72,32 @@ export const MERMAID_DIAGRAM_TYPES = [
 
 const FLOWCHART_DIRECTIONS = ["TD", "TB", "BT", "LR", "RL"];
 
+/** Directory the conventions category lives in, when the corpus has one. */
+const CONVENTIONS_DIR = "conventions";
+
+/**
+ * Body-line cap for a convention document, frontmatter excluded.
+ *
+ * Unlike the level-of-detail line budgets — which the verifying agent applies
+ * with deliberate tolerance — this is a hard cap checked in code, because a
+ * convention that grows is a convention turning back into a pattern, which is
+ * the exact collapse the conventions/patterns split exists to prevent. Only the
+ * ceiling is enforced: the template's 5-line floor is guidance, and a hard
+ * minimum would only reward padding.
+ */
+export const CONVENTION_MAX_BODY_LINES = 20;
+
+/** Body lines in a document, frontmatter and surrounding blank lines excluded. */
+function bodyLineCount(content: string): number {
+  const body = parseDoc(content).body.trim();
+  return body === "" ? 0 : body.split(/\r?\n/).length;
+}
+
 /**
  * Documents that are entry points by definition and are therefore never
  * reported as orphans, however few inbound links they have.
  *
- * Every `INDEX.md` qualifies (within the corpus the three category indexes have
+ * Every `INDEX.md` qualifies (within the corpus the category indexes have
  * no inbound links at all — they are reached from `AGENTS.md` and
  * `DEVELOPING.md` outside it), as does a `README.md` at the docs root.
  * `ARCHITECTURE.md` deliberately does not. `generate-navigation` de-orphans it
@@ -136,6 +159,24 @@ export async function validateCorpus(
     }
   }
 
+  const oversizedConventions: DocProblem[] = [];
+  for (const doc of docs) {
+    if (posix.dirname(doc.path) !== CONVENTIONS_DIR) continue;
+    if (posix.basename(doc.path) === "INDEX.md") continue;
+
+    const lines = bodyLineCount(doc.content);
+    if (lines > CONVENTION_MAX_BODY_LINES) {
+      oversizedConventions.push({
+        kind: "oversized-convention",
+        file: doc.path,
+        message:
+          `${lines} lines of body, cap is ${CONVENTION_MAX_BODY_LINES}. ` +
+          "Either the file covers two convention families (split them) or it " +
+          "is a pattern in disguise (move it to patterns/).",
+      });
+    }
+  }
+
   const orphans: DocProblem[] = docs
     .filter((d) => !inbound.has(d.path) && !isEntryPoint(d.path))
     .map((d) => ({
@@ -148,6 +189,7 @@ export async function validateCorpus(
     brokenLinks,
     invalidMermaid,
     orphans,
+    oversizedConventions,
     filesChecked: docs.length,
   };
 }

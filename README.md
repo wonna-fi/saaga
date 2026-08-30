@@ -32,7 +32,7 @@ Claude Code) through a multi-phase workflow:
 2. **Plan** — it identifies the domain areas that need documenting and
    creates a phased plan.
 3. **Document** — each phase is written as structured domain docs
-   (concepts, features, patterns).
+   (concepts, features, patterns, and conventions where the codebase has them).
 4. **Verify** — a self-critic loop reviews each phase and fixes issues
    before moving on.
 5. **Baseline** — a content snapshot is saved so future runs only
@@ -43,13 +43,24 @@ Claude Code) through a multi-phase workflow:
 After `saaga run init`, your project contains:
 
 - **`saaga-docs/`** — structured domain documentation organized into
-  three categories:
+  four categories:
   - **Concepts** — what something is and where it lives (architecture,
     data models, configuration).
   - **Features** — end-to-end feature specifications (workflows, user
-    flows, edge cases).
+    flows, edge cases). Internal machinery counts: a feature whose actor
+    is the system describes a *Mechanism* rather than a user flow.
   - **Patterns** — how to do common operations (adding endpoints,
     extending workflows, testing).
+  - **Conventions** — what things must be named or shaped like (naming,
+    file layout, error messages). Capped at 20 lines each, one file per
+    convention *family*, and present only when the codebase has rules
+    worth stating.
+
+  Patterns and conventions are separated by one line: a rule that requires
+  reading code flow is a pattern; a rule you could check with grep is a
+  convention. It matters because the two rot differently — a pattern goes
+  stale when the code it describes changes, a convention only when the team
+  changes its mind.
 
 - **Always-on agent rules** — Saaga installs guidance into the rule
   files your agent already reads, telling it to consult `saaga-docs/`
@@ -86,7 +97,7 @@ sources:
 | Field | Written by | Meaning |
 | ----- | ---------- | ------- |
 | `title` | the writer | The document's title — the same text as its heading. |
-| `type` | the writer | `concept`, `pattern`, `feature`, `architecture`, or `index`. |
+| `type` | the writer | `concept`, `pattern`, `convention`, `feature`, `architecture`, or `index`. |
 | `sources` | the writer | Source paths and globs whose behaviour the document's claims describe. |
 | `last_verified` | verification only, on PASS | ISO date of the last verification pass that found no errors. |
 | `terms` | the writer, optionally | Extra names this document is the home for — synonyms and sub-concepts a reader might look up. Feeds the generated glossary. |
@@ -292,7 +303,7 @@ Every documenting flow regenerates two files before validating the corpus:
 
 | File | Contents |
 | ---- | -------- |
-| `saaga-docs/README.md` | The corpus entry point: a reading order — the architecture, then the core concepts, then the workflows — followed by links to `ARCHITECTURE.md`, the three category indexes, and the glossary. |
+| `saaga-docs/README.md` | The corpus entry point: a reading order — the architecture, then the core concepts, then the workflows — followed by links to `ARCHITECTURE.md`, the category indexes, and the glossary. |
 | `saaga-docs/GLOSSARY.md` | Every term the indexes name, alphabetically, each with its one-line definition and a link to the document that owns it. |
 
 Both are **generated, never written by an agent**. A newcomer's entry point and
@@ -344,19 +355,21 @@ so they are decided in code rather than left to the verification agent — that 
 them reliable, costs no tokens, and frees the verify pass for the semantic questions
 only a model can answer.
 
-Three checks run over every Markdown document under `saaga-docs/`:
+Four checks run over every Markdown document under `saaga-docs/`:
 
 | Check | What it means | Result |
 | ----- | ------------- | ------ |
 | **Relative links** | Every `[text](./path.md)` target resolves on disk. Targets outside the corpus (a link to real source, e.g. `../../src/cli.ts`) are checked too. External URLs and `#anchor` suffixes are not. | Fails the flow |
 | **Mermaid fences** | Every ` ```mermaid ` block is terminated, declares a known diagram type, and leaves no node bracket open. | Fails the flow |
+| **Convention length** | Every document under `conventions/` is at most 20 lines of body, frontmatter excluded. `INDEX.md` is exempt. | Fails the flow |
 | **Orphan documents** | Every document is linked from at least one other document. `INDEX.md` files and the corpus `README.md` are entry points and are exempt; `ARCHITECTURE.md` is not, because the generated README is what links it. | Warning only |
 
 A failure names the report, which lists every problem with its file and line:
 
 ```
-saaga-docs/ has 1 broken link and 0 invalid Mermaid diagrams.
-See the report at /path/to/project/.saaga-runs/<run-id>/doc-validation.md.
+saaga-docs/ has 1 broken link, 0 invalid Mermaid diagrams, and 0 over-cap
+convention documents. See the report at
+/path/to/project/.saaga-runs/<run-id>/doc-validation.md.
 ```
 
 The report is written whenever there is a corpus to check, pass or fail. The check
@@ -369,6 +382,15 @@ generator that emitted a broken link fails the run rather than shipping.
 Orphans only warn because an unlinked document is still correct, just unreachable.
 An absent or empty `saaga-docs/` passes with no report: there is nothing to check
 yet.
+
+The convention cap is the one *length* rule enforced here rather than by the verify
+agent. Every other length target is a budget the plan assigns and the verifier
+applies with tolerance. A convention is different in kind: it exists precisely
+because it is short enough to hold in your head, and one that grows is a convention
+turning back into the pattern it was extracted from. A cap read as a tolerance is
+not a cap, so this one is decided in code. Over the cap means the file covers two
+convention families — split them — or it is a pattern in disguise, in which case it
+belongs under `patterns/` and inherits a line budget like everything else.
 
 **On Mermaid validation.** Saaga does not depend on Mermaid. The real `mermaid`
 package needs a DOM, and `@mermaid-js/parser` pulls in Langium while not even

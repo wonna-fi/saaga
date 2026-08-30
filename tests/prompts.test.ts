@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { describe, expect, test } from "vitest";
 import { PROMPTS_DIR } from "../src/paths.js";
@@ -96,7 +97,7 @@ describe("methodology reaches the writer and verifier directly", () => {
 
   test("slice-doc carries decision guidance and uncertainty handling", async () => {
     const out = await render("slice-doc");
-    expect(out).toContain("Is it a Concept, Pattern, or Feature?");
+    expect(out).toContain("Is it a Concept, Pattern, Convention, or Feature?");
     expect(out).toContain("When Code Logic is Unclear");
   });
 
@@ -116,7 +117,7 @@ describe("methodology reaches the writer and verifier directly", () => {
   test("fix carries the templates, decision guidance and checklists", async () => {
     const out = await render("fix-documentation");
     expect(out).toContain("### CONCEPT TEMPLATE");
-    expect(out).toContain("Is it a Concept, Pattern, or Feature?");
+    expect(out).toContain("Is it a Concept, Pattern, Convention, or Feature?");
     expect(out).toContain("### Pattern Doc Checklist");
   });
 
@@ -445,5 +446,129 @@ describe("the transcription rewards are gone", () => {
     const out = await render("quick-update");
     expect(out).not.toContain("err on the side of documenting it");
     expect(out).toContain("Err toward coverage, never toward length");
+  });
+});
+
+/**
+ * Task 5: the taxonomy. Two template relaxations (optional concept sections, a
+ * Mechanism heading for machinery) and a fourth category, conventions, kept
+ * apart from patterns by a line stated the same way everywhere: a rule you can
+ * grep for is a convention, a rule you have to read a code flow to follow is a
+ * pattern. The category is optional — a repository with no lexical rules gets
+ * no `conventions/` directory — so the prompts must never assume it exists.
+ */
+
+/** The phrasing of the patterns/conventions split, asserted verbatim. */
+const HARD_LINE_PATTERN = "A rule that requires reading code flow is a **pattern**";
+const HARD_LINE_CONVENTION = "A rule you could check with grep is a **convention**";
+
+describe("the conventions category reaches the prompts that write and judge documents", () => {
+  const CONSUMERS = [
+    "slice-doc",
+    "verify-domain-documentation",
+    "fix-documentation",
+    "plan-init",
+    "plan-update",
+    "plan-verify-quick-updates",
+  ];
+
+  test.for(CONSUMERS)("%s carries the convention template", async (name) => {
+    const out = await render(name);
+    expect(out).toContain("### CONVENTION TEMPLATE");
+    expect(out).toContain("type: convention");
+    expect(out).toContain("saaga-docs/conventions/{family}.md");
+  });
+
+  test.for(CONSUMERS)("%s states the patterns/conventions line", async (name) => {
+    const out = await render(name);
+    expect(out).toContain(HARD_LINE_PATTERN);
+    expect(out).toContain(HARD_LINE_CONVENTION);
+  });
+
+  test("quick-update states the line from its own inlined template list", async () => {
+    // quick-update includes no template partials — it carries an abbreviated
+    // copy — so it needs the rule spelled out rather than inherited.
+    const out = await render("quick-update");
+    expect(out).toContain(HARD_LINE_PATTERN);
+    expect(out).toContain(HARD_LINE_CONVENTION);
+    expect(out).toContain("saaga-docs/conventions/{family}.md");
+  });
+
+  test("the convention template is itself within the cap it imposes", async () => {
+    // The category's own acceptance criterion: a template that cannot model the
+    // brevity it demands would not be believed.
+    const partial = await readFile(
+      resolve(PROMPTS_DIR, "partials/convention-template.md"),
+      "utf8",
+    );
+    expect(partial.trimEnd().split("\n")).toHaveLength(20);
+  });
+
+  test("a convention document carries no sources", async () => {
+    const out = await render("slice-doc");
+    expect(out).toContain("a convention document always does");
+  });
+
+  test("the planner looks for convention families and may find none", async () => {
+    const out = await render("plan-init");
+    expect(out).toContain("### 1d. Identify Convention Families");
+    expect(out).toContain("one family per plan entry, never one per");
+    expect(out).toContain("Do not invent conventions to fill the category.");
+    // The directory is conditional: an empty category is worse than none.
+    expect(out).toContain("only if** Step 1d found at least one convention family");
+  });
+
+  test("conventions are their own trailing phase, never phase 0", async () => {
+    // Phase 0 runs outside the verify/fix loop in flows/init.flow.yaml, so a
+    // document placed there is the one thing nothing verifies.
+    const out = await render("plan-init");
+    expect(out).toContain("#### 5. Final Phase: Conventions");
+    expect(out).toContain("the last numbered phase, never Phase 0");
+  });
+
+  test("the update-family prompts treat the category as optional", async () => {
+    for (const name of ["plan-update", "plan-verify-quick-updates"]) {
+      const out = await render(name);
+      expect(out).toContain("saaga-docs/conventions/INDEX.md` is optional");
+      expect(out).toContain("Its absence is not an issue.");
+    }
+  });
+});
+
+describe("the templates bend where the subject does not fit", () => {
+  test("the concept template's Configuration and Data Storage are optional", async () => {
+    const out = await render("slice-doc");
+    expect(out).toContain("## Configuration (optional)");
+    expect(out).toContain("## Data Storage (optional)");
+    expect(out).toContain("`Configuration` and `Data Storage` are optional.");
+  });
+
+  test("a concept defines and links rather than narrating a mechanism", async () => {
+    const out = await render("slice-doc");
+    expect(out).toContain("A concept does not narrate process");
+  });
+
+  test("a feature picks User Flow or Mechanism by who the actor is", async () => {
+    const out = await render("slice-doc");
+    expect(out).toContain("Use `### User Flow` when a person performs the steps");
+    expect(out).toContain("Use `### Mechanism` when the");
+  });
+
+  test("verify passes a justified omission and fails a stub", async () => {
+    const out = await render("verify-domain-documentation");
+    expect(out).toContain("A section the template marks optional is not required.");
+    expect(out).toContain("finding only when the subject demonstrably has the thing");
+    expect(out).toContain('stub, on the other hand, **is** a finding');
+  });
+
+  test("the plan prompts no longer offer a rename that is now built in", async () => {
+    // "rename User Flow to Execution Flow for engine features" was the worked
+    // example of a template delta; Mechanism makes it a standing option, and an
+    // example contradicting the template invites a pointless adaptation.
+    for (const name of ["plan-init", "plan-update", "plan-verify-quick-updates"]) {
+      const out = await render(name);
+      expect(out).not.toContain("rename User Flow");
+      expect(out).toContain("they are not deltas and do not belong here");
+    }
   });
 });

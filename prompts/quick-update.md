@@ -49,6 +49,7 @@ Read the documentation structure to understand what exists:
 - `{docs_dir}/concepts/INDEX.md`
 - `{docs_dir}/patterns/INDEX.md`
 - `{docs_dir}/features/INDEX.md`
+- `{docs_dir}/conventions/INDEX.md` (if it exists)
 - `{docs_dir}/ARCHITECTURE.md` (if it exists)
 
 For each doc-worthy change, determine:
@@ -82,7 +83,7 @@ conventions:
 ```markdown
 ---
 title: {Document Title}
-type: {concept|pattern|feature}
+type: {concept|pattern|convention|feature}
 sources:
   - {source path or glob this document describes}
 ---
@@ -93,9 +94,10 @@ sources:
 `last_verified` — only a verification pass sets that field.
 
 
-- **Concepts** → `{docs_dir}/concepts/{name}.md`: Business Definition, Configuration, Data Storage, Key Services/Functions, Reference Implementations, Related Concepts
+- **Concepts** → `{docs_dir}/concepts/{name}.md`: Business Definition, Configuration (optional), Data Storage (optional), Key Services/Functions, Reference Implementations, Related Concepts. Omit an inapplicable optional section outright; never stub it. A concept does not narrate process — link to the feature that does.
 - **Patterns** → `{docs_dir}/patterns/{name}.md`: When to Use, Pattern (code example), Key Points, Reference Implementations, Anti-Patterns
-- **Features** → `{docs_dir}/features/{name}.md`: Overview, Key Concepts, Functional Specification (User Flow, Validation Rules, Edge Cases), Technical Implementation, Integration Points, Extension Guide
+- **Conventions** → `{docs_dir}/conventions/{family}.md`: the rule, one conforming example, one counter-example, where it applies. One file per convention *family*, 5–20 lines of body, and no `sources` in the frontmatter. A rule that requires reading code flow is a **pattern**. A rule you could check with grep is a **convention**.
+- **Features** → `{docs_dir}/features/{name}.md`: Overview, Key Concepts, Functional Specification (User Flow *or* Mechanism — Mechanism when the system rather than a person is the actor — plus Validation Rules, Edge Cases), Technical Implementation, Integration Points, Extension Guide
 
 ### For deletions/ignored files:
 
@@ -104,7 +106,7 @@ sources:
 
 ### INDEX files:
 
-After all edits, update `{docs_dir}/concepts/INDEX.md`, `{docs_dir}/patterns/INDEX.md`, and `{docs_dir}/features/INDEX.md` to reflect any added or removed documents.
+After all edits, update `{docs_dir}/concepts/INDEX.md`, `{docs_dir}/patterns/INDEX.md`, `{docs_dir}/features/INDEX.md`, and `{docs_dir}/conventions/INDEX.md` (if the category exists) to reflect any added or removed documents.
 
 ### Quality guardrails:
 

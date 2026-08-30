@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { describe, expect, test, vi } from "vitest";
 import { DEFAULT_DOCS_DIR } from "../../src/cli/config.js";
+import { CONVENTION_MAX_BODY_LINES } from "../../src/docs/validate.js";
 import { validateDocs } from "../../src/scripts/validate-docs.js";
 
 async function writeAt(dir: string, rel: string, content: string): Promise<void> {
@@ -70,13 +71,16 @@ describe("validate-docs: a clean corpus", () => {
       broken_links: 0,
       invalid_diagrams: 0,
       orphans: 0,
+      oversized_conventions: 0,
     });
     expect(result.report_path).toBe(join(outDir, "doc-validation.md"));
 
     const report = await readFile(result.report_path, "utf8");
     expect(report).toContain("# Documentation Validation");
-    expect(report).toContain("Summary: 0 broken links, 0 invalid diagrams, 0 orphans.");
-    expect(report.match(/_None_/g)).toHaveLength(3);
+    expect(report).toContain(
+      "Summary: 0 broken links, 0 invalid diagrams, 0 orphans, 0 over-cap conventions.",
+    );
+    expect(report.match(/_None_/g)).toHaveLength(4);
   });
 
   test("does not warn when there is nothing to warn about", async () => {
@@ -229,6 +233,7 @@ describe("validate-docs: no corpus", () => {
       broken_links: 0,
       invalid_diagrams: 0,
       orphans: 0,
+      oversized_conventions: 0,
     });
   });
 
@@ -241,6 +246,117 @@ describe("validate-docs: no corpus", () => {
       files_checked: 0,
       report_path: "",
     });
+  });
+});
+
+/**
+ * The convention cap is the one length rule enforced in code. The verify loop
+ * applies the level-of-detail budgets with deliberate tolerance; a convention
+ * read with that same tolerance grows back into the pattern it was extracted
+ * from, so this one fails the flow instead.
+ */
+describe("validate-docs: the convention cap", () => {
+  /** A conventions category linked from its own INDEX, with a body of `n` lines. */
+  async function withConvention(bodyLines: number): Promise<{ app: string; outDir: string }> {
+    const { app, outDir } = await cleanApp();
+    const docs = `${DEFAULT_DOCS_DIR}/conventions`;
+    await writeAt(
+      app,
+      `${docs}/INDEX.md`,
+      [
+        "# Conventions Index",
+        "",
+        "| Name | Description |",
+        "|------|-------------|",
+        "| [Naming](./naming.md) | what things are called |",
+      ].join("\n"),
+    );
+    await writeAt(
+      app,
+      `${docs}/naming.md`,
+      ["---", "title: Naming", "type: convention", "---", ""]
+        .concat(Array.from({ length: bodyLines }, (_, i) => `- rule ${i + 1}`))
+        .join("\n"),
+    );
+    return { app, outDir };
+  }
+
+  test("a convention within the cap passes", async () => {
+    const { app, outDir } = await withConvention(6);
+    await expect(run(app, outDir)).resolves.toMatchObject({
+      oversized_conventions: 0,
+    });
+  });
+
+  test("exactly at the cap passes — it is a ceiling, not a limit to stay under", async () => {
+    const { app, outDir } = await withConvention(CONVENTION_MAX_BODY_LINES);
+    await expect(run(app, outDir)).resolves.toMatchObject({
+      oversized_conventions: 0,
+    });
+  });
+
+  test("over the cap fails the flow and says what to do about it", async () => {
+    const { app, outDir } = await withConvention(CONVENTION_MAX_BODY_LINES + 1);
+    await expect(run(app, outDir)).rejects.toThrow(
+      /1 over-cap convention document/,
+    );
+
+    const report = await readFile(join(outDir, "doc-validation.md"), "utf8");
+    expect(report).toMatch(
+      /## Over-Cap Convention Documents\s+- `conventions\/naming\.md` — 21 lines of body/,
+    );
+    expect(report).toContain("split them");
+    expect(report).toContain("pattern in disguise");
+  });
+
+  test("frontmatter does not count against the body", async () => {
+    // A five-line frontmatter block plus a 20-line body is 25 lines on disk and
+    // still conforming: the cap governs what a reader has to read.
+    const { app, outDir } = await withConvention(CONVENTION_MAX_BODY_LINES);
+    const onDisk = await readFile(
+      join(app, DEFAULT_DOCS_DIR, "conventions", "naming.md"),
+      "utf8",
+    );
+    expect(onDisk.trimEnd().split("\n").length).toBeGreaterThan(20);
+    await expect(run(app, outDir)).resolves.toMatchObject({
+      oversized_conventions: 0,
+    });
+  });
+
+  test("the cap applies to conventions only", async () => {
+    // The same 30-line body under concepts/ is a budget question, not a cap
+    // violation, and budgets are the verifying agent's job.
+    const { app, outDir } = await cleanApp();
+    await writeAt(
+      app,
+      `${DEFAULT_DOCS_DIR}/concepts/beta.md`,
+      ["# Beta", "", "See [Alpha](./alpha.md)."]
+        .concat(Array.from({ length: 30 }, (_, i) => `- note ${i + 1}`))
+        .join("\n"),
+    );
+
+    await expect(run(app, outDir)).resolves.toMatchObject({
+      oversized_conventions: 0,
+    });
+  });
+
+  test("a conventions INDEX is exempt", async () => {
+    const { app, outDir } = await cleanApp();
+    await writeAt(
+      app,
+      `${DEFAULT_DOCS_DIR}/conventions/INDEX.md`,
+      ["# Conventions Index", "", "| Name | Description |", "|------|-------------|"]
+        .concat(Array.from({ length: 30 }, (_, i) => `| [R${i}](./r${i}.md) | r |`))
+        .join("\n"),
+    );
+
+    const result = await run(app, outDir).catch((e: Error) => e);
+    // The rows point at documents that do not exist, so this run fails on broken
+    // links — but never on the INDEX's own length.
+    const report = await readFile(join(outDir, "doc-validation.md"), "utf8");
+    expect(report).toContain("Summary: 30 broken links");
+    expect(report).toMatch(/## Over-Cap Convention Documents\s+_None_/);
+    expect(result).toBeInstanceOf(Error);
   });
 });
 

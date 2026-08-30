@@ -19,17 +19,17 @@ If any input is missing, ask the user.
 
 Read the plan file and extract:
 
-- The **phase definition** for the specified slice (concepts, patterns, and features listed)
+- The **phase definition** for the specified slice (concepts, patterns, conventions, and features listed)
 - The **Template Adaptations** section, if present: repository-specific deltas to the templates below, plus its **Verification checks** table naming the technology-specific checks recorded for this repository
-- The **line budget** recorded for each document in this slice (its tier and its exact number). Step 3e enforces it. A document the plan gave no budget is not checked in 3e.
+- The **line budget** recorded for each document in this slice (its tier and its exact number). Step 3e enforces it. A document the plan gave no budget is not checked in 3e. Convention documents never carry a budget: their cap comes from the template and `validate-docs` enforces it.
 
 The quality checklists, the documentation templates, the level-of-detail policy (the budget bands and the consequence test Step 3e applies) and the mandatory verification protocol are in this prompt, below. They are authoritative; the plan only records deltas — and the per-document line budget.
 
 ## Step 2: Identify Documents to Review
 
-From the phase definition, determine which documents were created. Find them in the `{docs_dir}/concepts/`, `{docs_dir}/patterns/`, and `{docs_dir}/features/` directories.
+From the phase definition, determine which documents were created. Find them in the `{docs_dir}/concepts/`, `{docs_dir}/patterns/`, `{docs_dir}/conventions/`, and `{docs_dir}/features/` directories.
 
-Review documents in this order: concepts first, then patterns, then features (same order they were created).
+Review documents in this order: concepts first, then patterns, then conventions, then features (same order they were created).
 
 ## Step 3: Review Each Document
 
@@ -37,7 +37,16 @@ For each document, perform the following checks by searching the actual source c
 
 ### 3a. Structural Completeness
 
-Compare the document against the template for its type (concept/pattern/feature) in the Documentation Templates section below. Flag any missing required sections.
+Compare the document against the template for its type (concept/pattern/convention/feature) in the Documentation Templates section below. Flag any missing **required** sections.
+
+A section the template marks optional is not required. Do not flag a missing
+`Configuration` or `Data Storage` on a concept that has neither — an omission is a
+finding only when the subject demonstrably has the thing and the document hides it,
+and the evidence for that is in the source, not in the template. The same applies to
+the Functional Specification's opening heading: `User Flow` and `Mechanism` are
+alternatives, and a feature carrying exactly one of them is correct. An empty
+heading or an "N/A" stub, on the other hand, **is** a finding: the section should
+have been omitted.
 
 ### 3b. Factual Verification
 
@@ -59,7 +68,7 @@ For every factual claim in the document, verify it against the source code:
 
 After reviewing all documents in the slice, check that:
 
-- Behavior descriptions don't contradict each other across concept, pattern, and feature docs
+- Behavior descriptions don't contradict each other across concept, pattern, convention, and feature docs
 - Cross-references (links to other docs) point to documents that exist
 - Terminology is used consistently
 
@@ -71,7 +80,7 @@ After reviewing all documents in the slice, check that:
 
 2. **Enumerate documentation-worthy changes.** From the change report(s), list the changed/new source surfaces that warrant documentation: new or changed public APIs, exported functions/classes/modules, new features or user-facing flows, data-model or validation changes, integration/configuration changes, and architectural shifts. Ignore non-doc-worthy noise: pure styling, assets, tests, lockfiles, whitespace/comment-only edits, and pure internal refactors that preserve public behavior.
 
-3. **Check each doc-worthy change for coverage.** For every doc-worthy change, search `{docs_dir}/concepts/`, `{docs_dir}/patterns/`, and `{docs_dir}/features/` for documentation that actually reflects it. Coverage means a real, evidence-based description of the new/changed surface — not merely that a file name appears somewhere.
+3. **Check each doc-worthy change for coverage.** For every doc-worthy change, search `{docs_dir}/concepts/`, `{docs_dir}/patterns/`, `{docs_dir}/conventions/`, and `{docs_dir}/features/` for documentation that actually reflects it. Coverage means a real, evidence-based description of the new/changed surface — not merely that a file name appears somewhere.
 
 4. **Flag every uncovered change as a Coverage Gap error.** If a doc-worthy change has no corresponding documentation, record it as an error (see Step 4) with claim type "Coverage Gap". Severity is **Critical** when an entirely new public surface or feature is undocumented, and **Major** when an existing documented surface changed but its doc was not updated. Do NOT mark an undocumented-but-non-doc-worthy change as an error.
 
