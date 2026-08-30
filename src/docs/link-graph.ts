@@ -17,6 +17,11 @@ export interface MermaidFence {
   line: number;
   /** Fence contents, without the fence lines themselves. */
   body: string;
+  /**
+   * Whether a closing fence was found. `false` means the document ends inside
+   * the block — the signature of output that was cut off mid-diagram.
+   */
+  closed: boolean;
 }
 
 /**
@@ -121,7 +126,13 @@ export function extractLinks(content: string, fromPath: string): DocLink[] {
   return links;
 }
 
-/** Extracts every fenced ```mermaid block from `content`. */
+/**
+ * Extracts every fenced ```mermaid block from `content`.
+ *
+ * A block left open at the end of the document is still returned, with
+ * `closed: false`. Dropping it would silently excuse the exact failure this
+ * whole check exists for: a diagram the writer never finished.
+ */
 export function extractMermaidFences(content: string): MermaidFence[] {
   const fences: MermaidFence[] = [];
   const lines = content.split(/\r?\n/);
@@ -134,11 +145,17 @@ export function extractMermaidFences(content: string): MermaidFence[] {
     if (kind === "open") {
       open = fence.info === "mermaid" ? { line: i + 1, body: [] } : null;
     } else if (kind === "close") {
-      if (open) fences.push({ line: open.line, body: open.body.join("\n") });
+      if (open) {
+        fences.push({ line: open.line, body: open.body.join("\n"), closed: true });
+      }
       open = null;
     } else if (kind === "fenced" && open) {
       open.body.push(lines[i]);
     }
+  }
+
+  if (open) {
+    fences.push({ line: open.line, body: open.body.join("\n"), closed: false });
   }
 
   return fences;

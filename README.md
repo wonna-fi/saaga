@@ -272,7 +272,7 @@ Three checks run over every Markdown document under `saaga-docs/`:
 | Check | What it means | Result |
 | ----- | ------------- | ------ |
 | **Relative links** | Every `[text](./path.md)` target resolves on disk. Targets outside the corpus (a link to real source, e.g. `../../src/cli.ts`) are checked too. External URLs and `#anchor` suffixes are not. | Fails the flow |
-| **Mermaid fences** | Every ` ```mermaid ` block declares a known diagram type and parses at the structural level. | Fails the flow |
+| **Mermaid fences** | Every ` ```mermaid ` block is terminated, declares a known diagram type, and leaves no node bracket open. | Fails the flow |
 | **Orphan documents** | Every document is linked from at least one other document. `INDEX.md` files and the corpus `README.md` are entry points and are exempt. | Warning only |
 
 A failure names the report, which lists every problem with its file and line:
@@ -294,12 +294,19 @@ yet.
 **On Mermaid validation.** Saaga does not depend on Mermaid. The real `mermaid`
 package needs a DOM, and `@mermaid-js/parser` pulls in Langium while not even
 covering `flowchart` — both are disproportionate for a package that ships five
-production dependencies. The check is instead a small parse-only pass: it verifies
-the diagram type against a known list, checks the flowchart direction token, and
-requires brackets and quotes to balance. That catches the failure that actually
-happens — a truncated or mangled diagram — without pretending to validate Mermaid's
-full grammar. A valid diagram that uses an unrecognised type is a one-line addition
-to `MERMAID_DIAGRAM_TYPES` in `src/docs/validate.ts`.
+production dependencies. The check is instead a small parse-only pass: the fence
+must be closed, the diagram type must be one it recognises, the flowchart direction
+token must be valid, and a flowchart must leave no node bracket open. That catches
+the failure that actually happens — a diagram the writer truncated or mangled —
+without pretending to validate Mermaid's full grammar.
+
+The bracket rule is deliberately narrow, because failing a *valid* diagram is worse
+than missing an invalid one: it aborts a run whose corpus is already on disk. So it
+applies to flowcharts only (other diagram types use the same characters as grammar —
+`erDiagram` writes cardinality as `||--o{`, whose brace never closes), it ignores
+unmatched closing brackets (the asymmetric node `A>text]` is valid), and it skips
+anything inside quotes. A valid diagram whose type is not recognised is a one-line
+addition to `MERMAID_DIAGRAM_TYPES` in `src/docs/validate.ts`.
 
 ## Runtime and cost
 

@@ -124,7 +124,7 @@ describe("validate-docs: fatal problems", () => {
     expect(report).toContain("unknown diagram type `flowcart`");
   });
 
-  test("an unbalanced diagram fails the flow", async () => {
+  test("a node left open fails the flow", async () => {
     const { app, outDir } = await cleanApp();
     await writeAt(
       app,
@@ -143,7 +143,20 @@ describe("validate-docs: fatal problems", () => {
 
     await expect(run(app, outDir)).rejects.toThrow(/1 invalid Mermaid diagram\b/);
     const report = await readFile(join(outDir, "doc-validation.md"), "utf8");
-    expect(report).toContain("unbalanced brackets");
+    expect(report).toContain("unclosed brackets");
+  });
+
+  test("a diagram the writer never finished fails the flow", async () => {
+    const { app, outDir } = await cleanApp();
+    await writeAt(
+      app,
+      `${DEFAULT_DOCS_DIR}/concepts/beta.md`,
+      ["# Beta", "", "[Alpha](./alpha.md)", "", "```mermaid", "flowchart TD"].join("\n"),
+    );
+
+    await expect(run(app, outDir)).rejects.toThrow(/1 invalid Mermaid diagram\b/);
+    const report = await readFile(join(outDir, "doc-validation.md"), "utf8");
+    expect(report).toContain("unterminated ```mermaid fence");
   });
 });
 

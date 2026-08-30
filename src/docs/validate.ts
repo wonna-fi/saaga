@@ -120,7 +120,9 @@ export async function validateCorpus(
     }
 
     for (const fence of extractMermaidFences(doc.content)) {
-      const reason = validateMermaidFence(fence.body);
+      const reason = fence.closed
+        ? validateMermaidFence(fence.body)
+        : "unterminated ```mermaid fence";
       if (reason !== null) {
         invalidMermaid.push({
           kind: "invalid-mermaid",
@@ -200,23 +202,34 @@ export function validateMermaidFence(body: string): string | null {
     if (direction !== "" && !FLOWCHART_DIRECTIONS.includes(direction)) {
       return `invalid ${keyword} direction \`${direction}\``;
     }
+    return checkUnclosedBrackets(lines.join("\n"));
   }
 
-  return checkBalance(lines.join("\n"));
+  return null;
 }
 
-const CLOSERS: Record<string, string> = { ")": "(", "]": "[", "}": "{" };
+const OPENERS = "([{";
+const CLOSERS = ")]}";
 
 /**
- * Reports unbalanced brackets or quotes across a diagram body.
+ * Reports node brackets left open across a flowchart body — a diagram cut off
+ * mid-node, e.g. `A[CLI --> B[Backend]`.
  *
- * This is what catches the failure that actually happens — a truncated or
- * mangled diagram — without pretending to understand Mermaid's grammar.
- * Characters inside double quotes are skipped, because a quoted node label may
- * legitimately contain a lone bracket.
+ * Three deliberate restrictions keep this from failing a *valid* diagram, which
+ * would be far worse than missing an invalid one: it aborts a documenting flow
+ * after the corpus is already on disk.
+ *
+ *   1. Flowcharts only. Other diagram types use the same characters as grammar
+ *      rather than as pairs — `erDiagram` writes cardinality as `||--o{`, whose
+ *      brace never closes.
+ *   2. Unmatched *closers* are ignored, only unclosed openers count. The
+ *      asymmetric flowchart node `A>text]` legitimately closes a bracket it
+ *      never opened.
+ *   3. Characters inside double quotes are skipped, because a quoted label may
+ *      legitimately contain a lone bracket.
  */
-function checkBalance(body: string): string | null {
-  const stack: string[] = [];
+function checkUnclosedBrackets(body: string): string | null {
+  let depth = 0;
   let quoted = false;
 
   for (const ch of body) {
@@ -226,14 +239,9 @@ function checkBalance(body: string): string | null {
     }
     if (quoted) continue;
 
-    if (ch === "(" || ch === "[" || ch === "{") {
-      stack.push(ch);
-    } else if (ch in CLOSERS) {
-      if (stack.pop() !== CLOSERS[ch]) return "unbalanced brackets";
-    }
+    if (OPENERS.includes(ch)) depth++;
+    else if (CLOSERS.includes(ch) && depth > 0) depth--;
   }
 
-  if (quoted) return "unbalanced quotes";
-  if (stack.length > 0) return "unbalanced brackets";
-  return null;
+  return depth > 0 ? "unclosed brackets" : null;
 }

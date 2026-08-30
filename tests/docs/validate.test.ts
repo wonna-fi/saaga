@@ -171,15 +171,9 @@ describe("validate: mermaid", () => {
     );
   });
 
-  test("rejects unbalanced brackets — the truncated-diagram case", () => {
+  test("rejects a flowchart node left open — the truncated-diagram case", () => {
     expect(validateMermaidFence("flowchart TD\n  A[CLI --> B[Backend]")).toBe(
-      "unbalanced brackets",
-    );
-  });
-
-  test("rejects unbalanced quotes", () => {
-    expect(validateMermaidFence('flowchart TD\n  A["label] --> B')).toBe(
-      "unbalanced quotes",
+      "unclosed brackets",
     );
   });
 
@@ -187,9 +181,56 @@ describe("validate: mermaid", () => {
     expect(validateMermaidFence('flowchart TD\n  A["a [ b"] --> B')).toBeNull();
   });
 
+  test("accepts every flowchart node shape, including the asymmetric one", () => {
+    // `A>text]` closes a bracket it never opened, and is valid Mermaid.
+    const shapes = [
+      "flowchart TD",
+      "    A[square] --> B(round)",
+      "    C([stadium]) --> D[[subroutine]]",
+      "    E[(database)] --> F((circle))",
+      "    G>asymmetric] --> H{rhombus}",
+      "    I{{hexagon}} --> J[/parallelogram/]",
+      "    K[/trapezoid\\] --> L",
+      "    subgraph one [My Title]",
+      "    end",
+    ].join("\n");
+
+    expect(validateMermaidFence(shapes)).toBeNull();
+  });
+
+  test("does not apply bracket rules to diagram types that use them as grammar", () => {
+    // erDiagram cardinality (`||--o{`) has a brace that never closes.
+    const er = [
+      "erDiagram",
+      "    CUSTOMER ||--o{ ORDER : places",
+      "    CUSTOMER }|..|{ DELIVERY-ADDRESS : uses",
+      "    ORDER ||--|{ LINE-ITEM : contains",
+    ].join("\n");
+
+    expect(validateMermaidFence(er)).toBeNull();
+  });
+
   test("rejects an empty or comment-only fence", () => {
     expect(validateMermaidFence("")).toBe("empty diagram");
     expect(validateMermaidFence("%% nothing here\n\n")).toBe("empty diagram");
+  });
+
+  test("a fence the document never closes is reported", async () => {
+    const docs: DocInput[] = [
+      {
+        path: "INDEX.md",
+        content: ["# Index", "", "```mermaid", "flowchart TD", "  A --> B"].join("\n"),
+      },
+    ];
+
+    expect((await validate(docs)).invalidMermaid).toEqual([
+      {
+        kind: "invalid-mermaid",
+        file: "INDEX.md",
+        line: 3,
+        message: "unterminated ```mermaid fence",
+      },
+    ]);
   });
 
   test("an invalid fence is reported with its file and line", async () => {

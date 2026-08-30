@@ -116,7 +116,15 @@ describe("link-graph: extractMermaidFences", () => {
     );
 
     expect(extractMermaidFences(md)).toEqual([
-      { line: 3, body: "flowchart TD\n  A --> B" },
+      { line: 3, body: "flowchart TD\n  A --> B", closed: true },
+    ]);
+  });
+
+  test("returns a fence the document never closes, marked unclosed", () => {
+    const md = ["# Title", "", "```mermaid", "flowchart TD", "  A --> B"].join("\n");
+
+    expect(extractMermaidFences(md)).toEqual([
+      { line: 3, body: "flowchart TD\n  A --> B", closed: false },
     ]);
   });
 
@@ -128,7 +136,7 @@ describe("link-graph: extractMermaidFences", () => {
   test("a longer fence is not closed by a shorter one inside it", () => {
     const md = ["````mermaid", "flowchart TD", "```", "  A --> B", "````"].join("\n");
     expect(extractMermaidFences(md)).toEqual([
-      { line: 1, body: "flowchart TD\n```\n  A --> B" },
+      { line: 1, body: "flowchart TD\n```\n  A --> B", closed: true },
     ]);
   });
 });
