@@ -43,7 +43,10 @@ export async function collectQuickUpdates(
     const entries = await readdir(args.metadata_dir);
     for (const entry of entries.sort()) {
       const full = resolve(args.metadata_dir, entry);
-      if (await isDir(full)) {
+      // A folder without a summary is the leftover of a quick-update that
+      // was interrupted before the agent finished; it holds nothing to
+      // verify.
+      if (await isDir(full) && await isFile(resolve(full, "summary.md"))) {
         ids.push(entry);
       }
     }
@@ -64,6 +67,15 @@ export async function collectQuickUpdates(
     manifest_path: manifestPath,
     ids,
   };
+}
+
+async function isFile(path: string): Promise<boolean> {
+  try {
+    const s = await stat(path);
+    return s.isFile();
+  } catch {
+    return false;
+  }
 }
 
 async function isDir(path: string): Promise<boolean> {

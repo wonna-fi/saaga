@@ -13,8 +13,8 @@ export async function runIfStep(
   dispatch: StepDispatcher,
 ): Promise<void> {
   if (evaluatePredicate(step.condition, scope)) {
-    for (const child of step.then) {
-      await dispatch(child, scope);
+    for (let j = 0; j < step.then.length; j++) {
+      await dispatch(step.then[j], scope, j, 0);
     }
   }
 }

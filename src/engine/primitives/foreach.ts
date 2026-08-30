@@ -6,7 +6,17 @@ import type { ForeachStep, Scope, Step } from "../types.js";
  * `runner.ts`. The runner injects its own dispatcher when invoking
  * `runForeachStep`.
  */
-export type StepDispatcher = (step: Step, scope: Scope) => Promise<void>;
+export type StepDispatcher = (
+  step: Step,
+  scope: Scope,
+  /** Position of `step` in the enclosing `do`/`then` list. */
+  childIndex: number,
+  /**
+   * For foreach: index of the current item in the unfiltered source array.
+   * For loop: the 1-based iteration. Unused (0) for `if`.
+   */
+  iterIndex: number,
+) => Promise<void>;
 
 export async function runForeachStep(
   step: ForeachStep,
@@ -25,13 +35,13 @@ export async function runForeachStep(
     : { had: false as const };
 
   try {
-    for (const item of items) {
-      scope[step.var] = item;
+    for (let i = 0; i < items.length; i++) {
+      scope[step.var] = items[i];
       if (step.when && !evaluatePredicate(step.when, scope)) {
         continue;
       }
-      for (const child of step.do) {
-        await dispatch(child, scope);
+      for (let j = 0; j < step.do.length; j++) {
+        await dispatch(step.do[j], scope, j, i);
       }
     }
   } finally {

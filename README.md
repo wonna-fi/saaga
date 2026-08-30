@@ -170,6 +170,22 @@ Run a named flow. Omit the flow name (`saaga run`) to list available
 flows. All flows accept an optional `[dir]` argument that defaults to
 the current working directory.
 
+A run that is interrupted (Ctrl+C) or fails part-way can be picked up
+where it stopped. Saaga prints the exact command when it happens:
+
+```text
+interrupted. To resume: saaga run --resume myapp-init-20260830-101500-2f498e6e
+```
+
+`saaga run --resume <run-id> [dir]` re-runs only the step that was in
+progress and everything after it; steps that had already completed are
+skipped and their results reused. `saaga run [flow] --continue [dir]`
+does the same for the most recent interrupted or failed run in the
+directory. The flow definition must be unchanged since the run started;
+`--backend` and `--model` may differ, which is useful when the original
+backend was the reason for the failure. Pressing Ctrl+C a second time
+exits immediately without recording the interruption.
+
 Built-in flows:
 
 ```text
@@ -218,12 +234,19 @@ saaga doctor                    Check backend CLI availability and
 | Flag | Subcommands | Description |
 | ---- | ----------- | ----------- |
 | `--rule-targets <targets>` | `run`, `install-rules` | Comma-separated rule targets: `agentsmd`, `cursor`, `claude`, `copilot`, `none` (used by the `init` flow) |
+| `--resume <run-id>` | `run` | Resume an interrupted or failed run where it stopped; the flow name is taken from the run |
+| `--continue` | `run` | Resume the most recent interrupted or failed run in the directory (of the given flow, if one is named) |
 
 ### Output locations
 
 - **Run artifacts** (plans, status files, change reports) are written
   under `<project>/.saaga-runs/<run-id>/`. This directory is
   automatically added to `.gitignore` by `saaga run init`.
+- **Run state** lives next to the artifacts: `run.json` records the
+  run's flow, backend, model, and status (`running`, `interrupted`,
+  `failed`, `completed`), `steps.jsonl` lists every completed step so a
+  resumed run knows what to skip, `run.log` captures all output, and
+  `permissions.json` snapshots the permission profile.
 - **Rendered prompts** for every agent step are archived under
   `<project>/.saaga-runs/<run-id>/prompts/`, exactly as the agent
   received them. Together with the plan they make a run reproducible.

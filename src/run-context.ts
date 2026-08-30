@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { mkdir } from "node:fs/promises";
+import { mkdir, stat } from "node:fs/promises";
 import { resolve } from "node:path";
 
 export interface CreateRunContextInput {
@@ -55,6 +55,40 @@ export async function createRunContext(
     runDir,
     date: formatDate(now),
     isoDate: formatIsoDate(now),
+  };
+}
+
+/**
+ * Rebuilds the context of an earlier run from its manifest, so a resumed
+ * run keeps the same id, directory and dates. The run-id string is never
+ * parsed: app names may contain dashes.
+ */
+export async function reopenRunContext(input: {
+  app: string;
+  appPath: string;
+  subcommand: string;
+  runId: string;
+  date: string;
+  isoDate: string;
+}): Promise<RunContext> {
+  const runDir = resolve(input.appPath, ".saaga-runs", input.runId);
+  let isDir: boolean;
+  try {
+    isDir = (await stat(runDir)).isDirectory();
+  } catch {
+    isDir = false;
+  }
+  if (!isDir) {
+    throw new Error(`run directory not found: ${runDir}`);
+  }
+  return {
+    app: input.app,
+    appPath: input.appPath,
+    subcommand: input.subcommand,
+    runId: input.runId,
+    runDir,
+    date: input.date,
+    isoDate: input.isoDate,
   };
 }
 

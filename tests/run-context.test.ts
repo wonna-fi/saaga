@@ -3,7 +3,41 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
 import { parseDoc } from "../src/docs/frontmatter.js";
-import { createRunContext } from "../src/run-context.js";
+import { createRunContext, reopenRunContext } from "../src/run-context.js";
+
+describe("reopenRunContext", () => {
+  test("rebuilds the context of an existing run without touching the id", async () => {
+    const appDir = await mkdtemp(join(tmpdir(), "saaga-app-"));
+    const created = await createRunContext({
+      app: "myapp",
+      subcommand: "init",
+      appPath: appDir,
+    });
+    const reopened = await reopenRunContext({
+      app: "myapp",
+      appPath: appDir,
+      subcommand: "init",
+      runId: created.runId,
+      date: created.date,
+      isoDate: created.isoDate,
+    });
+    expect(reopened).toEqual(created);
+  });
+
+  test("fails when the run directory does not exist", async () => {
+    const appDir = await mkdtemp(join(tmpdir(), "saaga-app-"));
+    await expect(
+      reopenRunContext({
+        app: "myapp",
+        appPath: appDir,
+        subcommand: "init",
+        runId: "myapp-init-20260101-000000-00000000",
+        date: "20260101",
+        isoDate: "2026-01-01",
+      }),
+    ).rejects.toThrow(/run directory not found/);
+  });
+});
 
 const RUN_ID_RE =
   /^[a-zA-Z0-9_.-]+-[a-zA-Z0-9-]+-\d{8}-\d{6}-[0-9a-f]{8}$/;
