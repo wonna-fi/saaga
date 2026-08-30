@@ -1,5 +1,8 @@
+import { resolve } from "node:path";
 import { describe, expect, test } from "vitest";
 import { agentSteps, listFlows, loadFlow } from "../src/engine/loader.js";
+import { PROMPTS_DIR } from "../src/paths.js";
+import { renderPromptFile } from "../src/templates.js";
 import type { ScriptStep, Step } from "../src/engine/types.js";
 
 const UPDATE_FAMILY = ["update", "quick-update", "verify-quick-updates"];
@@ -160,8 +163,8 @@ describe("verify receives an ISO date for the last_verified stamp", () => {
     "%s passes iso_date to every verify step",
     async (name) => {
       const flow = await loadFlow(name);
-      const verifiers = agentSteps(flow.steps).filter(
-        (s) => s.prompt === "verify-domain-documentation",
+      const verifiers = agentSteps(flow.steps).filter((s) =>
+        s.prompt.startsWith("verify-"),
       );
 
       expect(verifiers.length).toBeGreaterThan(0);
@@ -198,3 +201,107 @@ describe("agent step model keys", () => {
     expect(steps[0].model).toBeUndefined();
   });
 });
+
+/**
+ * Task 6: ARCHITECTURE.md is generated before the plan exists and outside the
+ * per-phase verify/fix loop, so nothing checked it. Its own loop runs after
+ * parse-plan — the plan is where its budget and its ownership declaration live —
+ * and before the phase-0 slice, so a trimmed document is what the rest of the
+ * run reads.
+ */
+describe("the architecture verify/fix loop in init", () => {
+  test("runs after the plan is parsed and before the first slice", async () => {
+    const flow = await loadFlow("init");
+    const kinds = flow.steps.map((s) =>
+      s.type === "script" ? `script:${s.name}` : s.type === "agent" ? `agent:${s.prompt}` : s.type,
+    );
+
+    const parse = kinds.indexOf("script:parse-plan");
+    const loop = kinds.indexOf("loop");
+    const firstSlice = kinds.indexOf("agent:slice-doc");
+
+    expect(parse).toBeGreaterThanOrEqual(0);
+    expect(loop).toBeGreaterThan(parse);
+    expect(firstSlice).toBeGreaterThan(loop);
+  });
+
+  test("verifies and fixes the architecture inside one bounded loop", async () => {
+    const flow = await loadFlow("init");
+    const loop = flow.steps.find((s) => s.type === "loop");
+    expect(loop, "init has no top-level loop").toBeDefined();
+    if (loop?.type !== "loop") throw new Error("unreachable");
+
+    expect(loop.max).toBe(3);
+
+    const prompts = agentSteps(loop.do).map((s) => s.prompt);
+    expect(prompts).toContain("verify-architecture");
+    expect(prompts).toContain("fix-documentation");
+  });
+
+  // ${status} belongs to the per-phase loop later in the flow. Reusing it here
+  // would leave a stale "PASS" in scope and let that loop exit before verifying.
+  test("uses its own status variable, not the per-phase one", async () => {
+    const flow = await loadFlow("init");
+    const loop = flow.steps.find((s) => s.type === "loop");
+    if (loop?.type !== "loop") throw new Error("init has no top-level loop");
+
+    expect(loop.until).toContain("arch_status");
+    expect(loop.until).not.toContain("${status}");
+  });
+});
+
+/**
+ * A `{var}` the flow does not pass is left in the rendered prompt verbatim
+ * (`src/templates.ts` substitutes leniently), so the agent is handed a literal
+ * `{status_path}` to write to and the failure surfaces much later as a missing
+ * file — or not at all. The document templates carry deliberate literals like
+ * `{family}` and `{method}`, so this checks only the names flows actually supply.
+ */
+describe("every prompt gets the vars it asks for", () => {
+  const FLOW_SUPPLIED = [
+    "app",
+    "changes_dir",
+    "changes_path",
+    "date",
+    "docs_dir",
+    "manifest_path",
+    "metadata_dir",
+    "output_path",
+    "phase_number",
+    "plan",
+    "review_path",
+    "scratch_path",
+    "status_path",
+    "summary_path",
+  ];
+
+  test("no flow-supplied placeholder survives rendering", async () => {
+    const flows = await listFlows();
+    const missing: string[] = [];
+
+    for (const { name } of flows) {
+      const flow = await loadFlow(name);
+      for (const step of agentSteps(flow.steps)) {
+        // Substitute a sentinel rather than the flow's own `${app}`-style
+        // value: that value contains the placeholder as a substring, so the
+        // scan below would report every var the flow does supply.
+        const vars = Object.fromEntries(
+          Object.keys(step.vars ?? {}).map((k) => [k, `<<${k}>>`]),
+        );
+        const out = await renderPromptFile(
+          resolve(PROMPTS_DIR, `${step.prompt}.md`),
+          vars,
+          { includeRoots: [PROMPTS_DIR] },
+        );
+        for (const key of FLOW_SUPPLIED) {
+          if (out.includes(`{${key}}`)) {
+            missing.push(`${name} > ${step.prompt}: {${key}}`);
+          }
+        }
+      }
+    }
+
+    expect(missing).toEqual([]);
+  });
+});
+

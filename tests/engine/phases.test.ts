@@ -18,18 +18,64 @@ describe("PhaseTracker", () => {
     expect(tracker.total(scope)).toBe(3);
   });
 
-  test("read-file and loop count as 0 units", () => {
+  test("read-file counts as 0 units", () => {
     const flow: FlowDefinition = {
       name: "test",
       steps: [
         { type: "agent", prompt: "a" },
         { type: "read-file", path: "/x", set: "v" },
-        { type: "loop", max: 3, until: "done", do: [{ type: "agent", prompt: "inner" }] },
         { type: "agent", prompt: "b" },
       ],
     };
     const tracker = new PhaseTracker(flow);
     expect(tracker.total({})).toBe(2);
+  });
+
+  // A top-level loop is one phase however many times it goes round: its body
+  // reports under that number with an iteration suffix, so a retry does not
+  // make the total jump. Counting its body instead would make M depend on how
+  // many iterations happen to be needed, which is not known in advance.
+  test("a top-level loop counts as 1 unit regardless of its body", () => {
+    const flow: FlowDefinition = {
+      name: "test",
+      steps: [
+        { type: "agent", prompt: "a" },
+        {
+          type: "loop",
+          max: 3,
+          until: "done",
+          do: [
+            { type: "agent", prompt: "inner" },
+            { type: "read-file", path: "/x", set: "v" },
+            { type: "agent", prompt: "alsoInner" },
+          ],
+        },
+        { type: "agent", prompt: "b" },
+      ],
+    };
+    const tracker = new PhaseTracker(flow);
+    expect(tracker.total({})).toBe(3);
+  });
+
+  // Inside a foreach the counter never recurses into the body at all, so a
+  // loop nested there contributes nothing and the item's own phase covers it.
+  test("a loop inside a foreach body does not add to the total", () => {
+    const flow: FlowDefinition = {
+      name: "test",
+      steps: [
+        {
+          type: "foreach",
+          var: "p",
+          in: "${phases}",
+          do: [
+            { type: "agent", prompt: "slice" },
+            { type: "loop", max: 3, until: "done", do: [{ type: "agent", prompt: "verify" }] },
+          ],
+        },
+      ],
+    };
+    const tracker = new PhaseTracker(flow);
+    expect(tracker.total({ phases: [1, 2] })).toBe(2);
   });
 
   test("foreach counts items from scope", () => {

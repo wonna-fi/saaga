@@ -158,6 +158,10 @@ Write exactly `UPDATED` to `{status_path}`. Nothing else in this file.
 
 ---
 
+{include:partials/single-home.md}
+
+---
+
 ## Notes
 
 - Speed over perfection. This update will be verified and hardened later by `verify-quick-updates`.

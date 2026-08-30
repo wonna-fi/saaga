@@ -130,7 +130,7 @@ export async function runFlow(
     for (let i = 0; i < flow.steps.length; i++) {
       await runStep(flow.steps[i], scope, effectiveDeps, tracker, {
         isTopLevel: true,
-        insideForeach: false,
+        sharesParentPhase: false,
         addr: topLevelAddress(i),
       }, run);
     }
@@ -168,8 +168,11 @@ interface StepContext {
   /** Journal address of this step; see `journal.ts`. */
   addr: string;
   isTopLevel: boolean;
-  /** When inside a foreach, the phase counter has already been advanced. */
-  insideForeach: boolean;
+  /**
+   * This step's phase number was already advanced by its parent — a foreach
+   * item, or a top-level loop. Emit the phase line, but do not advance again.
+   */
+  sharesParentPhase: boolean;
   /** When inside a loop, the current iteration (1-indexed). */
   loopIteration?: number;
   /** When inside a loop, the max iterations. */
@@ -197,8 +200,8 @@ async function runStep(
     case "agent": {
       const label = resolveLabel(step, scope);
       const iterSuffix = formatIterSuffix(ctx);
-      const shouldEmit = ctx.isTopLevel || ctx.insideForeach;
-      if (shouldEmit && !ctx.insideForeach) {
+      const shouldEmit = ctx.isTopLevel || ctx.sharesParentPhase;
+      if (shouldEmit && !ctx.sharesParentPhase) {
         tracker.advance();
       }
       const phaseLine = () =>
@@ -236,8 +239,8 @@ async function runStep(
     case "script": {
       const label = resolveLabel(step, scope);
       const iterSuffix = formatIterSuffix(ctx);
-      const shouldEmit = ctx.isTopLevel || ctx.insideForeach;
-      if (shouldEmit && !ctx.insideForeach) {
+      const shouldEmit = ctx.isTopLevel || ctx.sharesParentPhase;
+      if (shouldEmit && !ctx.sharesParentPhase) {
         tracker.advance();
       }
       const phaseLine = () =>
@@ -371,7 +374,7 @@ async function runForeachWithPhases(
       }
       await runStep(child, iterScope, deps, tracker, {
         isTopLevel: false,
-        insideForeach: true,
+        sharesParentPhase: true,
         addr: foreachChildAddress(parentCtx.addr, i, j),
       }, run);
     },
@@ -386,10 +389,20 @@ async function runLoopWithPhases(
   parentCtx: StepContext,
   run: RunState,
 ): Promise<void> {
+  // A top-level loop is one phase, advanced once at its first step. Without
+  // this its body emits no phase line at all: every other agent step in every
+  // flow announces itself, so silence there reads as a hang rather than as a
+  // verification pass that takes a minute. A nested loop keeps its parent's
+  // phase, which the per-phase verify/fix loop already relies on.
+  let advanced = !parentCtx.isTopLevel;
   await runLoopStep(step, scope, async (child, iterScope, j, i) => {
+    if (!advanced) {
+      tracker.advance();
+      advanced = true;
+    }
     await runStep(child, iterScope, deps, tracker, {
       isTopLevel: false,
-      insideForeach: parentCtx.insideForeach,
+      sharesParentPhase: parentCtx.isTopLevel || parentCtx.sharesParentPhase,
       loopIteration: i,
       loopMax: step.max,
       addr: loopChildAddress(parentCtx.addr, i, j),

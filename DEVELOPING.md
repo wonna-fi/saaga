@@ -158,13 +158,27 @@ own directory first, then in the roots the caller passes (today just
 `prompts/`). Partials may include other partials; cycles, excessive
 nesting and paths that escape the roots are errors.
 
-One rule splits across both homes: level of detail. The static half —
+Two rules split across both homes. **Level of detail**: the static half —
 the budget bands, the consequence test, the amortization rule — lives in
 [`partials/lod-policy.md`](./prompts/partials/lod-policy.md) so the writer
 and the verifier read identical text. The dynamic half — which budget each
 document gets, and how much this run is allowed to grow the corpus — is a
 per-run decision, so it lives in the planning prompts and is recorded in
 the plan. See [Level of detail](./README.md#level-of-detail).
+
+**Single home per fact** splits the same way: which class of fact each
+document type owns lives in
+[`partials/single-home.md`](./prompts/partials/single-home.md), while what
+*this* corpus's documents own and reference is a per-run decision the plan
+records. `ARCHITECTURE.md` is the exception that needs a third place: it is
+written before the plan exists, so its writing target lives in
+[`document-architecture.md`](./prompts/document-architecture.md) and the
+number the verifier grades comes from the plan. It has a verify/fix pass of
+its own in `init`, using
+[`verify-architecture.md`](./prompts/verify-architecture.md) — the shared
+verifier is scoped to a plan phase and to the four category directories, and
+ARCHITECTURE.md is in neither. See
+[Single home per fact](./README.md#single-home-per-fact).
 
 The split matters: **prompts carry methodology, generated plans carry
 decisions.** A plan records what this run does — which documents to write,

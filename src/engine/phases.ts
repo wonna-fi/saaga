@@ -7,8 +7,9 @@ import type { FlowDefinition, ForeachStep, IfStep, Scope, Step } from "./types.j
  * of work: agent steps, script steps, foreach iterations (one per
  * surviving item), and skipped if-blocks (one [SKIP] line).
  *
- * read-file and loop steps are plumbing and produce no phase line.
- * Steps nested inside a foreach body share their parent's phase index.
+ * read-file steps are plumbing and produce no phase line of their own.
+ * Steps nested inside a foreach body, or inside a top-level loop, share
+ * their parent's phase index.
  */
 export class PhaseTracker {
   private readonly flow: FlowDefinition;
@@ -68,8 +69,14 @@ export class PhaseTracker {
         return this.countIf(step, scope);
 
       case "read-file":
-      case "loop":
         return 0;
+
+      // A top-level loop is one phase: its body reports under that number
+      // with an iteration suffix, the same shape a foreach item uses. A loop
+      // inside a foreach body is never reached here — countForeach counts
+      // items without recursing into them.
+      case "loop":
+        return 1;
 
       default:
         return 0;
@@ -106,8 +113,8 @@ export class PhaseTracker {
   // Note: this method is only reached for `if` steps reachable via
   // top-level `countSteps` or recursion through `if.then` bodies —
   // never for `if` steps nested inside `foreach.do` or `loop.do`,
-  // because `countForeach` counts items without recursing into the
-  // body and `countStep` returns 0 for loops. The runner mirrors
+  // because neither `countForeach` nor the `loop` arm of `countStep`
+  // recurses into a body — they count the container. The runner mirrors
   // this: it only emits [SKIP] and advances for top-level-equivalent
   // ifs (ctx.isTopLevel), so the count stays consistent.
   private countIf(step: IfStep, scope: Scope): number | null {

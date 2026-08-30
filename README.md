@@ -384,7 +384,8 @@ An absent or empty `saaga-docs/` passes with no report: there is nothing to chec
 yet.
 
 The convention cap is the one *length* rule enforced here rather than by the verify
-agent. Every other length target is a budget the plan assigns and the verifier
+agent. Every other length target — including `ARCHITECTURE.md`'s, which is assigned
+by the plan and graded by a verify pass of its own — is a budget the verifier
 applies with tolerance. A convention is different in kind: it exists precisely
 because it is short enough to hold in your head, and one that grows is a convention
 turning back into the pattern it was extracted from. A cap read as a tolerance is
@@ -463,6 +464,59 @@ changes fold into an existing table row or sentence rather than opening a new se
 Corrections are never capped. The cap is on growth alone, because a document left
 saying something untrue is a worse failure than a long one — so an update that has to
 correct a renamed symbol in six documents corrects all six.
+
+### Single home per fact
+
+Every mechanism in the previous section pushes *length* down. This one pushes down
+the thing that actually goes stale: the same fact written in more than one place.
+
+A fact with three homes needs three edits every time the source changes, and it
+reliably gets fewer — so the copies drift apart and a reader has no way to tell
+which one is current. Before this rule, Saaga's own corpus restated the flow step
+sequences in four documents, and its CLI feature document re-derived the
+architecture document's CLI section down to a table of seventeen non-exported
+helpers.
+
+So each class of fact gets one owning document, and every other document links to
+the owner instead of restating it:
+
+| Fact class | Owner |
+| ---- | ----- |
+| A flow's or workflow's step sequence | that workflow's feature document |
+| The CLI surface — subcommands, flags, exit codes | `ARCHITECTURE.md` summarises in a paragraph; the CLI feature document holds the detail |
+| A module's public interface | `ARCHITECTURE.md` names the module and its role; the concept or feature document covering it holds the interface |
+| A domain term's definition | its concept document |
+| A lexical rule | its convention document |
+| Anything else | the document the fact is *about*, not the one that merely uses it |
+
+The plan records the decision per document — what it owns, and which documents it
+links to for the rest — and verification checks that a document does not restate
+what it declared as referenced. A finding names the passage and the owner, and the
+fix step replaces the passage with one sentence and a link. It may only link to a
+document the plan actually lists, so a trimmed reference can never point at a file
+nothing will create.
+
+The test a writer can apply before writing a section: **if changing one line of
+source would require editing two documents, one of them is restating.**
+
+**ARCHITECTURE.md is the case this was built for.** It is the only document that
+describes the whole system, so every fact has a plausible excuse to live there —
+and it was the one document nothing checked. `init` generates it before the plan
+exists and outside the per-phase verify/fix loop, so the instructions in its own
+prompt ("concise", "public interface only") had nothing behind them; the result
+was 689 lines. It now gets its own verify/fix pass, running after the plan is
+parsed so it can be held to a budget the plan assigns:
+
+| Part | Target |
+| ---- | ----- |
+| Overall Architecture | 60 lines, any diagram included |
+| Each module | 8 lines |
+| Whole document | 250 lines, and if `60 + 8 × modules` exceeds it, the module list is too granular — group into subsystems |
+
+Verification grades that budget with the same tolerance as any other document, and
+reports export lists, internal-implementation blocks and CLI walkthroughs as
+content belonging to another document. `update` budgets it the same way, so the
+diet does not decay on the first run after `init` trimmed it.
 
 ## Runtime and cost
 
