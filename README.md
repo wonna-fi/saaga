@@ -219,6 +219,9 @@ saaga doctor                    Check backend CLI availability and
 - **Rendered prompts** for every agent step are archived under
   `<project>/.saaga-runs/<run-id>/prompts/`, exactly as the agent
   received them. Together with the plan they make a run reproducible.
+- **The structural validation report** for the run is written to
+  `<project>/.saaga-runs/<run-id>/doc-validation.md` (see
+  [Documentation validation](#documentation-validation)).
 - **Generated docs** land in `<project>/saaga-docs/`.
 
 ### Corpus format version
@@ -251,6 +254,59 @@ The check runs as the first step of the flow, before any agent is invoked, so a
 mismatch costs no tokens. To upgrade a corpus, delete `saaga-docs/` and run
 `saaga run init` to regenerate it. (A `saaga migrate` command will upgrade in
 place once the format is frozen.)
+
+### Documentation validation
+
+`saaga run init`, `update`, and `quick-update` finish with a deterministic
+structural check of the corpus. (In `update` and `quick-update` the check is part
+of the update itself, so a run that detects no changes skips it along with
+everything else.)
+
+Link integrity, diagram validity, and reachability are facts a program can decide,
+so they are decided in code rather than left to the verification agent — that makes
+them reliable, costs no tokens, and frees the verify pass for the semantic questions
+only a model can answer.
+
+Three checks run over every Markdown document under `saaga-docs/`:
+
+| Check | What it means | Result |
+| ----- | ------------- | ------ |
+| **Relative links** | Every `[text](./path.md)` target resolves on disk. Targets outside the corpus (a link to real source, e.g. `../../src/cli.ts`) are checked too. External URLs and `#anchor` suffixes are not. | Fails the flow |
+| **Mermaid fences** | Every ` ```mermaid ` block is terminated, declares a known diagram type, and leaves no node bracket open. | Fails the flow |
+| **Orphan documents** | Every document is linked from at least one other document. `INDEX.md` files and the corpus `README.md` are entry points and are exempt. | Warning only |
+
+A failure names the report, which lists every problem with its file and line:
+
+```
+saaga-docs/ has 1 broken link and 0 invalid Mermaid diagrams.
+See the report at /path/to/project/.saaga-runs/<run-id>/doc-validation.md.
+```
+
+The report is written whenever there is a corpus to check, pass or fail. The check
+runs *after* the baseline and format stamp are written, so a failure never leaves
+the corpus in a state that stops the next run — the documentation is on disk, and
+the report tells you what to fix.
+
+Orphans only warn because an unlinked document is still correct, just unreachable.
+An absent or empty `saaga-docs/` passes with no report: there is nothing to check
+yet.
+
+**On Mermaid validation.** Saaga does not depend on Mermaid. The real `mermaid`
+package needs a DOM, and `@mermaid-js/parser` pulls in Langium while not even
+covering `flowchart` — both are disproportionate for a package that ships five
+production dependencies. The check is instead a small parse-only pass: the fence
+must be closed, the diagram type must be one it recognises, the flowchart direction
+token must be valid, and a flowchart must leave no node bracket open. That catches
+the failure that actually happens — a diagram the writer truncated or mangled —
+without pretending to validate Mermaid's full grammar.
+
+The bracket rule is deliberately narrow, because failing a *valid* diagram is worse
+than missing an invalid one: it aborts a run whose corpus is already on disk. So it
+applies to flowcharts only (other diagram types use the same characters as grammar —
+`erDiagram` writes cardinality as `||--o{`, whose brace never closes), it ignores
+unmatched closing brackets (the asymmetric node `A>text]` is valid), and it skips
+anything inside quotes. A valid diagram whose type is not recognised is a one-line
+addition to `MERMAID_DIAGRAM_TYPES` in `src/docs/validate.ts`.
 
 ## Runtime and cost
 

@@ -163,6 +163,7 @@ async function runStep(
         await runScriptStep(step, scope, {
           cwd: deps.cwd,
           scripts: deps.scripts,
+          warn: (message) => logger.warn(message),
         });
       } catch (err) {
         const elapsed = Date.now() - t0;

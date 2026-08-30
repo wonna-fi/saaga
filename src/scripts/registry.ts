@@ -9,10 +9,20 @@ import { installRules } from "./install-rules.js";
 import { parsePlan } from "./parse-plan.js";
 import { removeQuickUpdates } from "./remove-quick-updates.js";
 import { stampFormatVersion } from "./stamp-format-version.js";
+import { validateDocs } from "./validate-docs.js";
 
 export interface ScriptContext {
   /** Working directory: the application being documented. */
   cwd: string;
+  /**
+   * Emits a warning into the run output, when the caller supplied one.
+   *
+   * Optional because scripts are also invoked directly (from `src/cli.ts` and
+   * from tests) with no logger in reach. A script that has something worth
+   * saying but nothing worth failing over — `validate-docs` and its orphan
+   * documents — uses this; a report nobody sees is not a warning.
+   */
+  warn?: (message: string) => void;
 }
 
 export type ScriptHandler = (
@@ -39,4 +49,5 @@ export const defaultScriptRegistry: ScriptRegistry = {
   "ensure-gitignore": ensureGitignore as unknown as ScriptHandler,
   "check-format-version": checkFormatVersion as unknown as ScriptHandler,
   "stamp-format-version": stampFormatVersion as unknown as ScriptHandler,
+  "validate-docs": validateDocs as unknown as ScriptHandler,
 };

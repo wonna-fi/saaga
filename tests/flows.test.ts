@@ -31,12 +31,14 @@ describe("format-version gate wiring", () => {
     expect(asScript(flow.steps[0])!.args.mode).toBe("update");
   });
 
-  test("init stamps the format version as its last step", async () => {
+  test("init stamps the format version after generating the baseline", async () => {
     const flow = await loadFlow("init");
-    const last = asScript(flow.steps[flow.steps.length - 1]);
+    const names = flow.steps.map((s) => asScript(s)?.name);
 
-    expect(last).not.toBeNull();
-    expect(last!.name).toBe("stamp-format-version");
+    expect(names).toContain("stamp-format-version");
+    expect(names.indexOf("stamp-format-version")).toBeGreaterThan(
+      names.indexOf("generate-baseline"),
+    );
   });
 
   test.each(UPDATE_FAMILY)("%s does not stamp the version", async (name) => {
@@ -44,6 +46,62 @@ describe("format-version gate wiring", () => {
     const names = flow.steps.map((s) => asScript(s)?.name);
 
     expect(names).not.toContain("stamp-format-version");
+  });
+});
+
+/** Every script step in the flow, including ones nested in foreach/loop/if. */
+function scriptSteps(steps: Step[]): ScriptStep[] {
+  const out: ScriptStep[] = [];
+  for (const step of steps) {
+    switch (step.type) {
+      case "script":
+        out.push(step);
+        break;
+      case "foreach":
+      case "loop":
+        out.push(...scriptSteps(step.do));
+        break;
+      case "if":
+        out.push(...scriptSteps(step.then));
+        break;
+      default:
+        break;
+    }
+  }
+  return out;
+}
+
+describe("validate-docs wiring", () => {
+  /**
+   * Structural validation is the last thing every documenting flow does, and it
+   * must run *after* the corpus is written: failing earlier would leave the
+   * corpus unbaselined (and, for init, unstamped), which makes the next run
+   * refuse to start.
+   */
+  test.each(["init", "update", "quick-update"])(
+    "%s validates the corpus after generating the baseline",
+    async (name) => {
+      const flow = await loadFlow(name);
+      const names = scriptSteps(flow.steps).map((s) => s.name);
+
+      expect(names).toContain("validate-docs");
+      expect(names.lastIndexOf("validate-docs")).toBeGreaterThan(
+        names.lastIndexOf("generate-baseline"),
+      );
+    },
+  );
+
+  test("validate-docs is the last step of init", async () => {
+    const flow = await loadFlow("init");
+    const last = asScript(flow.steps[flow.steps.length - 1]);
+
+    expect(last).not.toBeNull();
+    expect(last!.name).toBe("validate-docs");
+  });
+
+  test("verify-quick-updates does not validate — it writes no documentation", async () => {
+    const flow = await loadFlow("verify-quick-updates");
+    expect(scriptSteps(flow.steps).map((s) => s.name)).not.toContain("validate-docs");
   });
 });
 

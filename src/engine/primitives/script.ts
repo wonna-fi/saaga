@@ -8,6 +8,8 @@ import type { Scope, ScriptStep } from "../types.js";
 export interface RunScriptDeps {
   cwd: string;
   scripts?: ScriptRegistry;
+  /** Forwarded to the handler as `ctx.warn`; absent when there is no logger. */
+  warn?: (message: string) => void;
 }
 
 export async function runScriptStep(
@@ -26,7 +28,7 @@ export async function runScriptStep(
     args[k] = interpolate(v, scope);
   }
 
-  const result = await handler(args, { cwd: deps.cwd });
+  const result = await handler(args, { cwd: deps.cwd, warn: deps.warn });
   if (step.set) {
     scope[step.set] = result;
   }
