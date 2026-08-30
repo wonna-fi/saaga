@@ -112,6 +112,9 @@ After all edits, update `{docs_dir}/concepts/INDEX.md`, `{docs_dir}/patterns/IND
 - Only list public/exported functions in Key Services/Functions tables.
 - Verify that referenced files, functions, and components actually exist.
 - Keep edits minimal and targeted — do not rewrite entire documents when a surgical edit suffices.
+- **Diff budget.** Count the changed source files. With fewer than ~5, correct as many documents as are actually wrong — there is **no limit on corrections** — but at most **one or two** may get *longer*, and create **no** new document unless the change introduces a genuinely new concept.
+- **Amortize.** Fold a small change into an existing table row or an existing sentence. Do not open a new section for it.
+- **Apply the consequence test** before documenting any internal mechanism. See Level of Detail below. A quick update has no plan, so no document has an assigned line budget here — but do not push a document past its tier's band, and say so in the summary if one is already past it.
 
 ## Step 5: Light Self-Verification
 
@@ -149,10 +152,14 @@ Write exactly `UPDATED` to `{status_path}`. Nothing else in this file.
 
 ---
 
+{include:partials/lod-policy.md}
+
+---
+
 ## Notes
 
 - Speed over perfection. This update will be verified and hardened later by `verify-quick-updates`.
-- When in doubt about a change's documentation impact, err on the side of documenting it (flag uncertainty in the summary).
+- When in doubt about a change's documentation impact, document it — briefly. Err toward coverage, never toward length (flag uncertainty in the summary).
 - Do NOT regenerate `{docs_dir}/BASELINE` — that is handled by the tool after this session.
 - Do NOT use any IDE-specific tools (like CreatePlan). Write files directly.
 - Do NOT modify repository source code or create git commits.

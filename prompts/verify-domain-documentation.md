@@ -21,8 +21,9 @@ Read the plan file and extract:
 
 - The **phase definition** for the specified slice (concepts, patterns, and features listed)
 - The **Template Adaptations** section, if present: repository-specific deltas to the templates below, plus its **Verification checks** table naming the technology-specific checks recorded for this repository
+- The **line budget** recorded for each document in this slice (its tier and its exact number). Step 3e enforces it. A document the plan gave no budget is not checked in 3e.
 
-The quality checklists, the documentation templates, and the mandatory verification protocol are in this prompt, below. They are authoritative; the plan only records deltas.
+The quality checklists, the documentation templates, the level-of-detail policy (the budget bands and the consequence test Step 3e applies) and the mandatory verification protocol are in this prompt, below. They are authoritative; the plan only records deltas — and the per-document line budget.
 
 ## Step 2: Identify Documents to Review
 
@@ -52,7 +53,7 @@ For every factual claim in the document, verify it against the source code:
 | Data model fields exist | Search for the field name in model/schema definitions |
 | Code example is correct | Trace the logic against actual source |
 | Example output is accurate | Manually trace the code to verify formatting and values |
-| Constants/values are complete | Read the source-of-truth file and compare all values |
+| Constants/values are complete | Read the source-of-truth file and compare all values (only for constants the document should carry at all — see 3e) |
 
 ### 3c. Cross-Document Consistency
 
@@ -76,6 +77,35 @@ After reviewing all documents in the slice, check that:
 
 > Note: A correctly `SKIPPED` change (genuinely not doc-worthy) is NOT a coverage gap. Only flag changes that genuinely warrant documentation.
 
+### 3e. Budget and Level of Detail
+
+Sections 3a–3d ask whether what is written is correct and whether anything is missing.
+This section asks the opposite question: is anything here that should not be?
+
+Skip any document the plan assigned no budget. Legacy documents, and documents this run
+did not write, are out of scope for this check — trimming those is `docs-gc`'s job, not
+this loop's.
+
+For each document that has an assigned budget:
+
+1. Count its lines, frontmatter included.
+2. Below 1.2x the budget: no finding. The budget is a target, not a fence.
+3. At or above 1.2x: identify the passages that fail the consequence test, ranked by how
+   many lines each costs.
+4. **If removing those passages would bring the document within its budget**, record a
+   **Budget Overrun** finding and list them in the Evidence column — severity **Minor**
+   below 1.5x, **Major** at or above it. A finding that does not name what to remove is
+   not actionable by the fix step, so never raise one without the list.
+5. **If the document is over budget but every passage earns its place**, record no error.
+   The budget was set wrong, not the document. Note it under Methodology improvement
+   suggestions in Step 5 instead — name the document, its budget and its actual length —
+   so the next plan assigns a better one. Deleting content that passes the consequence
+   test in order to reach a number is never the right fix.
+
+Separately, record a **Consequence Test** finding (**Minor**) for any passage that fails
+the test even in a document that is within budget: a transcribed private constant value,
+a list of internal helper names, or prose restating a function body.
+
 ## Step 4: Compile Findings
 
 For each error found, record:
@@ -84,9 +114,9 @@ For each error found, record:
 |---|---|
 | **Document** | File path of the document (for a Coverage Gap where no doc exists yet, write the expected target path, e.g. `{docs_dir}/features/<name>.md`, and mark it `(missing)`) |
 | **Section** | Which section contains the error (for a Coverage Gap, the undocumented source surface) |
-| **Claim** | The specific incorrect claim, or for a Coverage Gap the doc-worthy change that is missing from the documentation |
+| **Claim** | The specific incorrect claim, or for a Coverage Gap the doc-worthy change that is missing from the documentation. Claim types beyond a plain factual error: **Coverage Gap** (Step 3d), **Budget Overrun** (Step 3e), **Consequence Test** (Step 3e) |
 | **Evidence** | What the source code actually shows (for a Coverage Gap, the change-report entry plus the source surface that warrants documentation) |
-| **Severity** | **Critical** (wrong API, non-existent method, or an entirely undocumented new public surface/feature), **Major** (incorrect behavior, or a documented surface whose change was not reflected), or **Minor** (formatting, incomplete list) |
+| **Severity** | **Critical** (wrong API, non-existent method, or an entirely undocumented new public surface/feature), **Major** (incorrect behavior, a documented surface whose change was not reflected, or a document at or above 1.5x its assigned budget), or **Minor** (formatting, incomplete list, or content that is accurate but does not belong in the document — including a document modestly over its budget) |
 | **Preventable** | Whether the verification protocol below should have caught this, and if not, what improvement would help |
 
 ## Step 5: Write Verification Report
@@ -137,6 +167,10 @@ than adding a frontmatter block to it here.
 - Be thorough. A missed error here becomes permanent misinformation for future AI agents.
 - You don't necessarily find any errors if the documentation is of excellent quality. That's okay! It
   only means that the documenter has done an excellent job and we should be happy for it.
+
+---
+
+{include:partials/lod-policy.md}
 
 ---
 

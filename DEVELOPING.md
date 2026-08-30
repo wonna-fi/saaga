@@ -139,8 +139,9 @@ cap, or wire in your own scripts. The DSL primitives are `agent`,
 Prompt templates live in [`prompts/`](./prompts) and use `{var}`
 placeholders filled from the flow YAML's `vars:` block.
 
-Shared methodology — the document templates, decision guidance, quality
-checklists, the verification protocol — lives once in
+Shared methodology — the document templates, decision guidance, the
+level-of-detail policy, quality checklists, the verification protocol —
+lives once in
 [`prompts/partials/`](./prompts/partials) and is pulled into the prompts
 that need it with an include directive:
 
@@ -153,6 +154,14 @@ a partial still resolve. Each path is looked up in the including file's
 own directory first, then in the roots the caller passes (today just
 `prompts/`). Partials may include other partials; cycles, excessive
 nesting and paths that escape the roots are errors.
+
+One rule splits across both homes: level of detail. The static half —
+the budget bands, the consequence test, the amortization rule — lives in
+[`partials/lod-policy.md`](./prompts/partials/lod-policy.md) so the writer
+and the verifier read identical text. The dynamic half — which budget each
+document gets, and how much this run is allowed to grow the corpus — is a
+per-run decision, so it lives in the planning prompts and is recorded in
+the plan. See [Level of detail](./README.md#level-of-detail).
 
 The split matters: **prompts carry methodology, generated plans carry
 decisions.** A plan records what this run does — which documents to write,

@@ -115,9 +115,11 @@ Do NOT create or modify any agent rule file (`AGENTS.md`, `CLAUDE.md`, Cursor `.
 
 #### 3. Template Adaptations
 
-The document templates, decision guidance, quality checklists and verification
-protocol are delivered to the writer and the verifier by their own prompts. Do
-NOT reproduce them here.
+The document templates, decision guidance, the level-of-detail policy, quality
+checklists and verification protocol are delivered to the writer and the verifier
+by their own prompts. Do NOT reproduce them here. In particular, never restate the
+budget bands or the consequence test — the per-document budget you assign is a
+decision and belongs in the plan; the rules behind it do not.
 
 Record only the **deltas** this repository needs — for example "rename User Flow
 to Execution Flow for engine features", or "treat a symbol as public only if it
@@ -140,6 +142,7 @@ For each domain area discovered in Step 1c, create a phase with:
 - **Concepts to document**: List the domain terms/building blocks in this area
 - **Patterns to document**: List the reusable code approaches
 - **Features to document**: List the user-facing capabilities
+- **Line budgets**: for every document listed above, one line of the form `<path> — <Core|Supporting|Peripheral>, <N> lines`. Assign the tier with the centrality test in the Level of Detail section, using the dependency order from Step 1d; pick N inside that tier's band from the size and complexity of the source it covers. This is a decision the verifier enforces — do not omit it.
 - **Key files to analyze**: List the primary source files for this domain area (with relative paths)
 - **Notes**: Anything specific to this slice the writer needs — gotchas, boundaries with other slices, docs to cross-link
 
@@ -170,6 +173,10 @@ decisions only — do NOT copy any of it into the plan.
 ---
 
 {include:partials/decision-guidance.md}
+
+---
+
+{include:partials/lod-policy.md}
 
 ---
 

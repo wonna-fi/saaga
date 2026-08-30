@@ -51,6 +51,13 @@ const FLOW_VARS: Record<string, Record<string, string>> = {
     metadata_dir: "/run/quick-updates",
     output_path: "/run/plans/saaga-vqu.plan.md",
   },
+  "quick-update": {
+    app: "saaga",
+    docs_dir: "saaga-docs",
+    changes_path: "/run/changes.md",
+    status_path: "/run/quick-update-status.txt",
+    summary_path: "/app/saaga-docs/metadata/quick_updates/r1/summary.md",
+  },
 };
 
 function render(name: string): Promise<string> {
@@ -269,5 +276,174 @@ describe("consumer prompts reference only plan sections the plan still emits", (
     const out = await render(name);
     expect(out).toContain("#### 3. Template Adaptations");
     expect(out).toContain("**Verification checks**");
+  });
+});
+
+/**
+ * Task 4: the level-of-detail policy. Static rules (budgets table, consequence
+ * test, amortization) live in `partials/lod-policy.md` and must reach every
+ * prompt that writes or judges a document; the dynamic rules (per-document
+ * budgets, the churn-proportional diff budget) live in the planning prompts,
+ * because they produce per-run decisions recorded in the plan.
+ */
+
+/** Every prompt file under `prompts/`, including the two with no flow vars. */
+const EVERY_PROMPT = [...ALL_PROMPTS, "document-architecture"];
+
+describe("the LOD policy reaches every prompt that writes or judges a document", () => {
+  const CONSUMERS = [
+    "slice-doc",
+    "verify-domain-documentation",
+    "fix-documentation",
+    "quick-update",
+    "plan-init",
+    "plan-update",
+    "plan-verify-quick-updates",
+  ];
+
+  test.for(CONSUMERS)("%s carries the budgets and the consequence test", async (name) => {
+    const out = await render(name);
+    expect(out).toContain("### Length Budgets");
+    expect(out).toContain("### The Consequence Test");
+    expect(out).toContain("### Amortization");
+  });
+
+  test.for(["slice-doc", "verify-domain-documentation"])(
+    "%s carries the tier bands verbatim",
+    async (name) => {
+      const out = await render(name);
+      expect(out).toContain("100–200 lines");
+      expect(out).toContain("60–120 lines");
+      expect(out).toContain("25–60 lines");
+      expect(out).toContain("centrality, not source size");
+    },
+  );
+
+  test.for(["slice-doc", "verify-domain-documentation"])(
+    "%s carries both canonical consequence-test examples",
+    async (name) => {
+      const out = await render(name);
+      // The positive example: its output IS the user interface.
+      expect(out).toContain("its output *is* the\nuser-facing audit summary");
+      // The negative example: cosmetics with zero dependents.
+      expect(out).toContain("braille glyph sequence");
+      expect(out).toContain("120 ms frame interval");
+    },
+  );
+});
+
+describe("the planning prompts assign budgets and cap growth", () => {
+  const PLAN_PROMPTS = ["plan-init", "plan-update", "plan-verify-quick-updates"];
+
+  test.for(PLAN_PROMPTS)("%s asks for a per-document line budget", async (name) => {
+    const out = await render(name);
+    expect(out).toContain("**Line budgets**");
+    expect(out).toContain("<Core|Supporting|Peripheral>, <N> lines");
+  });
+
+  // The diff budget caps growth, never corrections: capping documents *touched*
+  // would tell the model to leave a known-stale document alone, which is the one
+  // failure mode this corpus has actually been measured to have.
+  test.for(["plan-update", "quick-update"])("%s caps growth, not corrections", async (name) => {
+    const out = await render(name);
+    expect(out).toContain("no limit on corrections");
+    expect(out).toContain("may get *longer*");
+    expect(out).toContain("genuinely new concept");
+  });
+
+  test("plan-update records the diff budget where a reviewer will see it", async () => {
+    const out = await render("plan-update");
+    expect(out).toContain("### 2d. Diff Budget");
+    expect(out).toContain("State the **diff budget** from Step 2d here");
+  });
+});
+
+describe("verify and fix can act on a budget", () => {
+  test("verify extracts the budget and enforces it with a tolerance", async () => {
+    const out = await render("verify-domain-documentation");
+    expect(out).toContain("### 3e. Budget and Level of Detail");
+    expect(out).toContain("The **line budget** recorded for each document");
+    expect(out).toContain("Below 1.2x the budget: no finding");
+    expect(out).toContain("**Budget Overrun**");
+    expect(out).toContain("**Consequence Test**");
+  });
+
+  test("verify leaves documents it was given no budget for alone", async () => {
+    const out = await render("verify-domain-documentation");
+    expect(out).toContain("Skip any document the plan assigned no budget");
+  });
+
+  // A Budget Overrun is only raised when deleting the named passages can
+  // actually close the gap. Without this, a document that is over budget but
+  // entirely justified produces a finding nothing can resolve, and the slice
+  // burns all three fix iterations before the loop exits silently.
+  test("an overrun the fix step cannot resolve is not an error", async () => {
+    const out = await render("verify-domain-documentation");
+    expect(out).toContain("**If removing those passages would bring the document within its budget**");
+    expect(out).toContain("**If the document is over budget but every passage earns its place**");
+    expect(out).toContain("The budget was set wrong, not the document");
+    expect(out).toContain("never raise one without the list");
+  });
+
+  // Step 3e grades a 1.5x overrun Major, so Step 4's severity definitions have
+  // to have a Major case for it — otherwise the same finding is gradeable both ways.
+  test("the severity ladder agrees with Step 3e", async () => {
+    const out = await render("verify-domain-documentation");
+    expect(out).toContain("a document at or above 1.5x its assigned budget");
+    expect(out).toContain("including a document modestly over its budget");
+  });
+
+  test("fix never invents a deletion to hit the number", async () => {
+    const out = await render("fix-documentation");
+    expect(out).toContain("never delete something the report did not name");
+  });
+
+  // The checklists reach the verifier in the same rendered prompt as Step 3e.
+  // An item asserting "within its budget" would fail a document at 1.1x that
+  // 3e deliberately passes, and send the fixer after accurate text.
+  test("the checklists defer to the verification step's tolerance", async () => {
+    const out = await render("verify-domain-documentation");
+    expect(out).not.toContain("Document is within its assigned line budget");
+    expect(out).toContain("the verification step defines the tolerance");
+  });
+
+  test("fix is allowed to delete accurate text for a budget finding", async () => {
+    const out = await render("fix-documentation");
+    expect(out).toContain("does not apply to a Budget Overrun or Consequence Test finding");
+    expect(out).toContain("If it is a **Budget Overrun**");
+    expect(out).toContain("If it is a **Consequence Test** finding");
+  });
+});
+
+describe("the transcription rewards are gone", () => {
+  // Each of these strings paid for length: they scored completeness of internal
+  // helpers, or gave a private function a home instead of a deletion.
+  const REMOVED = [
+    'move to "Internal Implementation" section',
+    'add it to an "Internal Implementation" note instead',
+    'move it from "Key Services" to "Internal Implementation"',
+    "All constants/values lists are complete",
+    "At least 2 reference implementations are cited",
+    "Target Length",
+  ];
+
+  test.for(EVERY_PROMPT)("%s contains no transcription reward", async (name) => {
+    const out = await render(name);
+    for (const phrase of REMOVED) {
+      expect(out).not.toContain(phrase);
+    }
+  });
+
+  test("the Internal Implementation section is gated, not merely offered", async () => {
+    const out = await render("slice-doc");
+    expect(out).toContain("## Internal Implementation (optional)");
+    expect(out).toContain("Include this section only for mechanisms that pass the consequence test");
+    expect(out).not.toContain("They are documented for understanding the internal logic");
+  });
+
+  test("quick-update no longer trades length for coverage", async () => {
+    const out = await render("quick-update");
+    expect(out).not.toContain("err on the side of documenting it");
+    expect(out).toContain("Err toward coverage, never toward length");
   });
 });

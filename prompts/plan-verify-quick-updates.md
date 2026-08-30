@@ -110,9 +110,11 @@ for every phase, only what is warranted.
 
 #### 3. Template Adaptations
 
-The document templates, decision guidance, quality checklists and verification
-protocol are delivered to the writer and the verifier by their own prompts. Do
-NOT reproduce them here.
+The document templates, decision guidance, the level-of-detail policy, quality
+checklists and verification protocol are delivered to the writer and the verifier
+by their own prompts. Do NOT reproduce them here. In particular, never restate the
+budget bands or the consequence test — the per-document budget you assign is a
+decision and belongs in the plan; the rules behind it do not.
 
 Record only the **deltas** this repository needs — for example "rename User Flow
 to Execution Flow for engine features", or "treat a symbol as public only if it
@@ -137,6 +139,7 @@ For each phase:
 - **Coverage gaps to close**: Doc-worthy changes (from Step 2 gap detection) that have NO documentation yet and must be newly created in this phase. List the source surface and the target doc path (e.g., `{docs_dir}/features/<name>.md`). Write "None" if the gap detection found no missing documentation for this phase.
 - **Uncertainty focus**: Specific areas flagged as uncertain that need extra verification
 - **Documents to verify/re-document**: List of doc files with specific aspects to verify
+- **Line budgets**: for every document listed above — the coverage gaps to close and the documents to re-document alike — one line of the form `<path> — <Core|Supporting|Peripheral>, <N> lines`. Assign the tier with the centrality test in the Level of Detail section, then pick N inside that tier's band from the size and complexity of the source it covers. This is a decision the verifier enforces — do not omit it.
 - **Key files to analyze**: Source files to read for verification
 
 #### 5. Execution Strategy
@@ -172,6 +175,10 @@ decisions only — do NOT copy any of it into the plan.
 ---
 
 {include:partials/decision-guidance.md}
+
+---
+
+{include:partials/lod-policy.md}
 
 ---
 
