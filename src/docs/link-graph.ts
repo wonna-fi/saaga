@@ -127,6 +127,34 @@ export function extractLinks(content: string, fromPath: string): DocLink[] {
 }
 
 /**
+ * Resolves a link's target to a POSIX path relative to the docs root, or
+ * `null` when the target does not address a corpus document at all.
+ *
+ * Anchor and query suffixes are stripped: `./flow-dsl.md#scope` addresses
+ * `flow-dsl.md`. External, protocol-relative, pure-anchor, and root-absolute
+ * targets resolve to nothing — the corpus uses no root-absolute links, so
+ * they are left alone rather than guessed at.
+ *
+ * Every reader of the corpus resolves targets through this one function.
+ * When link validation and navigation each had their own version they
+ * disagreed about fragments, so a `./foo.md#section` link counted towards
+ * reachability but not towards navigation.
+ */
+export function resolveLinkTarget(link: DocLink): string | null {
+  const target = link.target;
+
+  if (/^[a-z][a-z0-9+.-]*:/i.test(target)) return null;
+  if (target.startsWith("//")) return null;
+  if (target.startsWith("#")) return null;
+
+  const path = target.split("#")[0].split("?")[0];
+  if (path === "") return null;
+  if (path.startsWith("/")) return null;
+
+  return posix.normalize(posix.join(posix.dirname(link.from), path));
+}
+
+/**
  * Extracts every fenced ```mermaid block from `content`.
  *
  * A block left open at the end of the document is still returned, with

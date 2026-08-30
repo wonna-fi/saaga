@@ -2,7 +2,7 @@ import { posix } from "node:path";
 import {
   extractLinks,
   extractMermaidFences,
-  type DocLink,
+  resolveLinkTarget,
 } from "./link-graph.js";
 
 /** A single structural defect found in the corpus. */
@@ -104,7 +104,7 @@ export async function validateCorpus(
 
   for (const doc of docs) {
     for (const link of extractLinks(doc.content, doc.path)) {
-      const resolved = resolveTarget(link);
+      const resolved = resolveLinkTarget(link);
       if (resolved === null) continue;
 
       if (!(await opts.exists(resolved))) {
@@ -161,23 +161,6 @@ export async function validateCorpus(
  * that needs heading-slug matching, which is a separate problem, and no
  * document in the corpus uses one today.
  */
-function resolveTarget(link: DocLink): string | null {
-  const target = link.target;
-
-  // Absolute URLs, protocol-relative URLs, and pure-anchor links.
-  if (/^[a-z][a-z0-9+.-]*:/i.test(target)) return null;
-  if (target.startsWith("//")) return null;
-  if (target.startsWith("#")) return null;
-
-  const path = target.split("#")[0].split("?")[0];
-  if (path === "") return null;
-
-  // Root-absolute targets are not resolvable against a docs root; the corpus
-  // uses none, so they are left alone rather than guessed at.
-  if (path.startsWith("/")) return null;
-
-  return posix.normalize(posix.join(posix.dirname(link.from), path));
-}
 
 /**
  * Checks one Mermaid fence, returning a human-readable reason when it is

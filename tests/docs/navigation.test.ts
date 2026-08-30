@@ -179,6 +179,33 @@ describe("parseIndex", () => {
     expect(rows[0].description).toBe("left \\| right");
   });
 
+  test("resolves a target carrying an anchor to its document", () => {
+    const { rows, problems } = parseIndex(
+      "concepts/INDEX.md",
+      index("Concepts", "| [Alpha](./alpha.md#overview) | the first thing |"),
+    );
+
+    expect(problems).toEqual([]);
+    expect(rows[0]).toMatchObject({ path: "concepts/alpha.md", target: "./alpha.md#overview" });
+  });
+
+  test.each([
+    ["an external URL", "https://example.com/docs"],
+    ["a protocol-relative URL", "//example.com/docs"],
+    ["a pure anchor", "#section"],
+    ["a root-absolute path", "/concepts/alpha.md"],
+  ])("reports %s as not a corpus document", (_label, target) => {
+    const { rows, problems } = parseIndex(
+      "concepts/INDEX.md",
+      index("Concepts", `| [Alpha](${target}) | the first thing |`),
+    );
+
+    expect(rows).toEqual([]);
+    expect(problems[0].message).toBe(
+      `index row target \`${target}\` is not a corpus document`,
+    );
+  });
+
   test("resolves a ../ target against the index's own directory", () => {
     const { rows } = parseIndex("concepts/INDEX.md", index("Concepts", "| [Arch](../ARCHITECTURE.md) | the shape |"));
 
@@ -333,6 +360,29 @@ describe("rankCoreConcepts", () => {
   test("considers only documents in the concepts category", () => {
     // "Doing It" is a feature and is never a candidate, however linked it is.
     expect(ranked(smallCorpus())).toEqual(["Alpha", "Beta"]);
+  });
+
+  test("counts an inbound link that carries an anchor", () => {
+    // `validateCorpus` strips anchors before resolving, so counting them here
+    // too is what keeps reachability and ranking reading the same graph.
+    const docs = [
+      doc("concepts/INDEX.md", index("Concepts", "| [A](./a.md) | a |", "| [B](./b.md) | b |")),
+      doc("concepts/a.md", "# A\n"),
+      doc("concepts/b.md", "# B\n"),
+      doc("features/uses.md", "# Uses\n\nSee [A](../concepts/a.md#overview).\n"),
+    ];
+
+    expect(countInboundLinks(docs).get("concepts/a.md")).toBe(2);
+    expect(ranked(docs)).toEqual(["A", "B"]);
+  });
+
+  test("ignores a link that addresses no corpus document", () => {
+    const docs = [
+      doc("concepts/INDEX.md", index("Concepts", "| [A](./a.md) | a |")),
+      doc("concepts/a.md", "# A\n\n[out](https://example.com) [up](#top) [root](/x.md)\n"),
+    ];
+
+    expect(countInboundLinks(docs).get("concepts/a.md")).toBe(1);
   });
 
   test("countInboundLinks counts every corpus link once", () => {

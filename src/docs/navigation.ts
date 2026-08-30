@@ -1,5 +1,5 @@
 import { posix } from "node:path";
-import { extractLinks, FenceScanner } from "./link-graph.js";
+import { extractLinks, FenceScanner, resolveLinkTarget } from "./link-graph.js";
 import { parseDoc, serializeDoc } from "./frontmatter.js";
 
 /** Docs-root-relative path of the generated reading-order page. */
@@ -209,14 +209,14 @@ export function parseIndex(indexPath: string, content: string): ParsedIndex {
   for (let i = 0; i < lines.length; i++) {
     if (fence.consume(lines[i]) !== "text") continue;
 
-    const line = lines[i].trim();
-    if (!line.startsWith("|")) continue;
+    const text = lines[i].trim();
+    if (!text.startsWith("|")) continue;
 
-    const m = INDEX_ROW_RE.exec(line);
+    const m = INDEX_ROW_RE.exec(text);
     if (!m) {
       // The header and separator rows carry no link and are not defects; a
       // pipe line that does carry one was meant to be an entry.
-      if (HAS_LINK_RE.test(line)) {
+      if (HAS_LINK_RE.test(text)) {
         problems.push({
           file: indexPath,
           line: offset + i + 1,
@@ -227,7 +227,21 @@ export function parseIndex(indexPath: string, content: string): ParsedIndex {
     }
 
     const [, name, target, description] = m;
-    const path = category ? posix.join(category, target) : posix.normalize(target);
+    const line = offset + i + 1;
+
+    // Resolved through the shared resolver, so a row target carrying an
+    // anchor (`./flow-dsl.md#scope`) still names its document instead of
+    // being mistaken for a path that does not exist.
+    const path = resolveLinkTarget({ from: indexPath, target, line });
+    if (path === null) {
+      problems.push({
+        file: indexPath,
+        line,
+        message: `index row target \`${target}\` is not a corpus document`,
+      });
+      continue;
+    }
+
     const row: IndexRow = {
       index: indexPath,
       category,
@@ -235,7 +249,7 @@ export function parseIndex(indexPath: string, content: string): ParsedIndex {
       target,
       path,
       description,
-      line: offset + i + 1,
+      line,
     };
 
     if (seen.has(path)) {
@@ -406,10 +420,9 @@ export function countInboundLinks(docs: NavDoc[]): Map<string, number> {
     if (GENERATED_FILES.includes(doc.path)) continue;
 
     for (const link of extractLinks(doc.content, doc.path)) {
-      const dir = posix.dirname(doc.path);
-      const target = dir === "." ? posix.normalize(link.target) : posix.join(dir, link.target);
+      const target = resolveLinkTarget(link);
       // A document does not promote itself by linking to itself.
-      if (!known.has(target) || target === doc.path) continue;
+      if (target === null || !known.has(target) || target === doc.path) continue;
       counts.set(target, (counts.get(target) ?? 0) + 1);
     }
   }
