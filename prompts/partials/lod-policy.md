@@ -19,6 +19,9 @@ The plan records a tier and an exact number per document, for example
 ceiling. The budget counts every line in the file, frontmatter included.
 
 A document the plan assigned no budget has no budget. Do not invent one.
+A convention document never gets one: its template caps it at 5–20 lines of
+body, which is below this table's lowest band, and `validate-docs` fails the run
+above the cap.
 
 ### The Consequence Test
 

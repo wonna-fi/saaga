@@ -215,7 +215,7 @@ For each group of changes requiring **new** documentation (in chronological orde
 - **Patterns to document**: List patterns (if warranted)
 - **Features to document**: List features (if warranted)
 - **Conventions to document**: List convention families (if warranted). A change introduces a convention only when it establishes a lexical rule the rest of the codebase must follow — creating the `{docs_dir}/conventions/` directory if this is the first one. Convention documents take no line budget; the template caps them.
-- **Line budgets**: for every document listed above, one line of the form `<path> — <Core|Supporting|Peripheral>, <N> lines`. Assign the tier with the centrality test in the Level of Detail section — how many other documents link to it, and whether it sits on the main execution path — then pick N inside that tier's band from the size and complexity of the source it covers. This is a decision the verifier enforces — do not omit it.
+- **Line budgets**: for every document listed above **except the conventions**, one line of the form `<path> — <Core|Supporting|Peripheral>, <N> lines`. Assign the tier with the centrality test in the Level of Detail section — how many other documents link to it, and whether it sits on the main execution path — then pick N inside that tier's band from the size and complexity of the source it covers. This is a decision the verifier enforces — do not omit it. Never assign a budget to a convention document: the lowest band starts at 25 lines and the cap is 20, so a budget would order the writer past it.
 - **Key files to analyze**: Specific source files changed
 
 Not all doc types are required for every phase -- only include what is warranted by the changes.

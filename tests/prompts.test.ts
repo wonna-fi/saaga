@@ -526,6 +526,27 @@ describe("the conventions category reaches the prompts that write and judge docu
     expect(out).toContain("the last numbered phase, never Phase 0");
   });
 
+  test("no planning prompt assigns a budget to a convention", async () => {
+    // The two rules would otherwise collide head-on: "assign a budget to every
+    // document listed above — do not omit it" against a 20-line cap whose
+    // lowest budget band starts at 25. A planner obeying the budget rule would
+    // order the writer straight past the cap and validate-docs would fail the
+    // run at the very end, after every token was already spent.
+    for (const name of ["plan-init", "plan-update", "plan-verify-quick-updates"]) {
+      const out = await render(name);
+      expect(out).toContain(
+        "the lowest band starts at 25 lines and the cap is 20",
+      );
+    }
+  });
+
+  test("the budget policy itself carves conventions out", async () => {
+    // Stated once where the bands are defined, so a prompt that grows a new
+    // budget instruction inherits the exemption rather than re-deriving it.
+    const out = await render("slice-doc");
+    expect(out).toContain("A convention document never gets one");
+  });
+
   test("the update-family prompts treat the category as optional", async () => {
     for (const name of ["plan-update", "plan-verify-quick-updates"]) {
       const out = await render(name);

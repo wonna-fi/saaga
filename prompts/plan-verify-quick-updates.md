@@ -143,7 +143,7 @@ For each phase:
 - **Coverage gaps to close**: Doc-worthy changes (from Step 2 gap detection) that have NO documentation yet and must be newly created in this phase. List the source surface and the target doc path (e.g., `{docs_dir}/features/<name>.md`). Write "None" if the gap detection found no missing documentation for this phase.
 - **Uncertainty focus**: Specific areas flagged as uncertain that need extra verification
 - **Documents to verify/re-document**: List of doc files with specific aspects to verify
-- **Line budgets**: for every document listed above — the coverage gaps to close and the documents to re-document alike — one line of the form `<path> — <Core|Supporting|Peripheral>, <N> lines`. Assign the tier with the centrality test in the Level of Detail section, then pick N inside that tier's band from the size and complexity of the source it covers. This is a decision the verifier enforces — do not omit it.
+- **Line budgets**: for every document listed above — the coverage gaps to close and the documents to re-document alike — one line of the form `<path> — <Core|Supporting|Peripheral>, <N> lines`. Assign the tier with the centrality test in the Level of Detail section, then pick N inside that tier's band from the size and complexity of the source it covers. This is a decision the verifier enforces — do not omit it. Never assign a budget to a document under `{docs_dir}/conventions/`: the lowest band starts at 25 lines and the cap is 20, so a budget would order the writer past it.
 - **Key files to analyze**: Source files to read for verification
 
 #### 5. Execution Strategy

@@ -162,7 +162,7 @@ For each domain area discovered in Step 1c, create a phase with:
 - **Concepts to document**: List the domain terms/building blocks in this area
 - **Patterns to document**: List the reusable code approaches
 - **Features to document**: List the user-facing capabilities
-- **Line budgets**: for every document listed above, one line of the form `<path> — <Core|Supporting|Peripheral>, <N> lines`. Assign the tier with the centrality test in the Level of Detail section, using the dependency order from Step 1e; pick N inside that tier's band from the size and complexity of the source it covers. This is a decision the verifier enforces — do not omit it.
+- **Line budgets**: for every document listed above, one line of the form `<path> — <Core|Supporting|Peripheral>, <N> lines`. Assign the tier with the centrality test in the Level of Detail section, using the dependency order from Step 1e; pick N inside that tier's band from the size and complexity of the source it covers. This is a decision the verifier enforces — do not omit it. Never assign a budget to a convention document: the lowest band starts at 25 lines and the cap is 20, so a budget would order the writer past it.
 - **Key files to analyze**: List the primary source files for this domain area (with relative paths)
 - **Notes**: Anything specific to this slice the writer needs — gotchas, boundaries with other slices, docs to cross-link
 
