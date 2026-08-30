@@ -187,8 +187,9 @@ are never capped.
 The document templates, decision guidance, the level-of-detail policy, quality
 checklists and verification protocol are delivered to the writer and the verifier
 by their own prompts. Do NOT reproduce them here. In particular, never restate the
-budget bands or the consequence test — the per-document budget you assign is a
-decision and belongs in the plan; the rules behind it do not.
+budget bands, the consequence test or the ownership table — the per-document budget
+and the owns / references declaration you assign are decisions and belong in the plan;
+the rules behind them do not.
 
 Record only the **deltas** this repository needs — for example "treat a symbol as
 public only if it is re-exported from `src/index.ts`", or a table column this
@@ -216,6 +217,7 @@ For each group of changes requiring **new** documentation (in chronological orde
 - **Features to document**: List features (if warranted)
 - **Conventions to document**: List convention families (if warranted). A change introduces a convention only when it establishes a lexical rule the rest of the codebase must follow — creating the `{docs_dir}/conventions/` directory if this is the first one. Convention documents take no line budget; the template caps them.
 - **Line budgets**: for every document listed above **except the conventions**, one line of the form `<path> — <Core|Supporting|Peripheral>, <N> lines`. Assign the tier with the centrality test in the Level of Detail section — how many other documents link to it, and whether it sits on the main execution path — then pick N inside that tier's band from the size and complexity of the source it covers. This is a decision the verifier enforces — do not omit it. Never assign a budget to a convention document: the lowest band starts at 25 lines and the cap is 20, so a budget would order the writer past it.
+- **Owns / references**: for every document listed above, one line of the form `<path> — owns: <fact classes>; references: <paths it links to instead of restating>`. Use the ownership table in Single Home per Fact; the `owns` half names what only this document may state, the `references` half names the documents it links to for everything else it touches. A fact named in one document's `owns` must not appear in another document's body — that document links to the owner instead. This is a decision the verifier enforces — do not omit it.
 - **Key files to analyze**: Specific source files changed
 
 Not all doc types are required for every phase -- only include what is warranted by the changes.
@@ -227,11 +229,24 @@ For each group of changes affecting **existing** documentation (in chronological
 - **Summary**: What was changed (commit messages and description)
 - **Documents to update**: List specific doc files with specific update suggestions (from the deep impact analysis in Step 2b). Mark each one **correct** (same length or shorter) or **grow**, and respect the diff budget from Step 2d.
 - **Line budgets**: for every document listed above, one line of the form `<path> — <Core|Supporting|Peripheral>, <N> lines`. Assign the tier with the centrality test in the Level of Detail section — how many other documents link to it, and whether it sits on the main execution path — then pick N inside that tier's band from the size and complexity of the source it covers. This is a decision the verifier enforces — do not omit it.
+- **Owns / references**: for every document listed above, one line of the form `<path> — owns: <fact classes>; references: <paths it links to instead of restating>`. Use the ownership table in Single Home per Fact; the `owns` half names what only this document may state, the `references` half names the documents it links to for everything else it touches. A fact named in one document's `owns` must not appear in another document's body — that document links to the owner instead. This is a decision the verifier enforces — do not omit it.
 - **Key files to analyze**: The changed source files
 
 #### 6. ARCHITECTURE.md Update Phase (conditional)
 
 Only included if significant structural changes are detected (new services, new integrations, new modules, new directories). Lists what sections of ARCHITECTURE.md need updating and why.
+
+This phase names `{docs_dir}/ARCHITECTURE.md` in its document list like any other phase, so
+the verifier picks it up. Record the same two lines every other document gets, adapted to a
+document that has no tier:
+
+- `ARCHITECTURE.md — <N> lines`, where `N = 60 + 8 x (the number of modules the document
+  describes)`, capped at 250. Without this line the verifier's budget check skips the
+  document entirely, and the one document nothing else constrains grows without limit.
+- `ARCHITECTURE.md — owns: <fact classes>; references: <paths>`, using the ownership table
+  in Single Home per Fact. ARCHITECTURE owns the system-level shape and a one-paragraph
+  summary per module; everything below that belongs to a concept or feature document and is
+  linked, not restated.
 
 If no structural changes are detected, omit this section entirely.
 
@@ -271,6 +286,10 @@ decisions only — do NOT copy any of it into the plan.
 ---
 
 {include:partials/lod-policy.md}
+
+---
+
+{include:partials/single-home.md}
 
 ---
 

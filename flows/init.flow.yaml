@@ -41,6 +41,38 @@ steps:
       file: ${run_dir}/plans/${app}-init.plan.md
       set: phases
 
+  - loop:
+      max: 3
+      until: '${arch_status} == "PASS"'
+      do:
+        - agent:
+            prompt: verify-architecture
+            model: high
+            label: verifying architecture
+            vars:
+              plan: ${run_dir}/plans/${app}-init.plan.md
+              review_path: ${run_dir}/architecture/review-${iteration}.md
+              status_path: ${run_dir}/architecture/status-${iteration}.txt
+              docs_dir: ${docs_dir}
+              date: ${iso_date}
+
+        - read-file:
+            path: ${run_dir}/architecture/status-${iteration}.txt
+            set: arch_status
+            trim: true
+
+        - if: '${arch_status} != "PASS"'
+          then:
+            - agent:
+                prompt: fix-documentation
+                model: high
+                label: fixing architecture
+                vars:
+                  plan: ${run_dir}/plans/${app}-init.plan.md
+                  phase_number: architecture
+                  review_path: ${run_dir}/architecture/review-${iteration}.md
+                  docs_dir: ${docs_dir}
+
   - agent:
       prompt: slice-doc
       model: high

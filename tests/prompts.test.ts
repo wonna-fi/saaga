@@ -59,6 +59,18 @@ const FLOW_VARS: Record<string, Record<string, string>> = {
     status_path: "/run/quick-update-status.txt",
     summary_path: "/app/saaga-docs/metadata/quick_updates/r1/summary.md",
   },
+  "verify-architecture": {
+    plan: "/run/plans/saaga-init.plan.md",
+    review_path: "/run/architecture/review-1.md",
+    status_path: "/run/architecture/status-1.txt",
+    docs_dir: "saaga-docs",
+    date: "2026-08-30",
+  },
+  "document-architecture": {
+    app: "saaga",
+    docs_dir: "saaga-docs",
+    scratch_path: "/run/app-structure.md",
+  },
 };
 
 function render(name: string): Promise<string> {
@@ -246,6 +258,21 @@ describe("prompt strings the flow tests depend on", () => {
     const out = await render("verify-domain-documentation");
     expect(out).toMatch(/Write the verification status to `([^`]+)`/);
   });
+
+  test("verify-architecture keeps its title and the write-the-status sentence", async () => {
+    const out = await render("verify-architecture");
+    expect(out.split("\n")[0]).toBe("# Verify the Architecture Document");
+    expect(out).toMatch(/Write the verification status to `([^`]+)`/);
+  });
+
+  // FakeAgent matches by substring and the init tests register a
+  // "Document the Architecture" scenario for the writer. If that phrase ever
+  // appears in the verifier, the writer's scenario swallows the verify call and
+  // the loop silently never runs.
+  test("verify-architecture cannot be mistaken for the architecture writer", async () => {
+    const out = await render("verify-architecture");
+    expect(out).not.toContain("Document the Architecture");
+  });
 });
 
 describe("consumer prompts reference only plan sections the plan still emits", () => {
@@ -273,9 +300,12 @@ describe("consumer prompts reference only plan sections the plan still emits", (
     expect(out).toContain("Template Adaptations");
   });
 
+  // The heading text is the contract, not its ordinal: the three plan formats
+  // do not have the same sections, so their numbering drifts apart whenever one
+  // of them gains a section the others do not need.
   test.for(PLAN_PROMPTS)("%s actually emits Template Adaptations", async (name) => {
     const out = await render(name);
-    expect(out).toContain("#### 3. Template Adaptations");
+    expect(out).toMatch(/#### \d+\. Template Adaptations/);
     expect(out).toContain("**Verification checks**");
   });
 });
@@ -288,8 +318,8 @@ describe("consumer prompts reference only plan sections the plan still emits", (
  * because they produce per-run decisions recorded in the plan.
  */
 
-/** Every prompt file under `prompts/`, including the two with no flow vars. */
-const EVERY_PROMPT = [...ALL_PROMPTS, "document-architecture"];
+/** Every prompt file under `prompts/`. All of them now carry flow vars. */
+const EVERY_PROMPT = ALL_PROMPTS;
 
 describe("the LOD policy reaches every prompt that writes or judges a document", () => {
   const CONSUMERS = [
@@ -410,7 +440,9 @@ describe("verify and fix can act on a budget", () => {
 
   test("fix is allowed to delete accurate text for a budget finding", async () => {
     const out = await render("fix-documentation");
-    expect(out).toContain("does not apply to a Budget Overrun or Consequence Test finding");
+    expect(out).toContain(
+      "does not apply to a Budget Overrun, Consequence Test or Duplication finding",
+    );
     expect(out).toContain("If it is a **Budget Overrun**");
     expect(out).toContain("If it is a **Consequence Test** finding");
   });
@@ -522,7 +554,7 @@ describe("the conventions category reaches the prompts that write and judge docu
     // Phase 0 runs outside the verify/fix loop in flows/init.flow.yaml, so a
     // document placed there is the one thing nothing verifies.
     const out = await render("plan-init");
-    expect(out).toContain("#### 5. Final Phase: Conventions");
+    expect(out).toMatch(/#### \d+\. Final Phase: Conventions/);
     expect(out).toContain("the last numbered phase, never Phase 0");
   });
 
@@ -593,3 +625,236 @@ describe("the templates bend where the subject does not fit", () => {
     }
   });
 });
+
+/**
+ * Task 6: single home per fact. The static half — who owns which class of fact,
+ * the tie-break, and what a reference looks like instead of a copy — lives in
+ * `partials/single-home.md` and must reach every prompt that writes or judges a
+ * document. The dynamic half is the per-document owns/references declaration the
+ * planners record, which is what the verifier's Step 3f checks against.
+ *
+ * ARCHITECTURE.md is the case that motivated the task: 689 lines, generated
+ * before any plan exists and outside the per-phase verify/fix loop, so nothing
+ * held it to the "concise" and "public interface only" rules its own prompt
+ * already stated.
+ */
+
+describe("the ownership rules reach every prompt that writes or judges a document", () => {
+  const CONSUMERS = [
+    "slice-doc",
+    "verify-domain-documentation",
+    "fix-documentation",
+    "quick-update",
+    "plan-init",
+    "plan-update",
+    "plan-verify-quick-updates",
+    "document-architecture",
+    "verify-architecture",
+  ];
+
+  test.for(CONSUMERS)("%s carries the ownership rules", async (name) => {
+    const out = await render(name);
+    expect(out).toContain("## Single Home per Fact");
+    expect(out).toContain("### Who Owns What");
+    expect(out).toContain("Every fact has exactly one owning document");
+  });
+
+  test.for(CONSUMERS)("%s carries the tie-break and the test", async (name) => {
+    const out = await render(name);
+    // Which of two candidate documents owns a fact, when both could.
+    expect(out).toContain("the owner is the one the fact\nis *about*");
+    // The check a writer can apply before writing a section, not after.
+    expect(out).toContain(
+      "If changing one line of source would require editing two documents",
+    );
+  });
+
+  // The three fact classes the analysis found duplicated in this repo's corpus.
+  test.for(CONSUMERS)("%s carries the fact-class table rows", async (name) => {
+    const out = await render(name);
+    expect(out).toContain("A flow's or workflow's step sequence");
+    expect(out).toContain("The CLI surface — subcommands, flags, exit codes");
+    expect(out).toContain("A module's public interface");
+  });
+});
+
+describe("the planning prompts declare ownership per document", () => {
+  const PLAN_PROMPTS = ["plan-init", "plan-update", "plan-verify-quick-updates"];
+
+  test.for(PLAN_PROMPTS)("%s asks for an owns/references line", async (name) => {
+    const out = await render(name);
+    expect(out).toContain("**Owns / references**");
+    expect(out).toContain(
+      "`<path> — owns: <fact classes>; references: <paths it links to instead of restating>`",
+    );
+  });
+
+  // The declaration is inert unless something enforces it, and the fixer can act
+  // only on a finding that names the owner. Both halves have to be asked for.
+  test.for(PLAN_PROMPTS)("%s says the verifier enforces the declaration", async (name) => {
+    const out = await render(name);
+    expect(out).toContain(
+      "A fact named in one document's `owns` must not appear in another document's body",
+    );
+  });
+});
+
+describe("ARCHITECTURE.md gets a budget and a diet", () => {
+  // The writer runs before any plan exists, so it cannot read a budget from one.
+  // It gets a scaling target instead; the plan carries the number the verifier
+  // grades against. Two homes, because they answer at two different times.
+  test("the writer gets a scaling target it can compute on its own", async () => {
+    const out = await render("document-architecture");
+    expect(out).toContain("## Length Budget");
+    expect(out).toContain("at most 8 lines per module");
+    expect(out).toContain("at most 250 lines, frontmatter included");
+    expect(out).toContain("60 + 8 x (number of modules)");
+  });
+
+  test("the writer is told to link rather than inline", async () => {
+    const out = await render("document-architecture");
+    expect(out).toContain("It is the map, not the territory");
+    expect(out).toContain("Per-module export lists");
+    expect(out).toContain("blocks describing non-exported helpers");
+    expect(out).toContain("A walkthrough of the CLI");
+  });
+
+  // At init nothing else is on disk yet, so the writer cannot link to documents
+  // that do not exist. Saying so explicitly stops it from inlining the content
+  // "because there was nothing to link to".
+  test("the writer is told why it cannot link during init", async () => {
+    const out = await render("document-architecture");
+    expect(out).toContain("there are no other documents on disk yet");
+    expect(out).toContain("a later verification pass adds the links");
+  });
+
+  test("the LOD policy carves ARCHITECTURE out of the tier bands", async () => {
+    const out = await render("document-architecture");
+    expect(out).toContain("`ARCHITECTURE.md` is the other exception: it has no tier");
+  });
+
+  test("plan-init records the budget and the ownership declaration", async () => {
+    const out = await render("plan-init");
+    expect(out).toContain("#### 3. Architecture Document");
+    expect(out).toContain("`ARCHITECTURE.md — <N> lines`");
+    expect(out).toContain("`ARCHITECTURE.md — owns: <fact classes>; references: <paths>`");
+  });
+
+  // Without a budget in the update plan, verify's Step 3e skips the document by
+  // its own rule ("skip any document the plan assigned no budget") — so the diet
+  // would decay on the first update run after init trimmed it.
+  test("plan-update also budgets ARCHITECTURE, or 3e silently skips it", async () => {
+    const out = await render("plan-update");
+    expect(out).toContain("#### 6. ARCHITECTURE.md Update Phase (conditional)");
+    expect(out).toContain("`ARCHITECTURE.md — <N> lines`");
+    expect(out).toContain("the verifier's budget check skips the\n  document entirely");
+  });
+
+  // The update flow routes its ARCHITECTURE phase through the shared verifier,
+  // whose Step 2 otherwise only looks in the four category directories.
+  test("the shared verifier picks ARCHITECTURE up when a phase names it", async () => {
+    const out = await render("verify-domain-documentation");
+    expect(out).toContain("If the phase definition names `saaga-docs/ARCHITECTURE.md`");
+    expect(out).toContain("It is the one document with no type template");
+  });
+});
+
+describe("verify and fix can act on a duplication finding", () => {
+  test("the shared verifier checks declared references are not restated", async () => {
+    const out = await render("verify-domain-documentation");
+    expect(out).toContain("### 3f. Ownership and Duplication");
+    expect(out).toContain("Skip any document the plan gave no owns / references declaration");
+    expect(out).toContain("**Duplication** (Step 3f)");
+  });
+
+  // Same contract as the budget findings: the fixer edits only what the report
+  // names, so a finding without the passage and the owner is unactionable.
+  test("a duplication finding must name the passage and the owner", async () => {
+    const out = await render("verify-domain-documentation");
+    expect(out).toContain(
+      "Name the exact passage in the\n   Evidence column and name the owning document",
+    );
+  });
+
+  test("verify-architecture grades the budget the same way 3e does", async () => {
+    const out = await render("verify-architecture");
+    expect(out).toContain("Below 1.2x the budget: no finding");
+    expect(out).toContain("**If the document is over budget but every passage earns its place**");
+    expect(out).toContain("The budget was set wrong, not the document");
+  });
+
+  test("verify-architecture skips the budget check when the plan set none", async () => {
+    const out = await render("verify-architecture");
+    expect(out).toContain("skip Step 3b entirely — do not invent a number");
+  });
+
+  test("verify-architecture reports the ARCHITECTURE-shaped duplication classes", async () => {
+    const out = await render("verify-architecture");
+    expect(out).toContain("### 3c. Ownership and Duplication");
+    expect(out).toContain("A per-module export list");
+    expect(out).toContain("rather\n  than one paragraph naming the subcommands and a link");
+  });
+
+  // A link to a document no phase will ever create fails validate-docs at the
+  // very end of the run, after every token is already spent.
+  test("the fixer may only link to a document the plan lists", async () => {
+    const forVerify = await render("verify-architecture");
+    expect(forVerify).toContain("Name as the owner only a document path the plan lists");
+    const forFix = await render("fix-documentation");
+    expect(forFix).toContain("Link **only** to a path the plan lists");
+  });
+
+  test("fix has a duplication branch that replaces the passage with a link", async () => {
+    const out = await render("fix-documentation");
+    expect(out).toContain("If it is a **Duplication** finding");
+    expect(out).toContain("one sentence of context plus a relative link");
+    // A "short summary so the reader need not follow the link" is the same
+    // duplication in fewer words, and it survives every deletion pass.
+    expect(out).toContain("that recreates the duplication in shorter form");
+  });
+
+  // Found by the first real run: the fixer only ever *replaces* a duplicated
+  // passage with a link, so a reference the plan declared but the writer never
+  // duplicated never became one. On an init the writer has no documents to link
+  // to yet, so that is every reference — ARCHITECTURE ended up a dead end.
+  test("verify-architecture flags a declared reference that was never linked", async () => {
+    const out = await render("verify-architecture");
+    expect(out).toContain("**Missing Reference** finding (**Minor**)");
+    expect(out).toContain("For every path in the plan's `references` list");
+    expect(out).toContain("every declared reference is missing");
+  });
+
+  test("fix can add a missing link without restating the target", async () => {
+    const out = await render("fix-documentation");
+    expect(out).toContain("If it is a **Missing Reference** finding: add the link");
+    expect(out).toContain("Do not restate what the target says");
+  });
+
+  // Found by the sample regeneration: ARCHITECTURE landed at exactly its budget
+  // (172/172) and then had 23 links added. Woven into existing sentences that is
+  // 199 lines — inside the 1.2x tolerance. Added as 23 new sentences it would
+  // have overrun, and the next iteration's fix would have deleted real content
+  // to get back under. The margin was 7 lines, so this cannot be left to taste.
+  test.for(["slice-doc", "fix-documentation", "document-architecture", "verify-architecture"])(
+    "%s says a reference costs a link, not a paragraph",
+    async (name) => {
+      const out = await render(name);
+      expect(out).toContain("**A reference costs a link, not a paragraph.**");
+      expect(out).toContain('never collect\nlinks into a trailing "See also" list');
+    },
+  );
+
+  test("fix weaves a missing link in rather than appending a sentence", async () => {
+    const out = await render("fix-documentation");
+    expect(out).toContain("Weave it into the sentence the finding names");
+    expect(out).toContain("write a new sentence only when that section has no sentence the link fits");
+    expect(out).toContain("A document at its budget must still be at its budget when you are done");
+  });
+
+  test("fix knows the architecture slice has no phase definition", async () => {
+    const out = await render("fix-documentation");
+    expect(out).toContain("When the phase/slice number given above is `architecture`");
+    expect(out).toContain("**Architecture Document**");
+  });
+});
+

@@ -518,6 +518,40 @@ path. The task now distinguishes three states: no corpus passes (greenfield init
 existing corpus fails the update-family flows with the upgrade-path message, and `init` over an
 existing corpus fails with a delete-first message so re-init stays an explicit two-step.
 
+### Amendment: task 6 outcomes (from PR #56)
+
+Three things task 6 settled that the sections above left open. Its implementer choices —
+a dedicated `verify-architecture.md` rather than extending the shared verifier, the loop
+placed after `parse-plan`, and the ownership rules in a new partial rather than
+decision-guidance — are justified in PR #56 rather than restated here.
+
+**The twins are gone at plan time.** "Regenerate before tasks 7 and 8" above hedges that
+*if* the new dedup rules work, the regenerated corpus will not carry the
+`prompt-templates.md` / `templates-and-prompt-rendering.md` twins. It is no longer a
+hedge: task 6's trial regeneration plan lists only `concepts/prompt-templates.md`. Task
+8's real run must therefore check out the `pre-beta-corpus` tag; against a new corpus
+only the net-line-count and deletion-report halves of its criterion apply.
+
+**Two of task 6's acceptance criteria carry over to the milestone.** Its combined sample
+regeneration died at phase 11 of 20 on credit exhaustion, before the CLI and workflow
+feature documents were written — so "each workflow's step sequence appears in exactly one
+document" and "`cli-entry-point.md` no longer duplicates ARCHITECTURE's CLI walkthrough"
+were confirmed at the plan layer only. The generated plan makes both decisions explicitly
+(it extracted the verify/fix loop into `features/verify-fix-loop.md` so the four workflow
+documents would not each narrate it), but no writer output was observed. Both are
+checklist items on the milestone card. They are self-detecting rather than merely
+deferred: verify's new Step 3f raises a Duplication finding naming the passage and its
+owner, so a failure surfaces in the milestone's slice reviews rather than silently.
+
+**A full init on this repo is a multi-hour job that can fail partway.** The trial ran 123
+minutes to reach phase 11 of 20. Budget for that at the milestone, and confirm the auth
+source before starting — a `claude` CLI that inherits `ANTHROPIC_API_KEY` authenticates
+with it in preference to a claude.ai subscription and bills API credits, which is what
+ended the trial. Runs are resumable: `saaga run --resume <run-id> <dir>` skips journaled
+steps, so a failure part-way is recoverable rather than a restart. This also revises the
+Track B note above, which assumed a combined sample regeneration was a cheap substitute
+for three smaller ones; it is cheaper than three, but it is not cheap.
+
 ### After task 0 lands: review the generated plan
 
 The generated plan shrinks to ~170 lines of pure decisions, which makes human review of the

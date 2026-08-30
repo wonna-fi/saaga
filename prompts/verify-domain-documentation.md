@@ -22,14 +22,20 @@ Read the plan file and extract:
 - The **phase definition** for the specified slice (concepts, patterns, conventions, and features listed)
 - The **Template Adaptations** section, if present: repository-specific deltas to the templates below, plus its **Verification checks** table naming the technology-specific checks recorded for this repository
 - The **line budget** recorded for each document in this slice (its tier and its exact number). Step 3e enforces it. A document the plan gave no budget is not checked in 3e. Convention documents never carry a budget: their cap comes from the template and `validate-docs` enforces it.
+- The **owns / references** declaration recorded for each document in this slice: which facts the document owns, and which documents it links to for the rest. Step 3f enforces it. A document the plan gave no declaration is not checked in 3f.
 
-The quality checklists, the documentation templates, the level-of-detail policy (the budget bands and the consequence test Step 3e applies) and the mandatory verification protocol are in this prompt, below. They are authoritative; the plan only records deltas — and the per-document line budget.
+The quality checklists, the documentation templates, the level-of-detail policy (the budget bands and the consequence test Step 3e applies) and the mandatory verification protocol are in this prompt, below. They are authoritative; the plan only records deltas — the per-document line budget, and the owns / references declaration.
 
 ## Step 2: Identify Documents to Review
 
 From the phase definition, determine which documents were created. Find them in the `{docs_dir}/concepts/`, `{docs_dir}/patterns/`, `{docs_dir}/conventions/`, and `{docs_dir}/features/` directories.
 
 Review documents in this order: concepts first, then patterns, then conventions, then features (same order they were created).
+
+If the phase definition names `{docs_dir}/ARCHITECTURE.md`, that document is part of this
+slice too. It is the one document with no type template, so skip Step 3a for it and check
+it against the ownership rules in Single Home per Fact instead; every other step applies
+to it normally.
 
 ## Step 3: Review Each Document
 
@@ -115,6 +121,29 @@ Separately, record a **Consequence Test** finding (**Minor**) for any passage th
 the test even in a document that is within budget: a transcribed private constant value,
 a list of internal helper names, or prose restating a function body.
 
+### 3f. Ownership and Duplication
+
+Step 3e asks whether a document says more than it should about its own subject. This step
+asks whether it says anything about someone else's.
+
+Skip any document the plan gave no owns / references declaration.
+
+For each document that has one:
+
+1. Take the `references` half: the documents this one links to rather than restates.
+2. For each referenced document, check whether this document restates content that the
+   referenced document owns — a step sequence, a flag list, an interface table, a term's
+   definition — rather than linking to it. Use the ownership table in Single Home per Fact
+   to decide who owns a fact when the declaration is ambiguous.
+3. Record a **Duplication** finding for each restatement. Name the exact passage in the
+   Evidence column and name the owning document, because the fix step replaces the passage
+   with a link and can only link to what the report names. Severity **Major** when a whole
+   section is duplicated, **Minor** for a paragraph or a table row.
+4. A passage that names a fact in one sentence and links to the owner is not duplication.
+   Neither is a fact this document's own `owns` half claims — if two documents both claim
+   it, that is a plan error: record no finding and report the collision under methodology
+   improvements in Step 5 instead.
+
 ## Step 4: Compile Findings
 
 For each error found, record:
@@ -123,9 +152,9 @@ For each error found, record:
 |---|---|
 | **Document** | File path of the document (for a Coverage Gap where no doc exists yet, write the expected target path, e.g. `{docs_dir}/features/<name>.md`, and mark it `(missing)`) |
 | **Section** | Which section contains the error (for a Coverage Gap, the undocumented source surface) |
-| **Claim** | The specific incorrect claim, or for a Coverage Gap the doc-worthy change that is missing from the documentation. Claim types beyond a plain factual error: **Coverage Gap** (Step 3d), **Budget Overrun** (Step 3e), **Consequence Test** (Step 3e) |
+| **Claim** | The specific incorrect claim, or for a Coverage Gap the doc-worthy change that is missing from the documentation. Claim types beyond a plain factual error: **Coverage Gap** (Step 3d), **Budget Overrun** (Step 3e), **Consequence Test** (Step 3e), **Duplication** (Step 3f) |
 | **Evidence** | What the source code actually shows (for a Coverage Gap, the change-report entry plus the source surface that warrants documentation) |
-| **Severity** | **Critical** (wrong API, non-existent method, or an entirely undocumented new public surface/feature), **Major** (incorrect behavior, a documented surface whose change was not reflected, or a document at or above 1.5x its assigned budget), or **Minor** (formatting, incomplete list, or content that is accurate but does not belong in the document — including a document modestly over its budget) |
+| **Severity** | **Critical** (wrong API, non-existent method, or an entirely undocumented new public surface/feature), **Major** (incorrect behavior, a documented surface whose change was not reflected, a document at or above 1.5x its assigned budget, or a whole section restating what another document owns), or **Minor** (formatting, incomplete list, or content that is accurate but does not belong in the document — including a document modestly over its budget, or a duplicated paragraph or table row) |
 | **Preventable** | Whether the verification protocol below should have caught this, and if not, what improvement would help |
 
 ## Step 5: Write Verification Report
@@ -180,6 +209,10 @@ than adding a frontmatter block to it here.
 ---
 
 {include:partials/lod-policy.md}
+
+---
+
+{include:partials/single-home.md}
 
 ---
 

@@ -34,6 +34,17 @@ phases:
 
     const fake = new FakeAgent({
       "Document the Architecture": { exitCode: 0 },
+      "Verify the Architecture Document": {
+        exitCode: 0,
+        effect: async (_opts, prompt) => {
+          const m = prompt.match(/Write the verification status to `([^`]+)`/);
+          if (!m) throw new Error("status path not found in verify prompt");
+          const { mkdir: mk } = await import("node:fs/promises");
+          const { dirname } = await import("node:path");
+          await mk(dirname(m[1]), { recursive: true });
+          await writeFile(m[1], "PASS", "utf8");
+        },
+      },
       "Plan Domain Documentation": {
         exitCode: 0,
         effect: async (_opts, prompt) => {
@@ -73,6 +84,17 @@ phases:
 
     const fake = new FakeAgent({
       "Document the Architecture": { exitCode: 0 },
+      "Verify the Architecture Document": {
+        exitCode: 0,
+        effect: async (_opts, prompt) => {
+          const m = prompt.match(/Write the verification status to `([^`]+)`/);
+          if (!m) throw new Error("status path not found in verify prompt");
+          const { mkdir: mk } = await import("node:fs/promises");
+          const { dirname } = await import("node:path");
+          await mk(dirname(m[1]), { recursive: true });
+          await writeFile(m[1], "PASS", "utf8");
+        },
+      },
       "Plan Domain Documentation": {
         exitCode: 0,
         effect: async (_opts, prompt) => {
@@ -123,6 +145,17 @@ phases:
 
     const fake = new FakeAgent({
       "Document the Architecture": { exitCode: 0 },
+      "Verify the Architecture Document": {
+        exitCode: 0,
+        effect: async (_opts, prompt) => {
+          const m = prompt.match(/Write the verification status to `([^`]+)`/);
+          if (!m) throw new Error("status path not found in verify prompt");
+          const { mkdir: mk } = await import("node:fs/promises");
+          const { dirname } = await import("node:path");
+          await mk(dirname(m[1]), { recursive: true });
+          await writeFile(m[1], "PASS", "utf8");
+        },
+      },
       "Plan Domain Documentation": {
         exitCode: 0,
         effect: async (_opts, prompt) => {

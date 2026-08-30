@@ -70,6 +70,7 @@ function verifyScenario(): FakeScenarioValue {
 function healthyAgent(): FakeAgent {
   return new FakeAgent({
     "Document the Architecture": { exitCode: 0 },
+    "Verify the Architecture Document": verifyScenario(),
     "Plan Domain Documentation": planInitScenario(),
     "Document a Plan Slice": { exitCode: 0 },
     "Verify Domain Documentation Slice": verifyScenario(),
@@ -94,6 +95,7 @@ async function interruptedInit(app: string) {
   const controller = new AbortController();
   const agent = new FakeAgent({
     "Document the Architecture": { exitCode: 0 },
+    "Verify the Architecture Document": verifyScenario(),
     "Plan Domain Documentation": planInitScenario(),
     "Document a Plan Slice": { exitCode: 0, effect: () => controller.abort() },
   });
@@ -117,6 +119,7 @@ describe("saaga run --resume", () => {
     expect(firstLines(agent)).toEqual([
       "# Document the Architecture of an Application",
       "# Plan Domain Documentation for an Application",
+      "# Verify the Architecture Document",
       "# Document a Plan Slice",
     ]);
 
@@ -125,8 +128,9 @@ describe("saaga run --resume", () => {
     expect(manifest.flow).toBe("init");
     expect(manifest.initialScope.run_id).toBe(id);
     const journal = await readFile(join(dir, "steps.jsonl"), "utf8");
-    // check-format-version, ensure-gitignore, architecture, plan, parse-plan
-    expect(journal.trim().split("\n")).toHaveLength(5);
+    // check-format-version, ensure-gitignore, architecture, plan, parse-plan,
+    // then the architecture verify/fix loop's verify and its read-file
+    expect(journal.trim().split("\n")).toHaveLength(7);
   });
 
   test("resumes at the interrupted step and completes", async () => {
@@ -138,7 +142,7 @@ describe("saaga run --resume", () => {
     const exitCode = await runCli(["run", "--resume", id, app], { agent, stderr: err });
 
     expect(exitCode).toBe(0);
-    expect(err.text).toContain(`resuming run ${id} (attempt 2, 5 steps already done)`);
+    expect(err.text).toContain(`resuming run ${id} (attempt 2, 7 steps already done)`);
     expect(firstLines(agent)).toEqual([
       "# Document a Plan Slice",
       "# Document a Plan Slice",
@@ -157,10 +161,11 @@ describe("saaga run --resume", () => {
     expect(prompts).toEqual([
       "01-document-architecture.md",
       "02-plan-init.md",
-      "03-slice-doc-phase0.md",
+      "03-verify-architecture-iter1.md",
       "04-slice-doc-phase0.md",
-      "05-slice-doc-phase1.md",
-      "06-verify-domain-documentation-phase1-iter1.md",
+      "05-slice-doc-phase0.md",
+      "06-slice-doc-phase1.md",
+      "07-verify-domain-documentation-phase1-iter1.md",
     ]);
     expect((await readdir(join(app, ".saaga-runs"))).length).toBe(1);
   });

@@ -23,6 +23,11 @@ A convention document never gets one: its template caps it at 5–20 lines of
 body, which is below this table's lowest band, and `validate-docs` fails the run
 above the cap.
 
+`ARCHITECTURE.md` is the other exception: it has no tier, because it is the one
+document every other document is measured against rather than one of them. Its
+writing target is stated in the prompt that writes it, and the exact number the
+verifier enforces is recorded in the plan.
+
 ### The Consequence Test
 
 Document an internal mechanism in full **only** if at least one of these holds:

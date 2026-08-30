@@ -45,6 +45,10 @@ Read the relevant source code files referenced in the plan and produce complete,
 
 ---
 
+{include:partials/single-home.md}
+
+---
+
 {include:partials/handling-uncertainty.md}
 
 ---

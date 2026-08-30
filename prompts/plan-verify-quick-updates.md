@@ -115,8 +115,9 @@ for every phase, only what is warranted.
 The document templates, decision guidance, the level-of-detail policy, quality
 checklists and verification protocol are delivered to the writer and the verifier
 by their own prompts. Do NOT reproduce them here. In particular, never restate the
-budget bands or the consequence test — the per-document budget you assign is a
-decision and belongs in the plan; the rules behind it do not.
+budget bands, the consequence test or the ownership table — the per-document budget
+and the owns / references declaration you assign are decisions and belong in the plan;
+the rules behind them do not.
 
 Record only the **deltas** this repository needs — for example "treat a symbol as
 public only if it is re-exported from `src/index.ts`", or a table column this
@@ -144,6 +145,7 @@ For each phase:
 - **Uncertainty focus**: Specific areas flagged as uncertain that need extra verification
 - **Documents to verify/re-document**: List of doc files with specific aspects to verify
 - **Line budgets**: for every document listed above — the coverage gaps to close and the documents to re-document alike — one line of the form `<path> — <Core|Supporting|Peripheral>, <N> lines`. Assign the tier with the centrality test in the Level of Detail section, then pick N inside that tier's band from the size and complexity of the source it covers. This is a decision the verifier enforces — do not omit it. Never assign a budget to a document under `{docs_dir}/conventions/`: the lowest band starts at 25 lines and the cap is 20, so a budget would order the writer past it.
+- **Owns / references**: for every document listed above, one line of the form `<path> — owns: <fact classes>; references: <paths it links to instead of restating>`. Use the ownership table in Single Home per Fact; the `owns` half names what only this document may state, the `references` half names the documents it links to for everything else it touches. A fact named in one document's `owns` must not appear in another document's body — that document links to the owner instead. This is a decision the verifier enforces — do not omit it.
 - **Key files to analyze**: Source files to read for verification
 
 #### 5. Execution Strategy
@@ -183,6 +185,10 @@ decisions only — do NOT copy any of it into the plan.
 ---
 
 {include:partials/lod-policy.md}
+
+---
+
+{include:partials/single-home.md}
 
 ---
 

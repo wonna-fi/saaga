@@ -131,13 +131,29 @@ Deliverables for Phase 0:
 
 Do NOT create or modify any agent rule file (`AGENTS.md`, `CLAUDE.md`, Cursor `.mdc`, or Copilot instructions) in this phase. Installing the documentation guidance into rule files is handled separately by the `install-rules` step, which is the single source of truth for that content.
 
-#### 3. Template Adaptations
+#### 3. Architecture Document
+
+`{docs_dir}/ARCHITECTURE.md` already exists — it was written before this plan. It is not
+part of any phase, and no phase re-writes it. This section records the two decisions a
+separate verification pass needs, one line each:
+
+- `ARCHITECTURE.md — <N> lines`, where `N = 60 + 8 x (the number of modules the document
+  describes)`, capped at 250. ARCHITECTURE has no tier: it is the document every other
+  document is measured against, not one of them.
+- `ARCHITECTURE.md — owns: <fact classes>; references: <paths>`, using the ownership table
+  in Single Home per Fact. ARCHITECTURE owns the system-level shape and a one-paragraph
+  summary per module; it references the concept and feature documents this plan creates
+  for everything below that. List those paths — a later pass rewrites inlined content into
+  links, and it may only link to paths this plan names.
+
+#### 4. Template Adaptations
 
 The document templates, decision guidance, the level-of-detail policy, quality
 checklists and verification protocol are delivered to the writer and the verifier
 by their own prompts. Do NOT reproduce them here. In particular, never restate the
-budget bands or the consequence test — the per-document budget you assign is a
-decision and belongs in the plan; the rules behind it do not.
+budget bands, the consequence test or the ownership table — the per-document budget
+and the owns / references declaration you assign are decisions and belong in the plan;
+the rules behind them do not.
 
 Record only the **deltas** this repository needs — for example "treat a symbol as
 public only if it is re-exported from `src/index.ts`", or a table column this
@@ -155,7 +171,7 @@ they are not deltas and do not belong here. Include:
 If a template needs no adaptation, say so in one line. Never paste a template
 into the plan.
 
-#### 4. Phase 1 through Phase N: Domain Slices
+#### 5. Phase 1 through Phase N: Domain Slices
 
 For each domain area discovered in Step 1c, create a phase with:
 
@@ -163,10 +179,11 @@ For each domain area discovered in Step 1c, create a phase with:
 - **Patterns to document**: List the reusable code approaches
 - **Features to document**: List the user-facing capabilities
 - **Line budgets**: for every document listed above, one line of the form `<path> — <Core|Supporting|Peripheral>, <N> lines`. Assign the tier with the centrality test in the Level of Detail section, using the dependency order from Step 1e; pick N inside that tier's band from the size and complexity of the source it covers. This is a decision the verifier enforces — do not omit it. Never assign a budget to a convention document: the lowest band starts at 25 lines and the cap is 20, so a budget would order the writer past it.
+- **Owns / references**: for every document listed above, one line of the form `<path> — owns: <fact classes>; references: <paths it links to instead of restating>`. Use the ownership table in Single Home per Fact; the `owns` half names what only this document may state, the `references` half names the documents it links to for everything else it touches. A fact named in one document's `owns` must not appear in another document's body — that document links to the owner instead. This is a decision the verifier enforces — do not omit it.
 - **Key files to analyze**: List the primary source files for this domain area (with relative paths)
 - **Notes**: Anything specific to this slice the writer needs — gotchas, boundaries with other slices, docs to cross-link
 
-#### 5. Final Phase: Conventions
+#### 6. Final Phase: Conventions
 
 Include this phase **only if** Step 1d found at least one convention family. It is
 the last numbered phase, never Phase 0 — Phase 0 is written outside the verify/fix
@@ -180,14 +197,14 @@ loop, and a convention document has to be verified like any other.
 Assign no line budgets here: convention documents are capped at 5–20 lines of body
 by the template, and the cap replaces the budget.
 
-#### 6. Execution Strategy
+#### 7. Execution Strategy
 
 - Phases are executed in order (later phases reference earlier concepts)
 - Within each phase: concepts first, then patterns, then features
 - Cross-link between docs; update INDEX.md files after each phase
 - Reviews after each phase
 
-#### 7. Success Criteria
+#### 8. Success Criteria
 
 - AI agents can find relevant concepts by checking INDEX.md files
 - Each concept doc explains where configuration lives and which services/functions to use
@@ -212,6 +229,10 @@ decisions only — do NOT copy any of it into the plan.
 ---
 
 {include:partials/lod-policy.md}
+
+---
+
+{include:partials/single-home.md}
 
 ---
 
