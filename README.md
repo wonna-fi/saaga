@@ -336,6 +336,12 @@ the specific passages that should go, and the fix step is explicitly permitted t
 delete them. That is the one situation where Saaga removes text that is perfectly
 accurate.
 
+A budget is an estimate made before the document was written, so it can simply be
+wrong. If a document is over its budget but every passage in it earns its place,
+verification records no error at all: it reports the mis-set budget so the next plan
+assigns a better one, and the document stands. Deleting justified content to
+reach a number is never the fix.
+
 **The consequence test.** Before documenting an internal mechanism in full, the writer
 must find one of three justifications: it is externally observable, it constrains other
 code, or it records a deliberate decision. Otherwise the mechanism gets one line naming

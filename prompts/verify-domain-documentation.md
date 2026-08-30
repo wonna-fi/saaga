@@ -90,11 +90,17 @@ For each document that has an assigned budget:
 
 1. Count its lines, frontmatter included.
 2. Below 1.2x the budget: no finding. The budget is a target, not a fence.
-3. At or above 1.2x but below 1.5x: record a **Budget Overrun** finding, severity **Minor**.
-4. At or above 1.5x: the same finding, severity **Major**.
-5. In the Evidence column, name the specific passages that should go — the ones failing
-   the consequence test — ranked by how many lines each costs. A finding that does not
-   name what to remove is not actionable by the fix step.
+3. At or above 1.2x: identify the passages that fail the consequence test, ranked by how
+   many lines each costs.
+4. **If removing those passages would bring the document within its budget**, record a
+   **Budget Overrun** finding and list them in the Evidence column — severity **Minor**
+   below 1.5x, **Major** at or above it. A finding that does not name what to remove is
+   not actionable by the fix step, so never raise one without the list.
+5. **If the document is over budget but every passage earns its place**, record no error.
+   The budget was set wrong, not the document. Note it under Methodology improvement
+   suggestions in Step 5 instead — name the document, its budget and its actual length —
+   so the next plan assigns a better one. Deleting content that passes the consequence
+   test in order to reach a number is never the right fix.
 
 Separately, record a **Consequence Test** finding (**Minor**) for any passage that fails
 the test even in a document that is within budget: a transcribed private constant value,
@@ -110,7 +116,7 @@ For each error found, record:
 | **Section** | Which section contains the error (for a Coverage Gap, the undocumented source surface) |
 | **Claim** | The specific incorrect claim, or for a Coverage Gap the doc-worthy change that is missing from the documentation. Claim types beyond a plain factual error: **Coverage Gap** (Step 3d), **Budget Overrun** (Step 3e), **Consequence Test** (Step 3e) |
 | **Evidence** | What the source code actually shows (for a Coverage Gap, the change-report entry plus the source surface that warrants documentation) |
-| **Severity** | **Critical** (wrong API, non-existent method, or an entirely undocumented new public surface/feature), **Major** (incorrect behavior, or a documented surface whose change was not reflected), or **Minor** (formatting, incomplete list, or content that is accurate but should not be in the document at all) |
+| **Severity** | **Critical** (wrong API, non-existent method, or an entirely undocumented new public surface/feature), **Major** (incorrect behavior, a documented surface whose change was not reflected, or a document at or above 1.5x its assigned budget), or **Minor** (formatting, incomplete list, or content that is accurate but does not belong in the document — including a document modestly over its budget) |
 | **Preventable** | Whether the verification protocol below should have caught this, and if not, what improvement would help |
 
 ## Step 5: Write Verification Report

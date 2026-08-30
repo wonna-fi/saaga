@@ -373,6 +373,40 @@ describe("verify and fix can act on a budget", () => {
     expect(out).toContain("Skip any document the plan assigned no budget");
   });
 
+  // A Budget Overrun is only raised when deleting the named passages can
+  // actually close the gap. Without this, a document that is over budget but
+  // entirely justified produces a finding nothing can resolve, and the slice
+  // burns all three fix iterations before the loop exits silently.
+  test("an overrun the fix step cannot resolve is not an error", async () => {
+    const out = await render("verify-domain-documentation");
+    expect(out).toContain("**If removing those passages would bring the document within its budget**");
+    expect(out).toContain("**If the document is over budget but every passage earns its place**");
+    expect(out).toContain("The budget was set wrong, not the document");
+    expect(out).toContain("never raise one without the list");
+  });
+
+  // Step 3e grades a 1.5x overrun Major, so Step 4's severity definitions have
+  // to have a Major case for it — otherwise the same finding is gradeable both ways.
+  test("the severity ladder agrees with Step 3e", async () => {
+    const out = await render("verify-domain-documentation");
+    expect(out).toContain("a document at or above 1.5x its assigned budget");
+    expect(out).toContain("including a document modestly over its budget");
+  });
+
+  test("fix never invents a deletion to hit the number", async () => {
+    const out = await render("fix-documentation");
+    expect(out).toContain("never delete something the report did not name");
+  });
+
+  // The checklists reach the verifier in the same rendered prompt as Step 3e.
+  // An item asserting "within its budget" would fail a document at 1.1x that
+  // 3e deliberately passes, and send the fixer after accurate text.
+  test("the checklists defer to the verification step's tolerance", async () => {
+    const out = await render("verify-domain-documentation");
+    expect(out).not.toContain("Document is within its assigned line budget");
+    expect(out).toContain("the verification step defines the tolerance");
+  });
+
   test("fix is allowed to delete accurate text for a budget finding", async () => {
     const out = await render("fix-documentation");
     expect(out).toContain("does not apply to a Budget Overrun or Consequence Test finding");

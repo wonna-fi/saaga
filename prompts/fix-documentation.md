@@ -47,7 +47,7 @@ For each error:
    - If a cross-reference is broken: fix the link or replace with plain text if the target doesn't exist
    - If a structural section is missing: add it following the template below
    - If a value/constant is wrong: correct it based on source code
-   - If it is a **Budget Overrun**: delete the passages the report names, in the order it ranked them, until the document is within its budget. Deleting is the fix — do not rewrite the document, and do not compensate by compressing prose elsewhere.
+   - If it is a **Budget Overrun**: delete the passages the report names, in the order it ranked them, until the document is within its budget. Deleting is the fix — do not rewrite the document, and do not compensate by compressing prose elsewhere. If deleting every named passage still leaves the document over budget, stop there and say so; never delete something the report did not name in order to reach the number.
    - If it is a **Consequence Test** finding: delete the flagged passage, or reduce it to one line naming the mechanism and why it exists.
    - If it is a **Coverage Gap** (a documentation-worthy change with no documentation): write the missing documentation. Read the source surface named in the evidence, decide whether it belongs in a concept, pattern, or feature doc (use the Decision Guidance below), and either create the missing file at the path noted in the finding following the matching template, or add a section to the most appropriate existing doc. Base every claim on the source code, and update the relevant `INDEX.md` for any new file.
 4. **Verify your fix** by re-reading the relevant source code to ensure accuracy

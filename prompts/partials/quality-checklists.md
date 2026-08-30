@@ -13,7 +13,7 @@
 - **[MANDATORY]** For EVERY function in "Key Services/Functions": Verify it is part of the public API
 - **[MANDATORY]** Internal functions are NOT in "Key Services/Functions" — remove them, unless the consequence test justifies naming one under "Internal Implementation"
 - **[VERIFICATION]** Frontmatter `sources` lists every file the document makes a claim about
-- **[VERIFICATION]** Document is within its assigned line budget
+- **[VERIFICATION]** Document's length was checked against its assigned line budget (the verification step defines the tolerance; being a little over is not by itself an error)
 - **[VERIFICATION]** Every internal mechanism documented in full passes the consequence test
 
 ### Pattern Doc Checklist
@@ -28,7 +28,7 @@
 - **[VERIFICATION]** Function parameter types match actual signatures
 - **[MANDATORY]** For EVERY function in "Reference Implementations": Verify it is part of the public API
 - **[VERIFICATION]** Frontmatter `sources` lists every file the document makes a claim about
-- **[VERIFICATION]** Document is within its assigned line budget
+- **[VERIFICATION]** Document's length was checked against its assigned line budget (the verification step defines the tolerance; being a little over is not by itself an error)
 - **[VERIFICATION]** Every internal mechanism documented in full passes the consequence test
 
 ### Feature Doc Checklist
@@ -44,5 +44,5 @@
 - **[VERIFICATION]** Behavior claims are consistent with other docs in the slice
 - **[MANDATORY]** For EVERY function in "Services/Functions" table: Verify it is part of the public API
 - **[VERIFICATION]** Frontmatter `sources` lists every file the document makes a claim about
-- **[VERIFICATION]** Document is within its assigned line budget
+- **[VERIFICATION]** Document's length was checked against its assigned line budget (the verification step defines the tolerance; being a little over is not by itself an error)
 - **[VERIFICATION]** Every internal mechanism documented in full passes the consequence test
