@@ -1,6 +1,7 @@
 import { readdir, readFile, rename, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import type { Scope } from "./engine/types.js";
+import { DEFAULT_MODEL_KEY } from "./model-keys.js";
 
 export type RunStatus = "running" | "interrupted" | "failed" | "completed";
 
@@ -20,6 +21,13 @@ export interface RunManifest {
   appPath: string;
   docsDir: string;
   backend?: string;
+  /**
+   * Resolved model key -> model name for every key the run's flow asked for.
+   * Re-pinned on resume so a config change between attempts cannot silently
+   * move a half-finished run onto different models.
+   */
+  models?: Record<string, string>;
+  /** @deprecated Legacy single-model pin; read via `manifestModels()`. */
   model?: string;
   /** The exact scope `runFlow()` was started with. Reused verbatim on resume. */
   initialScope: Scope;
@@ -57,6 +65,24 @@ export async function readManifest(runDir: string): Promise<RunManifest> {
     }
   }
   return parsed as RunManifest;
+}
+
+/**
+ * The model pins to reapply when resuming a run.
+ *
+ * Manifests written before per-step models pinned a single key. Reading that
+ * legacy value as the default key is exact rather than approximate: adding
+ * `model:` to a flow changes its hash, so the only flows that can still resume
+ * across the upgrade are the ones left untouched — which are precisely the
+ * ones that ran on the default key.
+ */
+export function manifestModels(
+  manifest: RunManifest,
+): Record<string, string> | undefined {
+  if (manifest.models) return manifest.models;
+  return manifest.model
+    ? { [DEFAULT_MODEL_KEY]: manifest.model }
+    : undefined;
 }
 
 export interface ResumableRun {

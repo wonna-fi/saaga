@@ -6,6 +6,13 @@ export interface AgentStep {
   vars?: Record<string, string>;
   expect_file?: string;
   label?: string;
+  /**
+   * Model key this step asks for, resolved against the backend's models map.
+   * Absent means `DEFAULT_MODEL_KEY`; the default is deliberately not filled
+   * in here, so a flow omitting the key keeps the hash it had before the key
+   * existed.
+   */
+  model?: string;
 }
 
 export interface ScriptStep {

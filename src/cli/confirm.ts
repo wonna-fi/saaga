@@ -37,8 +37,11 @@ export interface CostNoticeInput {
   backendCli: string;
   /** Resolved backend key; absent when the agent was injected directly. */
   backend?: string;
-  /** Resolved model; absent when the agent was injected directly. */
-  model?: string;
+  /**
+   * Distinct models the flow's steps will use, in first-appearance order.
+   * Absent or empty when the agent was injected directly.
+   */
+  models?: readonly string[];
 }
 
 export interface CostConfirmationInput extends CostNoticeInput {
@@ -68,10 +71,12 @@ export function buildCostNotice(input: CostNoticeInput): string {
 
 /** One-line variant for run.log, where the full notice would be noise. */
 export function buildCostSummary(input: CostNoticeInput): string {
-  return (
-    `cost notice acknowledged (cli=${input.backendCli}` +
-    `${input.model ? `, model=${input.model}` : ""})`
-  );
+  const { models } = input;
+  const list =
+    models && models.length > 0
+      ? `, ${models.length === 1 ? "model" : "models"}=${models.join(", ")}`
+      : "";
+  return `cost notice acknowledged (cli=${input.backendCli}${list})`;
 }
 
 /**
@@ -113,8 +118,20 @@ export async function confirmAgentCosts(
 function describeResolution(input: CostNoticeInput): string {
   const parts: string[] = [];
   if (input.backend) parts.push(`backend ${input.backend}`);
-  if (input.model) parts.push(`model ${input.model}`);
+  const models = describeModels(input.models);
+  if (models) parts.push(models);
   return parts.length > 0 ? ` (${parts.join(", ")})` : "";
+}
+
+/**
+ * Renders the model list, staying singular for the common single-model run so
+ * the notice reads naturally rather than announcing a list of one.
+ */
+function describeModels(models?: readonly string[]): string | undefined {
+  if (!models || models.length === 0) return undefined;
+  return models.length === 1
+    ? `model ${models[0]}`
+    : `models ${models.join(", ")}`;
 }
 
 function isInteractive(input: CostConfirmationInput): boolean {

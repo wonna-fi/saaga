@@ -1,6 +1,7 @@
 import { access, readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { parse as parseYaml } from "yaml";
+import { isValidModelKey } from "../model-keys.js";
 import { FLOWS_DIR } from "../paths.js";
 import type {
   AgentStep,
@@ -232,6 +233,42 @@ function parseScriptStep(body: unknown): ScriptStep {
   return step;
 }
 
+const AGENT_STEP_KEYS = new Set([
+  "prompt",
+  "vars",
+  "expect_file",
+  "label",
+  "model",
+]);
+
+/**
+ * Every agent step in a step list, including ones nested in foreach/loop/if,
+ * in document order.
+ *
+ * Note this is not `PhaseTracker.countStep()`: that one deliberately does not
+ * descend into loop and foreach bodies, and would miss most steps here.
+ */
+export function agentSteps(steps: readonly Step[]): AgentStep[] {
+  const out: AgentStep[] = [];
+  for (const step of steps) {
+    switch (step.type) {
+      case "agent":
+        out.push(step);
+        break;
+      case "foreach":
+      case "loop":
+        out.push(...agentSteps(step.do));
+        break;
+      case "if":
+        out.push(...agentSteps(step.then));
+        break;
+      default:
+        break;
+    }
+  }
+  return out;
+}
+
 function parseAgentStep(body: unknown): AgentStep {
   if (!body || typeof body !== "object" || Array.isArray(body)) {
     throw new Error("'agent' step body must be an object");
@@ -261,6 +298,31 @@ function parseAgentStep(body: unknown): AgentStep {
   if (obj.label !== undefined) {
     if (typeof obj.label !== "string") throw new Error("'agent.label' must be a string");
     step.label = obj.label;
+  }
+  if (obj.model !== undefined) {
+    if (typeof obj.model !== "string") {
+      throw new Error("'agent.model' must be a string");
+    }
+    if (!isValidModelKey(obj.model)) {
+      throw new Error(
+        `'agent.model' must be lowercase, start with a letter, and contain ` +
+          `only a-z, 0-9, '-' and '_' (got '${obj.model}')`,
+      );
+    }
+    // Left absent when the YAML omits it: `flowHash()` hashes the parsed
+    // definition, so filling in the default here would change the hash of
+    // every flow that does not use the key.
+    step.model = obj.model;
+  }
+  // A mistyped key used to be harmless. Now that `model` exists, a silent
+  // fallback would run a whole flow on the wrong model with no signal.
+  for (const key of Object.keys(obj)) {
+    if (!AGENT_STEP_KEYS.has(key)) {
+      throw new Error(
+        `unknown key 'agent.${key}' ` +
+          `(expected one of: ${[...AGENT_STEP_KEYS].join(", ")})`,
+      );
+    }
   }
   return step;
 }

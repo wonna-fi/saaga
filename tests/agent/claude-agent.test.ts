@@ -345,3 +345,32 @@ describe("backend selector picks ClaudeAgent for backend=claude", () => {
     expect(agent.name).toBe("claude");
   });
 });
+
+describe("ClaudeAgent per-call model override", () => {
+  beforeEach(() => {
+    mockExeca.mockReset();
+  });
+
+  test("opts.model replaces the model bound at construction", async () => {
+    mockExeca.mockReturnValue(Promise.resolve({ exitCode: 0 }) as any);
+    const cwd = await mkdtemp(join(tmpdir(), "claude-agent-model-"));
+    const agent = new ClaudeAgent({ model: "opus" });
+
+    await agent.run("p", { cwd, model: "per-step-model" });
+
+    const [, args] = mockExeca.mock.calls[0] as any[];
+    expect(args).toContain("per-step-model");
+    expect(args).not.toContain("opus");
+  });
+
+  test("the constructor model is used when opts.model is absent", async () => {
+    mockExeca.mockReturnValue(Promise.resolve({ exitCode: 0 }) as any);
+    const cwd = await mkdtemp(join(tmpdir(), "claude-agent-model-"));
+    const agent = new ClaudeAgent({ model: "opus" });
+
+    await agent.run("p", { cwd });
+
+    const [, args] = mockExeca.mock.calls[0] as any[];
+    expect(args).toContain("opus");
+  });
+});

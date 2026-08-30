@@ -51,7 +51,7 @@ const NOTICE_INPUT = {
   appPath: "/projects/acme",
   backendCli: "cursor-agent",
   backend: "cursor",
-  model: "claude-4.6-opus-high-thinking",
+  models: ["claude-4.6-opus-high-thinking"],
 };
 
 /** App dir with a BASELINE and no changes: a run needs zero agent calls. */
@@ -272,6 +272,24 @@ describe("saaga cost confirmation (end to end)", () => {
     expect(exitCode).toBe(1);
     expect(err.text).toContain("backend claude");
     expect(err.text).toContain("model config-medium");
+  });
+
+  test("a flow spanning two keys names both resolved models", async () => {
+    // update's steps all ask for `high`; the notice also carries the default
+    // key the agent itself is built with, so both surface here.
+    const { app } = await tmpUnchangedApp(
+      "multimodel",
+      "defaultBackend: claude\nbackends:\n  claude:\n    models:\n      high: config-high\n",
+    );
+    const err = new StringWritable();
+
+    const exitCode = await runCli(["run", "update", app], {
+      stderr: err,
+      stdin: ttyStdin("n\n"),
+    });
+
+    expect(exitCode).toBe(1);
+    expect(err.text).toContain("model config-high");
   });
 
   test("--model overrides the configured model", async () => {

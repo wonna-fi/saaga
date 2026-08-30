@@ -7,6 +7,7 @@ import {
   parseModelOverrides,
   resolveBackend,
   resolveModel,
+  resolveModels,
 } from "../../src/cli/backend.js";
 
 describe("resolveBackend", () => {
@@ -226,5 +227,46 @@ describe("backendCliCommand", () => {
     expect(backendCliCommand("cursor")).toBe("cursor-agent");
     expect(backendCliCommand("copilot")).toBe("copilot");
     expect(backendCliCommand("claude")).toBe("claude");
+  });
+});
+
+describe("resolveModels", () => {
+  test("resolves every key a flow asks for", () => {
+    expect(resolveModels("claude", ["medium", "high"])).toEqual({
+      medium: "sonnet",
+      high: "opus",
+    });
+  });
+
+  test("deduplicates repeated keys", () => {
+    expect(resolveModels("claude", ["high", "high", "high"])).toEqual({
+      high: "opus",
+    });
+  });
+
+  test("applies overrides per key", () => {
+    expect(
+      resolveModels("claude", ["low", "high"], { high: "custom" }),
+    ).toEqual({ low: "haiku", high: "custom" });
+  });
+
+  test("an empty key list resolves to an empty map", () => {
+    expect(resolveModels("claude", [])).toEqual({});
+  });
+
+  test("a custom key resolves when configured", () => {
+    expect(resolveModels("claude", ["triage"], { triage: "haiku" })).toEqual({
+      triage: "haiku",
+    });
+  });
+
+  /** Fails before the run starts rather than part-way through a flow. */
+  test("throws for a key with no model behind it", () => {
+    expect(() => resolveModels("claude", ["medium", "triage"])).toThrow(
+      BackendError,
+    );
+    expect(() => resolveModels("claude", ["medium", "triage"])).toThrow(
+      "Unknown model key 'triage'",
+    );
   });
 });

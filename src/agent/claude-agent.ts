@@ -28,7 +28,7 @@ export class ClaudeAgent implements Agent {
   }
 
   async run(prompt: string, opts: AgentRunOpts): Promise<AgentRunResult> {
-    const args = buildClaudeArgs(this.model, prompt, opts);
+    const args = buildClaudeArgs(opts.model ?? this.model, prompt, opts);
     const stdio = opts.onEvent ? buildPipedStdio(opts) : buildStdio(opts);
 
     let proc: ResultPromise;

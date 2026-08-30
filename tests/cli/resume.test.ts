@@ -5,7 +5,12 @@ import { Writable } from "node:stream";
 import { describe, expect, test } from "vitest";
 import { FakeAgent, type FakeScenarioValue } from "../../src/agent/fake-agent.js";
 import { runCli } from "../../src/cli.js";
-import { readManifest, writeManifest } from "../../src/run-manifest.js";
+import {
+  manifestModels,
+  readManifest,
+  writeManifest,
+  type RunManifest,
+} from "../../src/run-manifest.js";
 
 class StringWritable extends Writable {
   private chunks: string[] = [];
@@ -276,5 +281,48 @@ describe("saaga run --continue", () => {
     await expect(
       runCli(["run", "--continue", app], { agent: healthyAgent() }),
     ).rejects.toThrow(/no resumable run found/);
+  });
+});
+
+describe("manifestModels", () => {
+  const base = {
+    runId: "r",
+    flow: "quick-update",
+    flowHash: "h",
+    app: "a",
+    appPath: "/a",
+    docsDir: "d",
+    initialScope: {},
+    status: "interrupted",
+    pid: 1,
+    startedAt: "now",
+    resumedAt: [],
+  } as unknown as RunManifest;
+
+  test("returns the recorded map", () => {
+    expect(manifestModels({ ...base, models: { high: "opus" } })).toEqual({
+      high: "opus",
+    });
+  });
+
+  /**
+   * Adding `model:` to a flow changes its hash, so the only flows that can
+   * still resume across the upgrade are the untouched ones — which are
+   * exactly the ones that ran on the default key.
+   */
+  test("reads a pre-per-step pin as the default key", () => {
+    expect(manifestModels({ ...base, model: "legacy-pin" })).toEqual({
+      medium: "legacy-pin",
+    });
+  });
+
+  test("prefers the map when a manifest somehow carries both", () => {
+    expect(
+      manifestModels({ ...base, model: "legacy", models: { low: "haiku" } }),
+    ).toEqual({ low: "haiku" });
+  });
+
+  test("is undefined when the run pinned nothing", () => {
+    expect(manifestModels(base)).toBeUndefined();
   });
 });

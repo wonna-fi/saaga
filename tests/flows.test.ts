@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
-import { listFlows, loadFlow } from "../src/engine/loader.js";
-import type { AgentStep, ScriptStep, Step } from "../src/engine/types.js";
+import { agentSteps, listFlows, loadFlow } from "../src/engine/loader.js";
+import type { ScriptStep, Step } from "../src/engine/types.js";
 
 const UPDATE_FAMILY = ["update", "quick-update", "verify-quick-updates"];
 
@@ -149,28 +149,6 @@ describe("generate-navigation wiring", () => {
   );
 });
 
-/** Every agent step in the flow, including ones nested in foreach/loop/if. */
-function agentSteps(steps: Step[]): AgentStep[] {
-  const out: AgentStep[] = [];
-  for (const step of steps) {
-    switch (step.type) {
-      case "agent":
-        out.push(step);
-        break;
-      case "foreach":
-      case "loop":
-        out.push(...agentSteps(step.do));
-        break;
-      case "if":
-        out.push(...agentSteps(step.then));
-        break;
-      default:
-        break;
-    }
-  }
-  return out;
-}
-
 describe("verify receives an ISO date for the last_verified stamp", () => {
   /**
    * `${date}` is the run-id form (YYYYMMDD) and is NOT a valid frontmatter
@@ -192,4 +170,31 @@ describe("verify receives an ISO date for the last_verified stamp", () => {
       }
     },
   );
+});
+
+/**
+ * Pins the "behaviour is unchanged" claim: before per-step keys, everything
+ * ran on `high` except quick-update, which ran on `medium` (the default).
+ */
+describe("agent step model keys", () => {
+  test.each(["init", "update", "verify-quick-updates"])(
+    "every agent step in %s asks for high",
+    async (name) => {
+      const flow = await loadFlow(name);
+      const steps = agentSteps(flow.steps);
+
+      expect(steps.length).toBeGreaterThan(0);
+      for (const step of steps) {
+        expect(step.model).toBe("high");
+      }
+    },
+  );
+
+  test("quick-update leaves the key off, taking the medium default", async () => {
+    const flow = await loadFlow("quick-update");
+    const steps = agentSteps(flow.steps);
+
+    expect(steps).toHaveLength(1);
+    expect(steps[0].model).toBeUndefined();
+  });
 });

@@ -8,6 +8,7 @@ export interface FakeAgentCall {
   permissions?: AgentPermissions;
   onEvent?: AgentRunOpts["onEvent"];
   signal?: AbortSignal;
+  model?: string;
 }
 
 export interface FakeScenarioValue {
@@ -42,6 +43,7 @@ export class FakeAgent implements Agent {
       permissions: opts.permissions,
       onEvent: opts.onEvent,
       signal: opts.signal,
+      model: opts.model,
     });
 
     for (const [substring, scenario] of Object.entries(this.scenarios)) {
