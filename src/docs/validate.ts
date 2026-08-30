@@ -77,8 +77,10 @@ const FLOWCHART_DIRECTIONS = ["TD", "TB", "BT", "LR", "RL"];
  * Every `INDEX.md` qualifies (within the corpus the three category indexes have
  * no inbound links at all — they are reached from `AGENTS.md` and
  * `DEVELOPING.md` outside it), as does a `README.md` at the docs root.
- * `ARCHITECTURE.md` deliberately does not: it is a real orphan today, and
- * surfacing that is the point of the check.
+ * `ARCHITECTURE.md` deliberately does not. `generate-navigation` de-orphans it
+ * by linking it from the generated README, and this check is what proves that
+ * happened — exempting it would make the guarantee unfalsifiable, and a corpus
+ * built before the navigation layer would go on hiding a real orphan.
  */
 function isEntryPoint(path: string): boolean {
   return posix.basename(path) === "INDEX.md" || path === "README.md";

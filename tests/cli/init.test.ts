@@ -459,4 +459,61 @@ describe("saaga run init: corpus format version", () => {
     expect(line).toMatch(/\d{4}-\d{2}-\d{2}/);
     expect(line).not.toContain("iso_date");
   });
+
+  test("generates the navigation layer and the corpus validates clean", async () => {
+    const { app } = await tmpAppEnv("navdemo");
+    const docs = join(app, DEFAULT_DOCS_DIR);
+
+    // The other init tests write no documentation at all, so this is the only
+    // one where generate-navigation has an INDEX to work from.
+    const writeCorpus: FakeScenarioValue = {
+      exitCode: 0,
+      effect: async () => {
+        await mkdir(join(docs, "concepts"), { recursive: true });
+        await writeFile(join(docs, "ARCHITECTURE.md"), "# Architecture — navdemo\n", "utf8");
+        await writeFile(
+          join(docs, "concepts", "INDEX.md"),
+          [
+            "# Concepts Index",
+            "",
+            "| Name | Description |",
+            "|------|-------------|",
+            "| [Alpha](./alpha.md) | the first thing |",
+            "| [Beta](./beta.md) | the second thing |",
+            "",
+          ].join("\n"),
+          "utf8",
+        );
+        await writeFile(join(docs, "concepts", "alpha.md"), "# Alpha\n", "utf8");
+        await writeFile(join(docs, "concepts", "beta.md"), "# Beta\n", "utf8");
+      },
+    };
+
+    const fake = new FakeAgent({
+      "Document the Architecture": { exitCode: 0 },
+      "Plan Domain Documentation": planInitScenario(SINGLE_PHASE_PLAN).scenario,
+      "Document a Plan Slice": writeCorpus,
+    });
+
+    expect(await runCli(["run", "init", app], { agent: fake })).toBe(0);
+
+    const readme = await readFile(join(docs, "README.md"), "utf8");
+    expect(readme).toContain("](./ARCHITECTURE.md)");
+    expect(readme).toContain("](./GLOSSARY.md)");
+    expect(readme).toContain("](./concepts/INDEX.md)");
+
+    const glossary = await readFile(join(docs, "GLOSSARY.md"), "utf8");
+    expect(glossary).toContain("- [Alpha](./concepts/alpha.md) — the first thing");
+    expect(glossary).toContain("- [Beta](./concepts/beta.md) — the second thing");
+
+    // validate-docs runs after generate-navigation, so its report is the proof
+    // that the generated README de-orphaned ARCHITECTURE.md.
+    const runs = await readdir(join(app, ".saaga-runs"));
+    expect(runs).toHaveLength(1);
+    const report = await readFile(
+      join(app, ".saaga-runs", runs[0], "doc-validation.md"),
+      "utf8",
+    );
+    expect(report).toContain("0 broken links, 0 invalid diagrams, 0 orphans.");
+  });
 });

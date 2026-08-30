@@ -4,6 +4,9 @@ import type { AgentStep, ScriptStep, Step } from "../src/engine/types.js";
 
 const UPDATE_FAMILY = ["update", "quick-update", "verify-quick-updates"];
 
+/** Every bundled flow. All four write documentation and all four navigate it. */
+const ALL_FLOWS = ["init", ...UPDATE_FAMILY];
+
 function asScript(step: Step | undefined): ScriptStep | null {
   return step && step.type === "script" ? step : null;
 }
@@ -99,10 +102,51 @@ describe("validate-docs wiring", () => {
     expect(last!.name).toBe("validate-docs");
   });
 
-  test("verify-quick-updates does not validate — it writes no documentation", async () => {
+  /**
+   * `verify-quick-updates` runs `slice-doc` and the verify/fix loop, so it
+   * rewrites documents and INDEX rows like any other documenting flow. It was
+   * originally left out of validation on the premise that it writes no
+   * documentation, which is not true.
+   */
+  test("verify-quick-updates validates the corpus its verify/fix loop rewrote", async () => {
     const flow = await loadFlow("verify-quick-updates");
-    expect(scriptSteps(flow.steps).map((s) => s.name)).not.toContain("validate-docs");
+    expect(scriptSteps(flow.steps).map((s) => s.name)).toContain("validate-docs");
   });
+});
+
+describe("generate-navigation wiring", () => {
+  /**
+   * The task card said to wire this *after* `validate-docs`. It runs before,
+   * so that the validator sees the generated files: that is what makes the
+   * card's own acceptance criterion — the orphan check passing on generated
+   * output — true within a single run, and it means a generator that emits a
+   * broken link fails the run instead of shipping a broken corpus.
+   */
+  test.each(ALL_FLOWS)(
+    "%s generates navigation immediately before validating",
+    async (name) => {
+      const flow = await loadFlow(name);
+      const names = scriptSteps(flow.steps).map((s) => s.name);
+      const i = names.indexOf("generate-navigation");
+
+      expect(i, `${name}: no generate-navigation step`).not.toBe(-1);
+      expect(names[i + 1], `${name}: step after generate-navigation`).toBe("validate-docs");
+    },
+  );
+
+  test.each(ALL_FLOWS)(
+    "%s passes the app name and corpus location to generate-navigation",
+    async (name) => {
+      const flow = await loadFlow(name);
+      const step = scriptSteps(flow.steps).find((s) => s.name === "generate-navigation");
+
+      expect(step!.args).toEqual({
+        app_dir: "${app_path}",
+        docs_dir: "${docs_dir}",
+        app: "${app}",
+      });
+    },
+  );
 });
 
 /** Every agent step in the flow, including ones nested in foreach/loop/if. */

@@ -137,6 +137,37 @@ last_verified: 2026-08-29
     expect(frontmatter).toEqual({ title: "T", type: "concept" });
   });
 
+  test("parses terms when present", () => {
+    const { frontmatter, errors } = parseDoc(
+      "---\ntitle: T\ntype: concept\nterms:\n  - phase\n  - slice\n---\n\n# T\n",
+    );
+
+    expect(errors).toEqual([]);
+    expect(frontmatter).toEqual({ title: "T", type: "concept", terms: ["phase", "slice"] });
+  });
+
+  test("reports non-list terms but keeps the usable fields", () => {
+    const { frontmatter, errors } = parseDoc(
+      "---\ntitle: T\ntype: concept\nterms: phase\n---\n\n# T\n",
+    );
+
+    expect(errors).toEqual([
+      { field: "terms", message: expect.stringContaining("list of strings") },
+    ]);
+    expect(frontmatter).toEqual({ title: "T", type: "concept" });
+  });
+
+  test("reports a terms list containing a non-string", () => {
+    const { frontmatter, errors } = parseDoc(
+      "---\ntitle: T\ntype: concept\nterms:\n  - phase\n  - 7\n---\n\n# T\n",
+    );
+
+    expect(errors).toEqual([
+      { field: "terms", message: expect.stringContaining("list of strings") },
+    ]);
+    expect(frontmatter).toEqual({ title: "T", type: "concept" });
+  });
+
   test("reports an empty frontmatter block", () => {
     const { frontmatter, errors } = parseDoc("---\n\n---\n\n# T\n");
 
@@ -175,6 +206,7 @@ describe("serializeDoc", () => {
       },
       { title: "Architecture", type: "architecture", sources: ["src/"] },
       { title: "Concepts Index", type: "index" },
+      { title: "Plan Parsing", type: "feature", terms: ["phase", "slice"] },
     ];
 
     for (const frontmatter of cases) {
@@ -191,6 +223,7 @@ describe("serializeDoc", () => {
 
     expect(doc).not.toContain("last_verified");
     expect(doc).not.toContain("sources");
+    expect(doc).not.toContain("terms");
   });
 
   test("emits fields in schema order", () => {
@@ -200,6 +233,7 @@ describe("serializeDoc", () => {
         type: "concept",
         last_verified: "2026-01-02",
         sources: ["src/a.ts"],
+        terms: ["phase"],
       },
       "\n# T\n",
     );
@@ -208,6 +242,8 @@ describe("serializeDoc", () => {
       .split("\n")
       .filter((l) => /^[a-z_]+:/.test(l))
       .map((l) => l.split(":")[0]);
-    expect(fieldOrder).toEqual(["title", "type", "last_verified", "sources"]);
+    // `terms` is appended last on purpose: inserting it earlier would change
+    // the bytes of every already-generated document on its next round trip.
+    expect(fieldOrder).toEqual(["title", "type", "last_verified", "sources", "terms"]);
   });
 });

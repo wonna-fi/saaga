@@ -161,7 +161,7 @@ export function extractMermaidFences(content: string): MermaidFence[] {
   return fences;
 }
 
-type LineKind = "text" | "open" | "close" | "fenced";
+export type LineKind = "text" | "open" | "close" | "fenced";
 
 const FENCE_RE = /^\s{0,3}(`{3,}|~{3,})\s*(\S*)/;
 
@@ -173,8 +173,12 @@ const FENCE_RE = /^\s{0,3}(`{3,}|~{3,})\s*(\S*)/;
  * fence closes only on the same character repeated at least as many times as
  * the opener, with no info string — matching CommonMark closely enough that a
  * nested ```` ``` ```` inside a ```` ```` ```` block does not end it early.
+ *
+ * Exported so that other corpus readers — `src/docs/navigation.ts` parses
+ * INDEX tables — skip fenced examples with the same rules the link and
+ * diagram extractors use, rather than each growing its own fence logic.
  */
-class FenceScanner {
+export class FenceScanner {
   /** Info string of the currently open fence, lowercased. */
   info = "";
 
