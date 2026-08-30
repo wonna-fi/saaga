@@ -126,6 +126,41 @@ describe("flowHash", () => {
       flowHash(parseFlowDefinition(raw)),
     );
   });
+
+  test("changes when a step's model key changes", () => {
+    const withModel = {
+      name: "f",
+      steps: [{ agent: { prompt: "p", model: "high" } }],
+    };
+    const other = {
+      name: "f",
+      steps: [{ agent: { prompt: "p", model: "low" } }],
+    };
+    expect(flowHash(parseFlowDefinition(withModel))).not.toBe(
+      flowHash(parseFlowDefinition(other)),
+    );
+  });
+
+  /**
+   * The default is applied when a step runs, not when it parses, so adding
+   * the feature must not invalidate the resume of a flow that never used it.
+   */
+  test("a step omitting model hashes as if the key did not exist", () => {
+    const omitted = { name: "f", steps: [{ agent: { prompt: "p" } }] };
+    const explicit = {
+      name: "f",
+      steps: [{ agent: { prompt: "p", model: "medium" } }],
+    };
+
+    // The parsed step carries no `model` property at all, so its serialized
+    // form — and therefore its hash — is byte-identical to a pre-feature
+    // parse of the same YAML. Spelling the default out explicitly is a
+    // different flow and must hash differently.
+    expect(parseFlowDefinition(omitted).steps[0]).not.toHaveProperty("model");
+    expect(flowHash(parseFlowDefinition(omitted))).not.toBe(
+      flowHash(parseFlowDefinition(explicit)),
+    );
+  });
 });
 
 function manifest(overrides: Partial<RunManifest>): RunManifest {

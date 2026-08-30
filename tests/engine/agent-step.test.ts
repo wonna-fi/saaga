@@ -645,3 +645,90 @@ describe("prompt archive naming inside a verify/fix loop", () => {
     ]);
   });
 });
+
+describe("agent step model selection", () => {
+  /** Runs a one-step flow and returns the model the agent was called with. */
+  async function modelFor(
+    step: Record<string, unknown>,
+    models?: Record<string, string>,
+  ): Promise<string | undefined> {
+    const dir = await mkdtemp(join(tmpdir(), "saaga-agent-model-"));
+    const fake = new FakeAgent({ "Document the Architecture": { exitCode: 0 } });
+    const flow = parseFlowDefinition({
+      name: "test",
+      steps: [{ agent: { prompt: "document-architecture", ...step } }],
+    });
+
+    await runFlow(
+      flow,
+      { app: "myapp", app_path: dir },
+      { agent: fake, cwd: dir, models },
+    );
+
+    return fake.calls[0].model;
+  }
+
+  /**
+   * The engine tests inject an agent directly and pass no `models`, so the
+   * backend must keep using the model it was constructed with.
+   */
+  test("passes no model when deps.models is absent", async () => {
+    expect(await modelFor({})).toBeUndefined();
+  });
+
+  test("a step without a key resolves through the default key", async () => {
+    expect(await modelFor({}, { medium: "m1", high: "m2" })).toBe("m1");
+  });
+
+  test("a step's own key wins over the default", async () => {
+    expect(await modelFor({ model: "high" }, { medium: "m1", high: "m2" })).toBe(
+      "m2",
+    );
+  });
+
+  test("a key missing from the map falls back rather than throwing", async () => {
+    expect(
+      await modelFor({ model: "triage" }, { medium: "m1" }),
+    ).toBeUndefined();
+  });
+
+  /**
+   * `constructor` is the one inherited name that survives the key pattern
+   * (the others carry a capital letter), so an unguarded map lookup would
+   * hand a function to the backend's argv.
+   */
+  test("the inherited name 'constructor' does not leak a function", async () => {
+    expect(
+      await modelFor({ model: "constructor" }, { medium: "m1" }),
+    ).toBeUndefined();
+  });
+
+  test("steps in one flow can use different models", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "saaga-agent-model-"));
+    const fake = new FakeAgent({
+      "Document the Architecture": { exitCode: 0 },
+      "Plan Domain Documentation": { exitCode: 0 },
+    });
+    const flow = parseFlowDefinition({
+      name: "test",
+      steps: [
+        { agent: { prompt: "document-architecture", model: "low" } },
+        {
+          loop: {
+            max: 1,
+            until: "true",
+            do: [{ agent: { prompt: "plan-init", model: "high" } }],
+          },
+        },
+      ],
+    });
+
+    await runFlow(
+      flow,
+      { app: "myapp", app_path: dir },
+      { agent: fake, cwd: dir, models: { low: "cheap", high: "dear" } },
+    );
+
+    expect(fake.calls.map((c) => c.model)).toEqual(["cheap", "dear"]);
+  });
+});

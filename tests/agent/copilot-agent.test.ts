@@ -372,3 +372,32 @@ describe("backend selector picks CopilotAgent for backend=copilot", () => {
     expect(agent.name).toBe("copilot");
   });
 });
+
+describe("CopilotAgent per-call model override", () => {
+  beforeEach(() => {
+    mockExeca.mockReset();
+  });
+
+  test("opts.model replaces the model bound at construction", async () => {
+    mockExeca.mockReturnValue(Promise.resolve({ exitCode: 0 }) as any);
+    const cwd = await mkdtemp(join(tmpdir(), "copilot-agent-model-"));
+    const agent = new CopilotAgent({ model: "claude-sonnet-4.6" });
+
+    await agent.run("p", { cwd, model: "per-step-model" });
+
+    const [, args] = mockExeca.mock.calls[0] as any[];
+    expect(args).toContain("per-step-model");
+    expect(args).not.toContain("claude-sonnet-4.6");
+  });
+
+  test("the constructor model is used when opts.model is absent", async () => {
+    mockExeca.mockReturnValue(Promise.resolve({ exitCode: 0 }) as any);
+    const cwd = await mkdtemp(join(tmpdir(), "copilot-agent-model-"));
+    const agent = new CopilotAgent({ model: "claude-sonnet-4.6" });
+
+    await agent.run("p", { cwd });
+
+    const [, args] = mockExeca.mock.calls[0] as any[];
+    expect(args).toContain("claude-sonnet-4.6");
+  });
+});

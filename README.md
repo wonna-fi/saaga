@@ -206,9 +206,9 @@ init                  Full initial documentation (architecture +
 update                Detect changes since BASELINE, regenerate
                       affected slices, refresh baseline.
 
-quick-update          Fast single-session doc update using a cheaper
-                      model. Produces a metadata artifact for later
-                      verification.
+quick-update          Fast single-session doc update; its step takes the
+                      default (cheaper) model key. Produces a metadata
+                      artifact for later verification.
 
 verify-quick-updates  Consolidate and verify all unverified
                       quick-update artifacts.
@@ -231,7 +231,7 @@ saaga doctor                    Check backend CLI availability and
 | Flag | Short | Description |
 | ---- | ----- | ----------- |
 | `--backend <name>` | `-b` | Agent backend: `cursor`, `copilot`, or `claude` |
-| `--model <key>=<model>` | | Set the model for a model key, e.g. `--model high=opus` (repeatable; see [Model keys](#model-keys)) |
+| `--model <key>=<model>` | | Set the model a model key resolves to, e.g. `--model high=opus`. Which key a step asks for comes from the flow (repeatable; see [Model keys](#model-keys)) |
 | `--ci` | | Plain (non-color) log output, suitable for CI pipelines |
 | `--yes` | `-y` | Skip the cost confirmation prompt (see [Runtime and cost](#runtime-and-cost)) |
 | `--allow-dir <path>` | | Grant additional read/write access to a directory (repeatable; see [Permissions](#permissions)) |
@@ -254,7 +254,7 @@ saaga doctor                    Check backend CLI availability and
   under `<project>/.saaga-runs/<run-id>/`. This directory is
   automatically added to `.gitignore` by `saaga run init`.
 - **Run state** lives next to the artifacts: `run.json` records the
-  run's flow, backend, model, and status (`running`, `interrupted`,
+  run's flow, backend, resolved models, and status (`running`, `interrupted`,
   `failed`, `completed`), `steps.jsonl` lists every completed step so a
   resumed run knows what to skip, `run.log` captures all output, and
   `permissions.json` snapshots the permission profile.
@@ -475,7 +475,7 @@ guidance below as relative expectations, not fixed numbers.
 | ------- | ------------ | ------ |
 | `init` | Multiple agent sessions across all phases over the whole codebase | **Longest and most token-intensive.** Many hours; a large, one-time token spend. |
 | `update` | Re-documents only the slices that changed since `BASELINE` | Proportional to how much changed — usually a fraction of `init`, ~20-30 minutes |
-| `quick-update` | A single session on a cheaper model | Fast and cheap; the lightest agent-backed command. ~3-10 minutes. |
+| `quick-update` | A single session, on the default (cheaper) model key | Fast and cheap; the lightest agent-backed command. ~3-10 minutes. |
 | `verify-quick-updates` | One consolidation/verification session | Short; scales with the number of pending quick-update artifacts. Comparable to one `update`. |
 | `install-rules` | No agent backend at all | Effectively instant; no tokens used. |
 
@@ -483,8 +483,9 @@ guidance below as relative expectations, not fixed numbers.
 > substantial number of tokens, since it reads across your entire
 > codebase and runs several agent phases including a verify/fix loop.
 > Costs depend on your chosen backend and model. If you want to keep the
-> initial spend down, point `--model high=<cheaper-model>` at a cheaper model or scope
-> what gets documented with [`.saagaignore`](#excluding-files-saagaignore).
+> initial spend down, point `--model high=<cheaper-model>` at a cheaper model
+> (`init`'s steps all ask for `high`) or scope what gets documented with
+> [`.saagaignore`](#excluding-files-saagaignore).
 
 ### Cost confirmation prompt
 
@@ -540,15 +541,28 @@ unstableFeatures: []      # list of unstable features to enable (see below)
 #### Model keys
 
 `backends.<name>.models` is an open map of **model key** -> model name. Three keys
-are built in and used by the bundled flows:
+are built in:
 
 | Key | Used by | Falls back to |
 | --- | ------- | ------------- |
 | `low` | `doctor` probes | a built-in default per backend |
-| `medium` | `quick-update` | a built-in default per backend |
-| `high` | `init`, `update`, `verify-quick-updates` | a built-in default per backend |
+| `medium` | agent steps that declare no `model:` | a built-in default per backend |
+| `high` | the agent steps of `init`, `update`, `verify-quick-updates` | a built-in default per backend |
 
 Any absent built-in key falls back to its default, so you can override just one.
+
+**Which key a step asks for is decided by the flow, not the command.** Every agent
+step in a flow file may carry a `model:` key; omitting it means `medium`:
+
+```yaml
+- agent:
+    prompt: slice-doc
+    model: high      # optional; defaults to medium
+```
+
+So `--model high=<model>` changes the model behind every step that asks for `high`,
+across every flow. Each flow's keys are all resolved before the run starts, so a key
+with no model behind it fails immediately rather than part-way through.
 
 You may also define keys of your own — `triage`, `review_2`, `fast-plan` — for use by
 custom flows and extensions. Custom keys have **no** default: asking for one that is
@@ -561,6 +575,14 @@ Resolution order: **`--model <key>=<model>` -> `backends.<name>.models.<key>` in
 > `--model-low` / `--model-medium` / `--model-high` flags were removed. Move them under
 > `models:` as `low` / `medium` / `high`; a config still using the old fields fails with a
 > `ConfigError` naming the replacement.
+
+> **Upgrading to per-step model keys** — the `init`, `update` and
+> `verify-quick-updates` flow files gained a `model:` key on every agent step, which
+> changes their flow hash. A run of one of those flows that was interrupted under an
+> earlier version can no longer be resumed, and `--resume` / `--continue` will say
+> `flow '<name>' has changed since run '<id>' started; start a new run instead`. Start a
+> fresh run. Interrupted `quick-update` runs are unaffected. The models each command
+> uses are otherwise unchanged.
 
 ### Excluding files (.saagaignore)
 

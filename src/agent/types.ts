@@ -29,6 +29,12 @@ export interface AgentRunOpts {
    * permission decisions.
    */
   onEvent?: import("./events.js").AgentEventSink;
+  /**
+   * Overrides the model bound at construction, for this call only. Set from
+   * an agent step's `model:` key so one run can span several models; absent
+   * means the backend uses the model it was constructed with.
+   */
+  model?: string;
 }
 
 export interface AgentRunResult {

@@ -8,13 +8,14 @@ import { PermissionAuditor } from "./agent/audit.js";
 import type { Agent } from "./agent/types.js";
 import {
   type Backend,
-  type BuiltinModelKey,
+  DEFAULT_MODEL_KEY,
   backendCliCommand,
   createAgent,
   mergeModelOverrides,
   parseModelOverrides,
   resolveBackend,
   resolveModel,
+  resolveModels,
 } from "./cli/backend.js";
 import {
   DEFAULT_DOCS_DIR,
@@ -34,7 +35,7 @@ import {
   buildCostSummary,
   confirmAgentCosts,
 } from "./cli/confirm.js";
-import { flowExists, listFlows, loadFlow } from "./engine/loader.js";
+import { agentSteps, flowExists, listFlows, loadFlow } from "./engine/loader.js";
 import { flowHash, openJournal, createJournal, type RunJournal } from "./engine/journal.js";
 import { AgentStepFailedError, RunAbortedError, runFlow } from "./engine/runner.js";
 import { Logger } from "./logger.js";
@@ -46,6 +47,7 @@ import { createRunContext, reopenRunContext } from "./run-context.js";
 import {
   findResumableRun,
   isProcessAlive,
+  manifestModels,
   readManifest,
   writeManifest,
   type RunManifest,
@@ -308,7 +310,6 @@ export async function runCli(
         subcommand: flow,
         globals,
         options,
-        useQuickModel: flow === "quick-update",
         ruleTargetFlag: cmdOpts.ruleTargets,
         config,
       });
@@ -451,25 +452,34 @@ function isCommanderInfoExit(err: unknown): boolean {
 }
 
 interface ResolveAgentOpts {
-  useQuickModel?: boolean;
+  /**
+   * Model keys the flow's agent steps ask for. Every one is resolved before
+   * the run starts, so a key with no model behind it fails immediately rather
+   * than part-way through a flow that has already paid for agent calls.
+   */
+  modelKeys?: readonly string[];
   config?: SaagaConfig;
   /**
-   * Backend and model of the run being resumed. They sit between config
+   * Backend and model pins of the run being resumed. They sit between config
    * and the CLI flags in precedence, so an explicit `--backend`/`--model`
    * still wins — switching backend is a common reason to resume.
+   *
+   * Note this pins every key the earlier attempt resolved, including ones
+   * that came from built-in defaults, so upgrading Saaga mid-run keeps the
+   * run internally consistent.
    */
-  defaults?: { backend?: string; model?: string };
+  defaults?: { backend?: string; models?: Record<string, string> };
 }
 
 /**
  * A resolved agent plus the resolution details needed for the cost notice.
- * `backend` and `model` are absent when the agent was injected via
+ * `backend` and `models` are absent when the agent was injected via
  * `CliOptions.agent`, since no resolution happened.
  */
 interface ResolvedAgent {
   agent: Agent;
   backend?: Backend;
-  model?: string;
+  models?: Record<string, string>;
 }
 
 function resolveAgent(
@@ -486,25 +496,25 @@ function resolveAgent(
     config: config.defaultBackend,
   });
 
-  // Runtime behavior is unchanged for now: quick-update uses medium, all
-  // other agent-backed commands use high. Per-step model keys land in a
-  // later change. Typed as BuiltinModelKey so a typo here still fails to
-  // compile — ModelKey is a bare string and would not.
-  const key: BuiltinModelKey = opts.useQuickModel ? "medium" : "high";
-  const resumedModel =
-    opts.defaults?.model && opts.defaults.backend === backend
-      ? { [key]: opts.defaults.model }
-      : undefined;
+  const resumedModels =
+    opts.defaults?.backend === backend ? opts.defaults.models : undefined;
   const models = mergeModelOverrides(
-    mergeModelOverrides(config.backends?.[backend]?.models, resumedModel),
+    mergeModelOverrides(config.backends?.[backend]?.models, resumedModels),
     parseModelOverrides(globals.model ?? []),
   );
-  const model = resolveModel(backend, key, models);
+
+  // The flow's own keys, and only those: seeding the default key here would
+  // make the cost notice advertise a model the run never uses.
+  const resolved = resolveModels(backend, opts.modelKeys ?? [], models);
+
+  // The agent still carries one model, used whenever a call does not override
+  // it. Resolved separately because a flow need not ask for the default key.
+  const baseModel = resolveModel(backend, DEFAULT_MODEL_KEY, models);
 
   return {
-    agent: createAgent({ backend, model, ci: globals.ci }),
+    agent: createAgent({ backend, model: baseModel, ci: globals.ci }),
     backend,
-    model,
+    models: resolved,
   };
 }
 
@@ -514,7 +524,6 @@ interface RunFlowSubcommandInput {
   subcommand: string;
   globals: GlobalCliFlags;
   options: CliOptions;
-  useQuickModel?: boolean;
   /** CLI --rule-targets flag value (only used by init). */
   ruleTargetFlag?: string;
   /** Additional variables merged into the initial flow scope. */
@@ -582,7 +591,6 @@ async function runResumeSubcommand(input: RunResumeSubcommandInput): Promise<voi
     subcommand: flowName,
     globals,
     options,
-    useQuickModel: flowName === "quick-update",
     ruleTargetFlag: cmdOpts.ruleTargets,
     config,
     resume: target,
@@ -666,11 +674,19 @@ async function runFlowSubcommand(input: RunFlowSubcommandInput): Promise<void> {
 
   const config = input.config ?? await loadConfig(appPath);
   const appName = basename(appPath);
+
+  // Loaded before the agent is resolved: the flow's steps name the model keys
+  // to resolve, and those feed the cost notice, the manifest and the runner.
+  const flow = await loadFlow(flowName);
+
   const resolved = resolveAgent(globals, options, {
-    useQuickModel: input.useQuickModel,
+    modelKeys: agentSteps(flow.steps).map((s) => s.model ?? DEFAULT_MODEL_KEY),
     config,
     defaults: resume
-      ? { backend: resume.manifest.backend, model: resume.manifest.model }
+      ? {
+          backend: resume.manifest.backend,
+          models: manifestModels(resume.manifest),
+        }
       : undefined,
   });
   const agent = resolved.agent;
@@ -682,7 +698,7 @@ async function runFlowSubcommand(input: RunFlowSubcommandInput): Promise<void> {
       ? backendCliCommand(resolved.backend)
       : agent.name,
     backend: resolved.backend,
-    model: resolved.model,
+    models: resolved.models ? [...new Set(Object.values(resolved.models))] : undefined,
   };
   await confirmAgentCosts({
     ...costNotice,
@@ -723,9 +739,12 @@ async function runFlowSubcommand(input: RunFlowSubcommandInput): Promise<void> {
   const verbose = globals.verbose ?? false;
   const logger = createLogger(globals, options, logFile);
 
+  const bannerModels = costNotice.models ?? [];
   logger.info(
     `saaga run ${subcommand} ${appPath} (backend=${agent.name}${
-      resolved.model ? `, model=${resolved.model}` : ""
+      bannerModels.length > 0
+        ? `, ${bannerModels.length === 1 ? "model" : "models"}=${bannerModels.join(", ")}`
+        : ""
     })`,
   );
   if (resume) {
@@ -806,7 +825,6 @@ async function runFlowSubcommand(input: RunFlowSubcommandInput): Promise<void> {
 
   const saagaRules = await loadSaagaRules(appPath);
 
-  const flow = await loadFlow(flowName);
   const initialScope: Record<string, unknown> = resume
     ? resume.manifest.initialScope
     : {
@@ -825,7 +843,7 @@ async function runFlowSubcommand(input: RunFlowSubcommandInput): Promise<void> {
     ? {
         ...resume.manifest,
         backend: resolved.backend ?? resume.manifest.backend,
-        model: resolved.model ?? resume.manifest.model,
+        models: resolved.models ?? resume.manifest.models,
         status: "running",
         pid: process.pid,
         resumedAt: [...resume.manifest.resumedAt, now],
@@ -839,7 +857,7 @@ async function runFlowSubcommand(input: RunFlowSubcommandInput): Promise<void> {
         appPath,
         docsDir,
         backend: resolved.backend,
-        model: resolved.model,
+        models: resolved.models,
         initialScope,
         status: "running",
         pid: process.pid,
@@ -873,6 +891,7 @@ async function runFlowSubcommand(input: RunFlowSubcommandInput): Promise<void> {
   try {
     await runFlow(flow, initialScope, {
       agent,
+      models: resolved.models,
       cwd: appPath,
       logger,
       logFile,

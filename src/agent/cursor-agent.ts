@@ -24,7 +24,7 @@ export class CursorAgent implements Agent {
 
   async run(prompt: string, opts: AgentRunOpts): Promise<AgentRunResult> {
     const { args, env: execEnv } = await buildCursorExecaOpts(
-      this.model,
+      opts.model ?? this.model,
       prompt,
       opts,
     );

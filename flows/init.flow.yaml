@@ -18,6 +18,7 @@ steps:
 
   - agent:
       prompt: document-architecture
+      model: high
       label: documenting architecture
       vars:
         app: ${app}
@@ -26,6 +27,7 @@ steps:
 
   - agent:
       prompt: plan-init
+      model: high
       label: planning documentation
       vars:
         app: ${app}
@@ -41,6 +43,7 @@ steps:
 
   - agent:
       prompt: slice-doc
+      model: high
       label: documenting overview
       vars:
         plan: ${run_dir}/plans/${app}-init.plan.md
@@ -62,6 +65,7 @@ steps:
       do:
         - agent:
             prompt: slice-doc
+            model: high
             label: documenting "${phase.title}"
             vars:
               plan: ${run_dir}/plans/${app}-init.plan.md
@@ -74,6 +78,7 @@ steps:
             do:
               - agent:
                   prompt: verify-domain-documentation
+                  model: high
                   label: verifying "${phase.title}"
                   vars:
                     plan: ${run_dir}/plans/${app}-init.plan.md
@@ -93,6 +98,7 @@ steps:
                 then:
                   - agent:
                       prompt: fix-documentation
+                      model: high
                       label: fixing "${phase.title}"
                       vars:
                         plan: ${run_dir}/plans/${app}-init.plan.md

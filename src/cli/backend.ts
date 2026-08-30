@@ -2,6 +2,11 @@ import { ClaudeAgent } from "../agent/claude-agent.js";
 import { CopilotAgent } from "../agent/copilot-agent.js";
 import { CursorAgent } from "../agent/cursor-agent.js";
 import type { Agent } from "../agent/types.js";
+import {
+  DEFAULT_MODEL_KEY,
+  MODEL_KEY_PATTERN,
+  isValidModelKey,
+} from "../model-keys.js";
 
 export type Backend = "cursor" | "copilot" | "claude";
 
@@ -17,12 +22,10 @@ export const BUILTIN_MODEL_KEYS = ["low", "medium", "high"] as const;
 
 export type BuiltinModelKey = (typeof BUILTIN_MODEL_KEYS)[number];
 
-/** Lowercase, starts with a letter, then any of a-z 0-9 `_` `-`. */
-export const MODEL_KEY_PATTERN = /^[a-z][a-z0-9_-]*$/;
-
-export function isValidModelKey(key: string): boolean {
-  return MODEL_KEY_PATTERN.test(key);
-}
+// Re-exported so existing importers keep resolving them here; the definitions
+// live in a leaf module the flow engine can import without dragging the
+// concrete agent backends along.
+export { DEFAULT_MODEL_KEY, MODEL_KEY_PATTERN, isValidModelKey };
 
 const ALLOWED_BACKENDS: readonly Backend[] = ["cursor", "copilot", "claude"];
 
@@ -187,6 +190,31 @@ export function resolveModel(
       `Define it under 'backends.${backend}.models' in .saaga/config.yaml ` +
       `or pass '--model ${key}=<model>'.`,
   );
+}
+
+/**
+ * Resolves every key a flow asks for, up front.
+ *
+ * Doing this before the run starts means an unresolvable key (a typo, or a
+ * custom key with no config entry) fails immediately rather than part-way
+ * through a flow, after paid agent calls have already been made. The returned
+ * map is also what the cost notice, the run manifest and the flow runner all
+ * read from.
+ *
+ * Keys are resolved in first-appearance order and deduplicated, so the error
+ * for a flow with several bad keys names the first one a reader would find.
+ */
+export function resolveModels(
+  backend: Backend,
+  keys: readonly ModelKey[],
+  models?: Record<string, string>,
+): Record<string, string> {
+  const resolved: Record<string, string> = {};
+  for (const key of keys) {
+    if (Object.hasOwn(resolved, key)) continue;
+    resolved[key] = resolveModel(backend, key, models);
+  }
+  return resolved;
 }
 
 /** The CLI binary Saaga executes for a backend. */

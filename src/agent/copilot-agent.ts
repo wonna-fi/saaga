@@ -40,7 +40,7 @@ export class CopilotAgent implements Agent {
     const overridden = await tryRename(giPath, giBakPath);
 
     try {
-      const args = buildCopilotArgs(this.model, prompt, opts);
+      const args = buildCopilotArgs(opts.model ?? this.model, prompt, opts);
 
       const stdio = opts.onEvent ? buildPipedStdio(opts) : buildStdio(opts);
 

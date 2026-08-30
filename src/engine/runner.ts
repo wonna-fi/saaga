@@ -4,6 +4,7 @@ import type { PermissionAuditor } from "../agent/audit.js";
 import type { AgentPermissions } from "../agent/permissions.js";
 import type { Agent } from "../agent/types.js";
 import { Logger, silentLogger } from "../logger.js";
+import { DEFAULT_MODEL_KEY } from "../model-keys.js";
 import { formatDuration } from "../output.js";
 import { PROMPTS_DIR } from "../paths.js";
 import type { ScriptRegistry } from "../scripts/registry.js";
@@ -35,8 +36,28 @@ import type {
   Step,
 } from "./types.js";
 
+/**
+ * The model an agent step should run on, or `undefined` to let the backend
+ * use the model it was constructed with.
+ *
+ * The `typeof` guard is load-bearing, for the same reason it is in
+ * `resolveModel()`: `noUncheckedIndexedAccess` is off, and inherited names
+ * like `constructor` and `toString` satisfy the model-key pattern, so an
+ * unguarded lookup can hand a function to the backend's argv.
+ */
+function stepModel(step: AgentStep, deps: RunFlowDeps): string | undefined {
+  const model = deps.models?.[step.model ?? DEFAULT_MODEL_KEY];
+  return typeof model === "string" && model.length > 0 ? model : undefined;
+}
+
 export interface RunFlowDeps {
   agent: Agent;
+  /**
+   * Resolved model key -> model name, covering every key the flow's agent
+   * steps ask for. Absent means each step uses the model the agent was
+   * constructed with, which is what tests injecting an agent directly get.
+   */
+  models?: Record<string, string>;
   cwd: string;
   scripts?: ScriptRegistry;
   logger?: Logger;
@@ -188,7 +209,11 @@ async function runStep(
       if (shouldEmit) {
         logger.phaseBegin(phaseLine());
       }
-      logger.detail(`agent ${step.prompt}${describeAgentContext(step, scope)}`);
+      const model = stepModel(step, deps);
+      logger.detail(
+        `agent ${step.prompt}${describeAgentContext(step, scope)}` +
+          (model ? ` [${model}]` : ""),
+      );
       const logOffset = logger.logFileSize();
       try {
         await runAgentStep(step, scope, deps, run);
@@ -446,6 +471,7 @@ async function runAgentStep(
     echo: deps.verbose,
     onEvent: auditor ? (event) => auditor.record(event) : undefined,
     signal: deps.signal,
+    model: stepModel(step, deps),
   });
   // Checked before the exit code: a cancelled child reports failure, and
   // even a child that happened to finish cleanly was told to stop — its
