@@ -68,6 +68,9 @@ After `saaga run init`, your project contains:
 - **`saaga-docs/FORMAT`** — the corpus format version (see
   [Corpus format version](#corpus-format-version)).
 
+- **`saaga-docs/README.md` and `saaga-docs/GLOSSARY.md`** — a generated entry
+  point and term index (see [Navigation layer](#navigation-layer)).
+
 Every generated document opens with a YAML frontmatter block:
 
 ```markdown
@@ -86,11 +89,16 @@ sources:
 | `type` | the writer | `concept`, `pattern`, `feature`, `architecture`, or `index`. |
 | `sources` | the writer | Source paths and globs whose behaviour the document's claims describe. |
 | `last_verified` | verification only, on PASS | ISO date of the last verification pass that found no errors. |
+| `terms` | the writer, optionally | Extra names this document is the home for — synonyms and sub-concepts a reader might look up. Feeds the generated glossary. |
 
 `sources` and `last_verified` are what later runs use to tell a fresh document
 from a stale one: a document whose sources changed after it was last verified
 is a candidate for re-verification. Field names follow OKF v0.1 where they
 overlap, so external tooling can read the corpus without a translation layer.
+
+`terms` carries *names only*, never definitions. The glossary copies each
+definition from the document's INDEX row, so a term listed here gets its
+meaning from the one place that already holds it.
 
 Documents written before this format existed have no frontmatter. Saaga
 tolerates them everywhere — they flow through every command unchanged — but
@@ -255,12 +263,58 @@ mismatch costs no tokens. To upgrade a corpus, delete `saaga-docs/` and run
 `saaga run init` to regenerate it. (A `saaga migrate` command will upgrade in
 place once the format is frozen.)
 
+### Navigation layer
+
+Every documenting flow regenerates two files before validating the corpus:
+
+| File | Contents |
+| ---- | -------- |
+| `saaga-docs/README.md` | The corpus entry point: a reading order — the architecture, then the core concepts, then the workflows — followed by links to `ARCHITECTURE.md`, the three category indexes, and the glossary. |
+| `saaga-docs/GLOSSARY.md` | Every term the indexes name, alphabetically, each with its one-line definition and a link to the document that owns it. |
+
+Both are **generated, never written by an agent**. A newcomer's entry point and
+a term index are entirely derivable from the INDEX files, so deriving them costs
+no tokens and — more importantly — they cannot drift away from the documents
+they describe. Every definition in the glossary is the description cell of the
+owning INDEX row, copied verbatim. **A term whose definition cannot be extracted
+from an INDEX is omitted, not invented**: there is no second home for any fact.
+
+The README's core concepts are chosen by counting inbound links across the
+corpus and taking the four most-referenced concept documents, ties broken by
+INDEX row order. The most-linked document is the one everything else assumes,
+which is what a newcomer should read first — and because the list is computed,
+it follows the corpus instead of going stale beside it.
+
+A document can claim additional terms through its `terms` frontmatter field.
+When two documents claim the same term — Saaga's own `phase` means both a
+progress-display unit and a plan work unit — the glossary renders a "see also"
+entry naming both homes with their own definitions, rather than silently
+picking one.
+
+Generation is idempotent: a second run over an unchanged corpus produces a
+byte-identical file. Nothing dated or counted goes into either page, and the
+generated files are excluded from the corpus view before anything is computed,
+so one run's output can never steer the next one's.
+
+Both files are on the agent write-deny list alongside `BASELINE` and `FORMAT`.
+Hand edits would be silently overwritten on the next run, so they are refused
+instead. Agents can still read them.
+
+Content defects never fail a run: a malformed INDEX row, a term whose document
+has no INDEX row, or a missing `ARCHITECTURE.md` produces a warning and is
+omitted from the output. A row pointing at a document that no longer exists is
+dropped rather than copied — the validation pass that follows treats a broken
+link as fatal, and a stale INDEX row should not become a failed run.
+
+Linking `ARCHITECTURE.md` from the generated README is also what resolves the
+one orphan the validator would otherwise report on every run.
+
 ### Documentation validation
 
-`saaga run init`, `update`, and `quick-update` finish with a deterministic
-structural check of the corpus. (In `update` and `quick-update` the check is part
-of the update itself, so a run that detects no changes skips it along with
-everything else.)
+Every documenting flow — `init`, `update`, `quick-update`, and
+`verify-quick-updates` — finishes with a deterministic structural check of the
+corpus. (In the update family the check is part of the update itself, so a run
+that finds nothing to do skips it along with everything else.)
 
 Link integrity, diagram validity, and reachability are facts a program can decide,
 so they are decided in code rather than left to the verification agent — that makes
@@ -273,7 +327,7 @@ Three checks run over every Markdown document under `saaga-docs/`:
 | ----- | ------------- | ------ |
 | **Relative links** | Every `[text](./path.md)` target resolves on disk. Targets outside the corpus (a link to real source, e.g. `../../src/cli.ts`) are checked too. External URLs and `#anchor` suffixes are not. | Fails the flow |
 | **Mermaid fences** | Every ` ```mermaid ` block is terminated, declares a known diagram type, and leaves no node bracket open. | Fails the flow |
-| **Orphan documents** | Every document is linked from at least one other document. `INDEX.md` files and the corpus `README.md` are entry points and are exempt. | Warning only |
+| **Orphan documents** | Every document is linked from at least one other document. `INDEX.md` files and the corpus `README.md` are entry points and are exempt; `ARCHITECTURE.md` is not, because the generated README is what links it. | Warning only |
 
 A failure names the report, which lists every problem with its file and line:
 
@@ -283,9 +337,11 @@ See the report at /path/to/project/.saaga-runs/<run-id>/doc-validation.md.
 ```
 
 The report is written whenever there is a corpus to check, pass or fail. The check
-runs *after* the baseline and format stamp are written, so a failure never leaves
-the corpus in a state that stops the next run — the documentation is on disk, and
-the report tells you what to fix.
+runs *after* the baseline, the format stamp, and the navigation layer are written,
+so a failure never leaves the corpus in a state that stops the next run — the
+documentation is on disk, and the report tells you what to fix. Running last also
+means the generated `README.md` and `GLOSSARY.md` are themselves validated: a
+generator that emitted a broken link fails the run rather than shipping.
 
 Orphans only warn because an unlinked document is still correct, just unreachable.
 An absent or empty `saaga-docs/` passes with no report: there is nothing to check

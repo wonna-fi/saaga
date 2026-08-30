@@ -33,6 +33,13 @@ export interface DocFrontmatter {
   last_verified?: string;
   /** Source paths/globs whose behaviour this document's claims cover. */
   sources?: string[];
+  /**
+   * Extra names this document is the home for — synonyms and sub-concepts a
+   * reader might look up. Consumed by `generate-navigation` to build the
+   * glossary; the definition is always copied from the document's INDEX row,
+   * never written here.
+   */
+  terms?: string[];
 }
 
 /** A single validation problem. Collected, never thrown. */
@@ -122,6 +129,11 @@ export function serializeDoc(
   if (frontmatter.sources !== undefined) {
     ordered.sources = frontmatter.sources;
   }
+  // Appended last deliberately: inserting `terms` earlier would change the
+  // bytes of every already-generated document on its next round trip.
+  if (frontmatter.terms !== undefined) {
+    ordered.terms = frontmatter.terms;
+  }
 
   const yaml = stringifyYaml(ordered);
   return `---\n${yaml}---\n${body}`;
@@ -192,6 +204,21 @@ function validate(obj: Record<string, unknown>): {
     }
   }
 
+  let terms: string[] | undefined;
+  if (obj.terms !== undefined) {
+    if (
+      Array.isArray(obj.terms) &&
+      obj.terms.every((t) => typeof t === "string")
+    ) {
+      terms = obj.terms;
+    } else {
+      errors.push({
+        field: "terms",
+        message: "'terms' must be a list of strings",
+      });
+    }
+  }
+
   if (!titleOk || !typeOk) {
     return { frontmatter: null, errors };
   }
@@ -199,6 +226,7 @@ function validate(obj: Record<string, unknown>): {
   const frontmatter: DocFrontmatter = { title, type };
   if (lastVerified !== undefined) frontmatter.last_verified = lastVerified;
   if (sources !== undefined) frontmatter.sources = sources;
+  if (terms !== undefined) frontmatter.terms = terms;
 
   return { frontmatter, errors };
 }

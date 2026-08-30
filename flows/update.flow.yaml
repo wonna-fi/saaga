@@ -89,6 +89,14 @@ steps:
           docs_dir: ${docs_dir}
 
       - script:
+          name: generate-navigation
+          label: generating navigation
+          app_dir: ${app_path}
+          docs_dir: ${docs_dir}
+          app: ${app}
+          set: navigation
+
+      - script:
           name: validate-docs
           label: validating documentation
           app_dir: ${app_path}

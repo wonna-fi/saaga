@@ -40,7 +40,8 @@ export interface BuildProfileInput {
  * The profile grants:
  * - Read: entire app tree (run dir is inside the app tree)
  * - Write: `<app>/<docsDir>/**` and the run directory
- * - Deny: rule files, BASELINE
+ * - Deny: rule files, and the machine-managed corpus files (BASELINE,
+ *   FORMAT, README.md, GLOSSARY.md)
  * - Shell: restricted (utilities + read-only git subcommands)
  *
  * When `allowDirs` are given (from `--allow-dir`), they are appended to both
@@ -67,6 +68,11 @@ export function buildProfile(input: BuildProfileInput): AgentPermissions {
     resolve(appPath, ".saagarules"),
     resolve(docsPath, "BASELINE"),
     resolve(docsPath, "FORMAT"),
+    // Machine-generated navigation. `generate-navigation` rewrites both from
+    // the INDEX files on every run, so a hand edit is lost without a trace —
+    // and an agent "fixing" them against a template would churn every run.
+    resolve(docsPath, "README.md"),
+    resolve(docsPath, "GLOSSARY.md"),
   ];
 
   return {

@@ -24,6 +24,7 @@ Fields:
 | `type` | yes | One of `concept`, `pattern`, `feature`, `architecture`, `index`. |
 | `sources` | yes, when the document makes claims about code | The source paths or globs whose behaviour this document's claims describe. Repository-relative. |
 | `last_verified` | never write it yourself | ISO date (`YYYY-MM-DD`). Only the verification step sets this, and only on PASS. |
+| `terms` | no | Extra names this document is the home for — synonyms and sub-concepts a reader might look up. |
 
 Rules:
 
@@ -41,3 +42,9 @@ Rules:
   silently — which is the exact failure this metadata exists to prevent.
 - Never invent a `last_verified` date and never copy one from another document.
   A document you wrote or edited but did not verify has no `last_verified`.
+- `terms` lists *additional* names only: the document's INDEX row name is
+  already a glossary term, so do not repeat it. List a name here when a reader
+  would look it up and land nowhere — `phase`, `slice`, `scope`.
+- Never write a definition for a `terms` entry. The glossary is generated and
+  copies the document's INDEX row description verbatim, so a term whose
+  document has no INDEX row is dropped rather than defined a second time.

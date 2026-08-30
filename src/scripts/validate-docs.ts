@@ -43,13 +43,16 @@ const MAX_WARNINGS = 10;
  * which also frees the verify prompt for the semantic rot only a model catches.
  *
  * Broken links and invalid diagrams fail the flow; orphans only warn, because a
- * document that nothing links to is still correct, just unreachable, and the
- * navigation layer that fixes it is generated separately.
+ * document that nothing links to is still correct, just unreachable.
  *
- * Runs *after* the baseline and format stamp are written. Failing earlier would
- * abort the flow leaving the corpus unbaselined and unstamped, which makes the
- * next run refuse to start — the corpus is written first, the verdict comes
- * after.
+ * `generate-navigation` runs immediately before this script, so the corpus
+ * checked here includes the generated `README.md` and `GLOSSARY.md` — a
+ * generator that emitted a broken link fails the run rather than shipping.
+ *
+ * Runs *after* the baseline, the format stamp, and the navigation layer.
+ * Failing earlier would abort the flow leaving the corpus unbaselined and
+ * unstamped, which makes the next run refuse to start — the corpus is written
+ * first, the verdict comes after.
  */
 export async function validateDocs(
   args: ValidateDocsArgs,
