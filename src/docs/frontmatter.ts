@@ -4,6 +4,7 @@ import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 export const DOC_TYPES = [
   "concept",
   "pattern",
+  "convention",
   "feature",
   "architecture",
   "index",

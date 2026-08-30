@@ -22,11 +22,16 @@ export const CORE_CONCEPT_COUNT = 4;
 
 /**
  * Category directories in reading order: what things are, then how to work on
- * them, then what the system does. Categories not listed here follow, sorted.
+ * them, then what they must be called, then what the system does. Categories
+ * not listed here follow, sorted.
+ *
+ * `conventions` is optional — it exists only in a corpus whose repository has
+ * lexical rules worth stating — so every consumer must tolerate its absence.
  */
 export const CATEGORY_ORDER: readonly string[] = [
   "concepts",
   "patterns",
+  "conventions",
   "features",
 ];
 

@@ -514,6 +514,8 @@ describe("saaga run init: corpus format version", () => {
       join(app, ".saaga-runs", runs[0], "doc-validation.md"),
       "utf8",
     );
-    expect(report).toContain("0 broken links, 0 invalid diagrams, 0 orphans.");
+    expect(report).toContain(
+      "0 broken links, 0 invalid diagrams, 0 orphans, 0 over-cap conventions.",
+    );
   });
 });

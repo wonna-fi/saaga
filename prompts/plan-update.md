@@ -51,6 +51,8 @@ Verify that all three INDEX files exist:
 - `{docs_dir}/features/INDEX.md`
 
 If any are missing, note it in the plan as a prerequisite issue.
+`{docs_dir}/conventions/INDEX.md` is optional — the category exists only in
+repositories that have convention families. Its absence is not an issue.
 
 ### 1c. Check Documentation Scope
 
@@ -67,6 +69,7 @@ Read the existing documentation to understand what is already covered:
 - `{docs_dir}/concepts/INDEX.md`
 - `{docs_dir}/patterns/INDEX.md`
 - `{docs_dir}/features/INDEX.md`
+- `{docs_dir}/conventions/INDEX.md` (if it exists)
 - `{docs_dir}/ARCHITECTURE.md`
 
 For each file from the changes report, determine:
@@ -172,7 +175,7 @@ A categorized list of all changes detected since the BASELINE, organized into lo
 
 State how this run groups the work into phases and why. Documentation is produced
 in vertical slices — concepts first, then the patterns that use them, then the
-features built on both. Slices are flexible: not all three doc types are required
+features built on both. Slices are flexible: not all doc types are required
 for every phase, only what is warranted by the changes.
 
 State the **diff budget** from Step 2d here: the changed-source-file count, how many
@@ -187,9 +190,11 @@ by their own prompts. Do NOT reproduce them here. In particular, never restate t
 budget bands or the consequence test — the per-document budget you assign is a
 decision and belongs in the plan; the rules behind it do not.
 
-Record only the **deltas** this repository needs — for example "rename User Flow
-to Execution Flow for engine features", or "treat a symbol as public only if it
-is re-exported from `src/index.ts`". Include:
+Record only the **deltas** this repository needs — for example "treat a symbol as
+public only if it is re-exported from `src/index.ts`", or a table column this
+codebase needs that the template lacks. Optional sections, the User Flow /
+Mechanism choice, and the conventions category are already part of the templates:
+they are not deltas and do not belong here. Include:
 
 - **Template deltas**: any section renamed, added, or justifiably omitted for this codebase.
 - **Verification checks**: the technology-specific verification summary table for this repository, derived from Step 3.
@@ -209,10 +214,11 @@ For each group of changes requiring **new** documentation (in chronological orde
 - **Concepts to document**: List concepts (if warranted)
 - **Patterns to document**: List patterns (if warranted)
 - **Features to document**: List features (if warranted)
-- **Line budgets**: for every document listed above, one line of the form `<path> — <Core|Supporting|Peripheral>, <N> lines`. Assign the tier with the centrality test in the Level of Detail section — how many other documents link to it, and whether it sits on the main execution path — then pick N inside that tier's band from the size and complexity of the source it covers. This is a decision the verifier enforces — do not omit it.
+- **Conventions to document**: List convention families (if warranted). A change introduces a convention only when it establishes a lexical rule the rest of the codebase must follow — creating the `{docs_dir}/conventions/` directory if this is the first one. Convention documents take no line budget; the template caps them.
+- **Line budgets**: for every document listed above **except the conventions**, one line of the form `<path> — <Core|Supporting|Peripheral>, <N> lines`. Assign the tier with the centrality test in the Level of Detail section — how many other documents link to it, and whether it sits on the main execution path — then pick N inside that tier's band from the size and complexity of the source it covers. This is a decision the verifier enforces — do not omit it. Never assign a budget to a convention document: the lowest band starts at 25 lines and the cap is 20, so a budget would order the writer past it.
 - **Key files to analyze**: Specific source files changed
 
-Not all three doc types are required for every phase -- only include what is warranted by the changes.
+Not all doc types are required for every phase -- only include what is warranted by the changes.
 
 #### 5. Update Existing Documentation Phases (Phase N+1 through Phase M)
 
@@ -242,7 +248,7 @@ If no structural changes are detected, omit this section entirely.
 #### 8. Success Criteria
 
 - All changes since the BASELINE are reflected in documentation
-- New concepts/patterns/features have complete docs following templates
+- New concepts/patterns/conventions/features have complete docs following templates
 - Updated docs accurately reflect the current code behavior
 - INDEX.md files are up to date
 - No contradictions between updated and existing docs (internal consistency check)

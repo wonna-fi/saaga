@@ -2,6 +2,12 @@
 
 File location: `{docs_dir}/features/{feature-name}.md`
 
+Functional Specification opens with one of two headings, never both.
+Use `### User Flow` when a person performs the steps.
+Use `### Mechanism` when the system itself is the actor — engine internals, a
+scheduler, a build step. Internal machinery is a feature; it is not a "user flow"
+with the user filed off.
+
 ```markdown
 ---
 title: "Feature: {Feature Name}"
@@ -14,7 +20,7 @@ sources:
 
 ## Overview
 
-{1-2 sentences describing what this feature does from a user perspective}
+{1-2 sentences describing what this feature does, from the user's perspective — or, for internal machinery, from its caller's}
 
 ## Key Concepts
 

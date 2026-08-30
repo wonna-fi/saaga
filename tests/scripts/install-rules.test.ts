@@ -76,7 +76,15 @@ describe("install-rules script", () => {
     // Navigation content folded into the rule body.
     expect(agentsMd).toContain("saaga-docs/concepts/INDEX.md");
     expect(agentsMd).toContain("saaga-docs/patterns/INDEX.md");
+    expect(agentsMd).toContain("saaga-docs/conventions/INDEX.md");
     expect(agentsMd).toContain("saaga-docs/features/INDEX.md");
+    // The routing table is where an agent reads the patterns/conventions line,
+    // so it carries both halves rather than a bare category name.
+    expect(agentsMd).toContain("anything that takes reading a code flow to follow");
+    expect(agentsMd).toContain("the rules you could check with grep");
+    // Not every repository has conventions; the rule file must say so, or an
+    // agent will hunt for an index that was never written.
+    expect(agentsMd).toContain("Not every codebase has conventions");
     // No unrendered placeholders left behind.
     expect(agentsMd).not.toContain("{app}");
   });
