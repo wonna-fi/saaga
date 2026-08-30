@@ -851,11 +851,18 @@ async function runFlowSubcommand(input: RunFlowSubcommandInput): Promise<void> {
 
   // Ctrl+C stops the run cooperatively: the agent child is told to exit,
   // the manifest records the interruption, and the resume command is
-  // printed. A second Ctrl+C falls through to Node's default and exits
-  // immediately (`once`).
+  // printed. A second Ctrl+C exits immediately.
+  //
+  // `on`, not `once`: execa's child cleanup (signal-exit) re-raises the
+  // signal when it finds itself the only SIGINT listener, and `once`
+  // removes ours before invoking it — which would kill the process before
+  // the interruption is recorded.
   const controller = new AbortController();
-  const abort = () => controller.abort();
-  process.once("SIGINT", abort);
+  const abort = () => {
+    if (controller.signal.aborted) process.exit(130);
+    controller.abort();
+  };
+  process.on("SIGINT", abort);
   options.signal?.addEventListener("abort", abort, { once: true });
 
   const resumeHint =
