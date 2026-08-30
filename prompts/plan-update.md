@@ -88,6 +88,7 @@ For each existing document identified as potentially affected:
    - "New error handling branch added -- update Edge Cases table in `visit-marking.md`"
    - "File `OldHelper.cls` deleted -- remove references from `card-validity.md`"
    - "Module `LegacySync` newly ignored -- delete `legacy-sync.md` concept doc and remove from INDEX"
+   - "`describeResolution()` is private and externally invisible -- remove it from the Internal Implementation list in `cost-confirmation.md`; it fails the consequence test"
 
 ### 2c. Group Related Changes
 
@@ -99,6 +100,22 @@ Order groups by directory structure.
 
 Only create ONE phase per change. Refer to commit history to understand what is ONE change. Creating unnecessarily
 granular phases will slow the update process drastically. We want to keep it fast.
+
+### 2d. Diff Budget
+
+Count the changed source files in the changes report. The count caps how much the
+documentation may *grow* — not how much of it may be corrected.
+
+**Fewer than ~5 changed source files:**
+
+- Correct as many documents as are actually wrong. There is **no limit on corrections** — a document left saying something untrue is a worse failure than a long one.
+- At most **one or two** documents may get *longer*. Every other edit is a correction: same length or shorter.
+- Create **no** new document unless the change introduces a genuinely new concept.
+
+**Five or more changed source files:** normal planning applies, still subject to the
+per-document line budgets.
+
+Record the file count and the resulting cap in the plan's Approach section.
 
 ---
 
@@ -158,11 +175,17 @@ in vertical slices — concepts first, then the patterns that use them, then the
 features built on both. Slices are flexible: not all three doc types are required
 for every phase, only what is warranted by the changes.
 
+State the **diff budget** from Step 2d here: the changed-source-file count, how many
+documents this run allows to grow, and whether a new document is permitted. Corrections
+are never capped.
+
 #### 3. Template Adaptations
 
-The document templates, decision guidance, quality checklists and verification
-protocol are delivered to the writer and the verifier by their own prompts. Do
-NOT reproduce them here.
+The document templates, decision guidance, the level-of-detail policy, quality
+checklists and verification protocol are delivered to the writer and the verifier
+by their own prompts. Do NOT reproduce them here. In particular, never restate the
+budget bands or the consequence test — the per-document budget you assign is a
+decision and belongs in the plan; the rules behind it do not.
 
 Record only the **deltas** this repository needs — for example "rename User Flow
 to Execution Flow for engine features", or "treat a symbol as public only if it
@@ -186,6 +209,7 @@ For each group of changes requiring **new** documentation (in chronological orde
 - **Concepts to document**: List concepts (if warranted)
 - **Patterns to document**: List patterns (if warranted)
 - **Features to document**: List features (if warranted)
+- **Line budgets**: for every document listed above, one line of the form `<path> — <Core|Supporting|Peripheral>, <N> lines`. Assign the tier with the centrality test in the Level of Detail section — how many other documents link to it, and whether it sits on the main execution path — then pick N inside that tier's band from the size and complexity of the source it covers. This is a decision the verifier enforces — do not omit it.
 - **Key files to analyze**: Specific source files changed
 
 Not all three doc types are required for every phase -- only include what is warranted by the changes.
@@ -195,7 +219,8 @@ Not all three doc types are required for every phase -- only include what is war
 For each group of changes affecting **existing** documentation (in chronological order):
 
 - **Summary**: What was changed (commit messages and description)
-- **Documents to update**: List specific doc files with specific update suggestions (from the deep impact analysis in Step 2b)
+- **Documents to update**: List specific doc files with specific update suggestions (from the deep impact analysis in Step 2b). Mark each one **correct** (same length or shorter) or **grow**, and respect the diff budget from Step 2d.
+- **Line budgets**: for every document listed above, one line of the form `<path> — <Core|Supporting|Peripheral>, <N> lines`. Assign the tier with the centrality test in the Level of Detail section — how many other documents link to it, and whether it sits on the main execution path — then pick N inside that tier's band from the size and complexity of the source it covers. This is a decision the verifier enforces — do not omit it.
 - **Key files to analyze**: The changed source files
 
 #### 6. ARCHITECTURE.md Update Phase (conditional)
@@ -236,6 +261,10 @@ decisions only — do NOT copy any of it into the plan.
 ---
 
 {include:partials/decision-guidance.md}
+
+---
+
+{include:partials/lod-policy.md}
 
 ---
 

@@ -41,6 +41,10 @@ Read the relevant source code files referenced in the plan and produce complete,
 
 ---
 
+{include:partials/lod-policy.md}
+
+---
+
 {include:partials/handling-uncertainty.md}
 
 ---

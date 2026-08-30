@@ -14,13 +14,16 @@
 - If it's a "how to" with code → probably a **Pattern**
 - If a user would recognize it as something they do → probably a **Feature**
 
-### How Detailed Should Each Doc Be?
+### What Must Each Doc Answer?
 
-| Type | Target Length | Must Answer |
-| --- | --- | --- |
-| **Concept** | 50-150 lines | What is it? Where is it configured? How do I access it? What are the gotchas? |
-| **Pattern** | 50-100 lines | When do I use this? What's the code? What mistakes should I avoid? |
-| **Feature** | 100-250 lines | What does it do? What's the user flow? What's the technical implementation? How do I extend it? |
+| Type | Must Answer |
+| --- | --- |
+| **Concept** | What is it? Where is it configured? How do I access it? What are the gotchas? |
+| **Pattern** | When do I use this? What's the code? What mistakes should I avoid? |
+| **Feature** | What does it do? What's the user flow? What's the technical implementation? How do I extend it? |
+
+There is no uniform target length. Length is set per document by the budget the plan
+assigns it — see Level of Detail.
 
 ### When to Stop Researching
 

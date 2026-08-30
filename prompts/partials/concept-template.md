@@ -44,9 +44,10 @@ sources:
 
 ## Internal Implementation (optional)
 
-> Functions below are internal and should not be called directly. They are documented for understanding the internal logic.
+> Include this section only for mechanisms that pass the consequence test. Omit it
+> entirely otherwise — most documents should not have one.
 >
-> - `{module}.{internalFunction}()` - {what it demonstrates}
+> - `{module}.{internalFunction}()` - {what it demonstrates and why it matters}
 
 ## Reference Implementations
 

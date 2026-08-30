@@ -308,6 +308,55 @@ unmatched closing brackets (the asymmetric node `A>text]` is valid), and it skip
 anything inside quotes. A valid diagram whose type is not recognised is a one-line
 addition to `MERMAID_DIAGRAM_TYPES` in `src/docs/validate.ts`.
 
+### Level of detail
+
+Documentation pipelines have a natural ratchet: every mechanism in them adds detail
+and nothing removes it. Left alone, a corpus drifts toward uniform length regardless
+of what matters — a small, peripheral module gets documented as thoroughly as the one
+every command passes through, and private helpers get transcribed because
+completeness is the only thing being scored. Saaga pushes back in three places.
+
+**Length budgets.** The plan assigns every document a line budget before the writer
+starts, and verification enforces it. The budget comes from *centrality*, not from how
+much source there is to describe:
+
+| Tier | Test | Band |
+| ---- | ---- | ----- |
+| **Core** | On the main execution path, or three or more other documents link to it | 100–200 lines |
+| **Supporting** | One or two other documents link to it | 60–120 lines |
+| **Peripheral** | A leaf — nothing else depends on it | 25–60 lines |
+
+Size and centrality are deliberately separated. A 600-line module of cosmetics is
+Peripheral; a 150-line module every flow passes through is Core. Budgeting by source
+size instead would spend the most words on whatever happens to be longest.
+
+Verification allows a 20% overrun before it says anything — the budget is a target,
+not a fence — then reports a Minor finding, and a Major one past 50%. A finding names
+the specific passages that should go, and the fix step is explicitly permitted to
+delete them. That is the one situation where Saaga removes text that is perfectly
+accurate.
+
+**The consequence test.** Before documenting an internal mechanism in full, the writer
+must find one of three justifications: it is externally observable, it constrains other
+code, or it records a deliberate decision. Otherwise the mechanism gets one line naming
+it and why it exists, and nothing more.
+
+The distinction is the point. A denial-classification routine whose output *is* the
+audit summary a user reads is an interface, so its classes belong in the document. A
+spinner's glyph sequence and frame interval are cosmetics with no dependents — "the
+pending line animates while a phase runs" says everything a reader needs. Transcribing
+a private constant's value, listing internal helper names, or restating a function body
+in prose all fail the test.
+
+**A growth budget on small changes.** `update` and `quick-update` count the changed
+source files. Below roughly five, at most one or two documents may get *longer*, and no
+new document is created unless the change introduces a genuinely new concept; small
+changes fold into an existing table row or sentence rather than opening a new section.
+
+Corrections are never capped. The cap is on growth alone, because a document left
+saying something untrue is a worse failure than a long one — so an update that has to
+correct a renamed symbol in six documents corrects all six.
+
 ## Runtime and cost
 
 Saaga works by driving a real coding-agent CLI, so its runtime and token

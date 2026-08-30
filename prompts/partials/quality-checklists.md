@@ -5,14 +5,16 @@
 - Business definition is understandable to someone unfamiliar with the codebase
 - Configuration source is specified and verified (file/object/variable actually exists)
 - "How to access" includes the correct module and function/method
-- Data storage/model section lists all relevant fields
-- At least 2 reference implementations are cited
+- Data storage/model section lists the fields a caller needs; internal fields only if they pass the consequence test
+- Reference implementations are cited (one is enough when only one exists)
 - All referenced files/functions actually exist in the codebase
 - Related concepts are linked (if any exist)
-- **[VERIFICATION]** All constants/values lists are complete (check source-of-truth file)
+- **[VERIFICATION]** Any constants list the document *does* carry is complete and matches the source-of-truth file. A private constant's literal value is carried only if it passes the consequence test.
 - **[MANDATORY]** For EVERY function in "Key Services/Functions": Verify it is part of the public API
-- **[MANDATORY]** Internal functions are NOT in "Key Services/Functions" — move to "Internal Implementation" section
+- **[MANDATORY]** Internal functions are NOT in "Key Services/Functions" — remove them, unless the consequence test justifies naming one under "Internal Implementation"
 - **[VERIFICATION]** Frontmatter `sources` lists every file the document makes a claim about
+- **[VERIFICATION]** Document is within its assigned line budget
+- **[VERIFICATION]** Every internal mechanism documented in full passes the consequence test
 
 ### Pattern Doc Checklist
 
@@ -20,12 +22,14 @@
 - Code example is complete and would work as-is
 - Code example includes comments explaining each step
 - Key points highlight non-obvious things an implementer might miss
-- At least 2 reference implementations are cited
+- Reference implementations are cited (one is enough when only one exists)
 - Anti-patterns section warns about common mistakes
 - All referenced files/functions actually exist in the codebase
 - **[VERIFICATION]** Function parameter types match actual signatures
 - **[MANDATORY]** For EVERY function in "Reference Implementations": Verify it is part of the public API
 - **[VERIFICATION]** Frontmatter `sources` lists every file the document makes a claim about
+- **[VERIFICATION]** Document is within its assigned line budget
+- **[VERIFICATION]** Every internal mechanism documented in full passes the consequence test
 
 ### Feature Doc Checklist
 
@@ -34,9 +38,11 @@
 - User flow matches what actually happens (verify against code)
 - Validation rules are complete (check the service/controller/store code)
 - Edge cases include error messages (check for error handling)
-- Technical implementation lists all involved services/components
+- Technical implementation lists the services/components a reader must know about — not every file touched
 - Extension guide provides actionable steps for building similar features
 - **[VERIFICATION]** All component/screen names actually exist (search the codebase)
 - **[VERIFICATION]** Behavior claims are consistent with other docs in the slice
 - **[MANDATORY]** For EVERY function in "Services/Functions" table: Verify it is part of the public API
 - **[VERIFICATION]** Frontmatter `sources` lists every file the document makes a claim about
+- **[VERIFICATION]** Document is within its assigned line budget
+- **[VERIFICATION]** Every internal mechanism documented in full passes the consequence test
