@@ -87,3 +87,11 @@ steps:
           label: generating baseline
           app_dir: ${app_path}
           docs_dir: ${docs_dir}
+
+      - script:
+          name: validate-docs
+          label: validating documentation
+          app_dir: ${app_path}
+          docs_dir: ${docs_dir}
+          output_dir: ${run_dir}
+          set: validation
