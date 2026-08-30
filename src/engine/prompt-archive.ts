@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 export interface PromptContext {
@@ -30,6 +30,22 @@ export interface PromptArchive {
   ): Promise<void>;
 }
 
+/** Highest `NN-` prefix among archived prompts, or 0 when there are none. */
+async function highestSequence(dir: string): Promise<number> {
+  let names: string[];
+  try {
+    names = await readdir(dir);
+  } catch {
+    return 0;
+  }
+  let max = 0;
+  for (const name of names) {
+    const m = /^(\d+)-/.exec(name);
+    if (m) max = Math.max(max, Number(m[1]));
+  }
+  return max;
+}
+
 /** Filename-safe form of a var value (they can be paths or arbitrary text). */
 function slug(value: string): string {
   return value.replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
@@ -45,13 +61,16 @@ export function createPromptArchive(
   if (!runDir) return undefined;
 
   const dir = resolve(runDir, "prompts");
-  let seq = 0;
+  let seq: number | undefined;
 
   return {
     async record(promptName, context, prompt) {
       // A monotonic counter is what guarantees uniqueness: `slice-doc`
       // renders once per phase and verify/fix once per loop iteration, and
       // the context labels below are only there to make the run readable.
+      // It continues from whatever an earlier attempt of this run left, so
+      // resuming never overwrites the prompts of the first attempt.
+      if (seq === undefined) seq = await highestSequence(dir);
       seq += 1;
       const parts = [String(seq).padStart(2, "0"), slug(promptName)];
       if (context.phase) parts.push(`phase${slug(context.phase)}`);

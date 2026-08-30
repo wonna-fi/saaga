@@ -32,11 +32,16 @@ describe("collect-quick-updates script", () => {
 
   test("captures artifact folders sorted alphabetically", async () => {
     const metaDir = await tmpDir("meta");
-    await mkdir(join(metaDir, "run-b"));
-    await mkdir(join(metaDir, "run-a"));
-    await mkdir(join(metaDir, "run-c"));
+    for (const id of ["run-b", "run-a", "run-c"]) {
+      await mkdir(join(metaDir, id));
+      await writeFile(join(metaDir, id, "summary.md"), "# summary", "utf8");
+    }
     // Also add a regular file that should be ignored
     await writeFile(join(metaDir, "stray-file.txt"), "x", "utf8");
+    // A folder without a summary is what an interrupted quick-update
+    // leaves behind; there is nothing in it to verify.
+    await mkdir(join(metaDir, "run-interrupted"));
+    await writeFile(join(metaDir, "run-interrupted", "changes.md"), "x", "utf8");
 
     const output = await tmpDir("out");
     const result = await collectQuickUpdates(

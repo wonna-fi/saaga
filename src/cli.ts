@@ -35,13 +35,21 @@ import {
   confirmAgentCosts,
 } from "./cli/confirm.js";
 import { flowExists, listFlows, loadFlow } from "./engine/loader.js";
-import { AgentStepFailedError, runFlow } from "./engine/runner.js";
+import { flowHash, openJournal, createJournal, type RunJournal } from "./engine/journal.js";
+import { AgentStepFailedError, RunAbortedError, runFlow } from "./engine/runner.js";
 import { Logger } from "./logger.js";
 import { PACKAGE_ROOT } from "./paths.js";
 import { buildProfile, type AgentPermissions } from "./agent/permissions.js";
 import { runDoctor, formatDoctorResult, type DoctorOptions } from "./doctor/index.js";
 import { runPreflight } from "./doctor/preflight.js";
-import { createRunContext } from "./run-context.js";
+import { createRunContext, reopenRunContext } from "./run-context.js";
+import {
+  findResumableRun,
+  isProcessAlive,
+  readManifest,
+  writeManifest,
+  type RunManifest,
+} from "./run-manifest.js";
 import { loadSaagaRules } from "./saaga-rules.js";
 import { installRules, parseRuleTargets } from "./scripts/install-rules.js";
 
@@ -60,6 +68,11 @@ export interface CliOptions {
   stderr?: NodeJS.WritableStream;
   /** Override stdin (used by tests to answer the cost confirmation). */
   stdin?: NodeJS.ReadableStream;
+  /**
+   * Stops a running flow the way Ctrl+C does (used by tests, which cannot
+   * deliver a SIGINT to themselves safely).
+   */
+  signal?: AbortSignal;
 }
 
 interface GlobalCliFlags {
@@ -78,6 +91,18 @@ interface GlobalCliFlags {
 interface RuleTargetFlags {
   ruleTargets?: string;
 }
+
+interface RunFlags extends RuleTargetFlags {
+  resume?: string;
+  continue?: boolean;
+}
+
+/** Appended to the prompt of the step a resumed run re-executes. */
+const RESUME_NOTE =
+  "Note: this step is being re-run because an earlier attempt of this run " +
+  "was interrupted part-way through it. Output from that attempt may already " +
+  "exist in the documentation directory and the run directory. Read what is " +
+  "there before writing, and complete it rather than duplicating it.";
 
 /**
  * Resolves the effective rule-target string from CLI flag, config, or
@@ -239,8 +264,22 @@ export async function runCli(
       "Comma-separated rule files to install documentation rules into " +
         "(agentsmd|cursor|claude|copilot|none) — used by the init flow",
     )
-    .action(async (flow: string | undefined, dir: string, cmdOpts: RuleTargetFlags, cmd: Command) => {
+    .option(
+      "--resume <run-id>",
+      "Resume an interrupted or failed run where it stopped " +
+        "(the flow name is taken from the run)",
+    )
+    .option(
+      "--continue",
+      "Resume the most recent interrupted or failed run in the directory",
+    )
+    .action(async (flow: string | undefined, dir: string, cmdOpts: RunFlags, cmd: Command) => {
       const globals = cmd.optsWithGlobals<GlobalCliFlags>();
+
+      if (cmdOpts.resume !== undefined || cmdOpts.continue) {
+        await runResumeSubcommand({ flow, dir, cmdOpts, globals, options });
+        return;
+      }
 
       if (flow === undefined) {
         const flows = await listFlows();
@@ -376,6 +415,9 @@ export async function runCli(
     if (err instanceof AgentStepFailedError) {
       return err.exitCode;
     }
+    if (err instanceof RunAbortedError) {
+      return 130;
+    }
     if (err instanceof ConfirmationDeclinedError) {
       (options.stderr ?? process.stderr).write(`${err.message}\n`);
       return err.exitCode;
@@ -411,6 +453,12 @@ function isCommanderInfoExit(err: unknown): boolean {
 interface ResolveAgentOpts {
   useQuickModel?: boolean;
   config?: SaagaConfig;
+  /**
+   * Backend and model of the run being resumed. They sit between config
+   * and the CLI flags in precedence, so an explicit `--backend`/`--model`
+   * still wins — switching backend is a common reason to resume.
+   */
+  defaults?: { backend?: string; model?: string };
 }
 
 /**
@@ -434,7 +482,7 @@ function resolveAgent(
   }
   const config = opts.config ?? {};
   const backend: Backend = resolveBackend({
-    flag: globals.backend,
+    flag: globals.backend ?? opts.defaults?.backend,
     config: config.defaultBackend,
   });
 
@@ -443,8 +491,12 @@ function resolveAgent(
   // later change. Typed as BuiltinModelKey so a typo here still fails to
   // compile — ModelKey is a bare string and would not.
   const key: BuiltinModelKey = opts.useQuickModel ? "medium" : "high";
+  const resumedModel =
+    opts.defaults?.model && opts.defaults.backend === backend
+      ? { [key]: opts.defaults.model }
+      : undefined;
   const models = mergeModelOverrides(
-    config.backends?.[backend]?.models,
+    mergeModelOverrides(config.backends?.[backend]?.models, resumedModel),
     parseModelOverrides(globals.model ?? []),
   );
   const model = resolveModel(backend, key, models);
@@ -469,10 +521,142 @@ interface RunFlowSubcommandInput {
   extraScope?: Record<string, unknown>;
   /** Pre-loaded config from bootstrap (avoids double disk read). */
   config?: SaagaConfig;
+  /** Present when picking an earlier run up where it stopped. */
+  resume?: ResumeTarget;
+}
+
+/** An earlier run that `--resume`/`--continue` has located and vetted. */
+interface ResumeTarget {
+  runDir: string;
+  manifest: RunManifest;
+  journal: RunJournal;
+}
+
+interface RunResumeSubcommandInput {
+  flow: string | undefined;
+  dir: string;
+  cmdOpts: RunFlags;
+  globals: GlobalCliFlags;
+  options: CliOptions;
+}
+
+/**
+ * `saaga run --resume <id> [dir]` / `saaga run [flow] --continue [dir]`.
+ *
+ * With `--resume` the flow name is optional, so a lone positional is a
+ * directory unless it names a flow.
+ */
+async function runResumeSubcommand(input: RunResumeSubcommandInput): Promise<void> {
+  const { cmdOpts, globals, options } = input;
+  if (cmdOpts.resume !== undefined && cmdOpts.continue) {
+    throw new Error("--resume and --continue cannot be combined");
+  }
+
+  let flowFilter = input.flow;
+  let dir = input.dir;
+  if (flowFilter !== undefined && !(await flowExists(flowFilter))) {
+    if (dir === ".") {
+      dir = flowFilter;
+      flowFilter = undefined;
+    } else {
+      const names = (await listFlows()).map((f) => f.name).join(", ");
+      throw new Error(`Unknown flow '${flowFilter}'. Available flows: ${names}`);
+    }
+  }
+
+  const baseCwd = options.cwd ?? process.cwd();
+  const appPath = resolve(baseCwd, dir);
+  const config = await bootstrapUnstableFeatures(appPath, dir, globals, options);
+  const target = await locateResumableRun({
+    appPath,
+    dirArg: dir,
+    runId: cmdOpts.resume,
+    flow: flowFilter,
+    stderr: options.stderr ?? process.stderr,
+  });
+
+  const flowName = target.manifest.flow;
+  await runFlowSubcommand({
+    dir,
+    flowName,
+    subcommand: flowName,
+    globals,
+    options,
+    useQuickModel: flowName === "quick-update",
+    ruleTargetFlag: cmdOpts.ruleTargets,
+    config,
+    resume: target,
+  });
+}
+
+interface LocateResumableRunInput {
+  appPath: string;
+  /** The directory as the user typed it, for messages. */
+  dirArg: string;
+  runId?: string;
+  flow?: string;
+  stderr: NodeJS.WritableStream;
+}
+
+async function locateResumableRun(
+  input: LocateResumableRunInput,
+): Promise<ResumeTarget> {
+  const runsDir = `${input.dirArg === "." ? "" : `${input.dirArg}/`}.saaga-runs`;
+  let runDir: string;
+  let manifest: RunManifest;
+
+  if (input.runId !== undefined) {
+    runDir = resolve(input.appPath, ".saaga-runs", input.runId);
+    try {
+      manifest = await readManifest(runDir);
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+        throw new Error(`run '${input.runId}' not found in ${runsDir}`, { cause: err });
+      }
+      throw err;
+    }
+    if (input.flow !== undefined && input.flow !== manifest.flow) {
+      throw new Error(
+        `run '${input.runId}' is a '${manifest.flow}' run, not '${input.flow}'`,
+      );
+    }
+  } else {
+    const found = await findResumableRun(input.appPath, input.flow);
+    if (!found) {
+      const scope = input.flow ? `'${input.flow}' run` : "run";
+      throw new Error(`no resumable ${scope} found in ${runsDir}`);
+    }
+    ({ runDir, manifest } = found);
+  }
+
+  if (manifest.status === "completed") {
+    throw new Error(`run '${manifest.runId}' already completed`);
+  }
+  if (manifest.status === "running") {
+    if (isProcessAlive(manifest.pid)) {
+      throw new Error(
+        `run '${manifest.runId}' is still running (pid ${manifest.pid})`,
+      );
+    }
+    input.stderr.write(
+      `[WARN] run '${manifest.runId}' was left as running by a process that ` +
+        `no longer exists; resuming\n`,
+    );
+  }
+
+  const flow = await loadFlow(manifest.flow);
+  if (flowHash(flow) !== manifest.flowHash) {
+    throw new Error(
+      `flow '${manifest.flow}' has changed since run '${manifest.runId}' ` +
+        "started; start a new run instead",
+    );
+  }
+
+  return { runDir, manifest, journal: await openJournal(runDir) };
 }
 
 async function runFlowSubcommand(input: RunFlowSubcommandInput): Promise<void> {
-  const { dir, flowName, subcommand, globals, options } = input;
+  const { dir, flowName, subcommand, globals, options, resume } = input;
   const baseCwd = options.cwd ?? process.cwd();
   const appPath = resolve(baseCwd, dir);
 
@@ -485,6 +669,9 @@ async function runFlowSubcommand(input: RunFlowSubcommandInput): Promise<void> {
   const resolved = resolveAgent(globals, options, {
     useQuickModel: input.useQuickModel,
     config,
+    defaults: resume
+      ? { backend: resume.manifest.backend, model: resume.manifest.model }
+      : undefined,
   });
   const agent = resolved.agent;
 
@@ -517,11 +704,20 @@ async function runFlowSubcommand(input: RunFlowSubcommandInput): Promise<void> {
     }
   }
 
-  const runCtx = await createRunContext({
-    app: appName,
-    appPath,
-    subcommand,
-  });
+  const runCtx = resume
+    ? await reopenRunContext({
+        app: resume.manifest.app,
+        appPath,
+        subcommand,
+        runId: resume.manifest.runId,
+        date: String(resume.manifest.initialScope.date),
+        isoDate: String(resume.manifest.initialScope.iso_date),
+      })
+    : await createRunContext({
+        app: appName,
+        appPath,
+        subcommand,
+      });
 
   const logFile = resolve(runCtx.runDir, "run.log");
   const verbose = globals.verbose ?? false;
@@ -532,7 +728,15 @@ async function runFlowSubcommand(input: RunFlowSubcommandInput): Promise<void> {
       resolved.model ? `, model=${resolved.model}` : ""
     })`,
   );
-  logger.info(`run ${runCtx.runId} -> ${runCtx.runDir}`);
+  if (resume) {
+    const attempt = resume.manifest.resumedAt.length + 2;
+    logger.info(
+      `resuming run ${runCtx.runId} (attempt ${attempt}, ` +
+        `${resume.journal.size()} steps already done) -> ${runCtx.runDir}`,
+    );
+  } else {
+    logger.info(`run ${runCtx.runId} -> ${runCtx.runDir}`);
+  }
   logger.detail(buildCostSummary(costNotice));
 
   const docsDir = resolveDocsDir(config);
@@ -603,10 +807,9 @@ async function runFlowSubcommand(input: RunFlowSubcommandInput): Promise<void> {
   const saagaRules = await loadSaagaRules(appPath);
 
   const flow = await loadFlow(flowName);
-  try {
-    await runFlow(
-      flow,
-      {
+  const initialScope: Record<string, unknown> = resume
+    ? resume.manifest.initialScope
+    : {
         app: appName,
         app_path: appPath,
         docs_dir: docsDir,
@@ -615,19 +818,78 @@ async function runFlowSubcommand(input: RunFlowSubcommandInput): Promise<void> {
         date: runCtx.date,
         iso_date: runCtx.isoDate,
         ...extraScope,
-      },
-      {
-        agent,
-        cwd: appPath,
-        logger,
-        logFile,
-        verbose,
-        permissions,
-        auditor,
-        saagaRules,
-      },
-    );
+      };
+
+  const now = new Date().toISOString();
+  const manifest: RunManifest = resume
+    ? {
+        ...resume.manifest,
+        backend: resolved.backend ?? resume.manifest.backend,
+        model: resolved.model ?? resume.manifest.model,
+        status: "running",
+        pid: process.pid,
+        resumedAt: [...resume.manifest.resumedAt, now],
+        lastError: undefined,
+      }
+    : {
+        runId: runCtx.runId,
+        flow: flowName,
+        flowHash: flowHash(flow),
+        app: appName,
+        appPath,
+        docsDir,
+        backend: resolved.backend,
+        model: resolved.model,
+        initialScope,
+        status: "running",
+        pid: process.pid,
+        startedAt: now,
+        resumedAt: [],
+      };
+  await writeManifest(runCtx.runDir, manifest);
+  const journal = resume?.journal ?? createJournal(runCtx.runDir);
+
+  // Ctrl+C stops the run cooperatively: the agent child is told to exit,
+  // the manifest records the interruption, and the resume command is
+  // printed. A second Ctrl+C falls through to Node's default and exits
+  // immediately (`once`).
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  process.once("SIGINT", abort);
+  options.signal?.addEventListener("abort", abort, { once: true });
+
+  const resumeHint =
+    `To resume: saaga run --resume ${runCtx.runId}` +
+    (dir === "." ? "" : ` ${dir}`);
+  const stderr = options.stderr ?? process.stderr;
+
+  try {
+    await runFlow(flow, initialScope, {
+      agent,
+      cwd: appPath,
+      logger,
+      logFile,
+      verbose,
+      permissions,
+      auditor,
+      saagaRules,
+      journal,
+      signal: controller.signal,
+      resumeNote: resume ? RESUME_NOTE : undefined,
+    });
+    await writeManifest(runCtx.runDir, { ...manifest, status: "completed" });
+  } catch (err) {
+    const interrupted = err instanceof RunAbortedError;
+    await writeManifest(runCtx.runDir, {
+      ...manifest,
+      status: interrupted ? "interrupted" : "failed",
+      lastError: err instanceof Error ? err.message : String(err),
+    });
+    stderr.write(`${interrupted ? "interrupted" : "failed"}. ${resumeHint}\n`);
+    throw err;
   } finally {
+    process.off("SIGINT", abort);
+    options.signal?.removeEventListener("abort", abort);
     if (auditor) await reportAudit(auditor, logger);
     logger.dispose();
   }

@@ -10,6 +10,13 @@ import type { ScriptRegistry } from "../scripts/registry.js";
 import { appendSaagaRules } from "../saaga-rules.js";
 import { renderPromptFile } from "../templates.js";
 import { evaluatePredicate, interpolate, resolveValue } from "./expression.js";
+import {
+  foreachChildAddress,
+  ifChildAddress,
+  loopChildAddress,
+  topLevelAddress,
+  type RunJournal,
+} from "./journal.js";
 import { PhaseTracker } from "./phases.js";
 import { createPromptArchive, type PromptArchive } from "./prompt-archive.js";
 import { runForeachStep } from "./primitives/foreach.js";
@@ -22,6 +29,7 @@ import type {
   FlowDefinition,
   ForeachStep,
   LoopStep,
+  ReadFileStep,
   ScriptStep,
   Scope,
   Step,
@@ -52,6 +60,24 @@ export interface RunFlowDeps {
    * `runFlow()` from the flow's `run_dir`; absent when there is none.
    */
   promptArchive?: PromptArchive;
+  /**
+   * Completed-step journal. Steps already recorded are replayed (their
+   * scope effect re-applied) instead of executed; every leaf step that
+   * completes is recorded. Absent means no journaling (engine tests).
+   */
+  journal?: RunJournal;
+  /**
+   * Cooperative cancellation. Checked before every step and after every
+   * agent call; an abort surfaces as `RunAbortedError`, never as a step
+   * failure, so the CLI can tell "the user stopped this" from "it broke".
+   */
+  signal?: AbortSignal;
+  /**
+   * Appended to the prompt of the first agent step actually executed by a
+   * resumed run — the step an earlier attempt was in the middle of — so the
+   * agent knows partial output may already exist.
+   */
+  resumeNote?: string;
 }
 
 export async function runFlow(
@@ -69,15 +95,23 @@ export async function runFlow(
   };
   const scope: Scope = { ...initialScope };
   const tracker = new PhaseTracker(flow);
+  const run: RunState = {
+    replayed: 0,
+    resumeNote: deps.resumeNote,
+  };
 
   const t0 = Date.now();
-  logger.detail(`flow ${flow.name}: starting (${flow.steps.length} steps)`);
+  const resuming = (deps.journal?.size() ?? 0) > 0;
+  logger.detail(
+    `flow ${flow.name}: ${resuming ? "resuming" : "starting"} (${flow.steps.length} steps)`,
+  );
   try {
     for (let i = 0; i < flow.steps.length; i++) {
       await runStep(flow.steps[i], scope, effectiveDeps, tracker, {
         isTopLevel: true,
         insideForeach: false,
-      });
+        addr: topLevelAddress(i),
+      }, run);
     }
     const elapsed = Date.now() - t0;
     const total = tracker.total(scope);
@@ -89,9 +123,10 @@ export async function runFlow(
   } catch (err) {
     const elapsed = Date.now() - t0;
     const total = tracker.total(scope);
+    const verb = err instanceof RunAbortedError ? "interrupted" : "failed";
     const summary = total != null
-      ? `failed at phase ${tracker.formatCounter(scope)}`
-      : "failed";
+      ? `${verb} at phase ${tracker.formatCounter(scope)}`
+      : verb;
     logger.phaseImmediate(
       `saaga ${flow.name}: ${summary} after ${formatDuration(elapsed)}`,
       "FAIL",
@@ -100,7 +135,17 @@ export async function runFlow(
   }
 }
 
+/** Mutable per-run bookkeeping shared by every `runStep` call. */
+interface RunState {
+  /** Leaf steps skipped because the journal already had them. */
+  replayed: number;
+  /** Pending resume note; consumed by the first executed agent step. */
+  resumeNote?: string;
+}
+
 interface StepContext {
+  /** Journal address of this step; see `journal.ts`. */
+  addr: string;
   isTopLevel: boolean;
   /** When inside a foreach, the phase counter has already been advanced. */
   insideForeach: boolean;
@@ -116,9 +161,16 @@ async function runStep(
   deps: RunFlowDeps,
   tracker: PhaseTracker,
   ctx: StepContext,
+  run: RunState,
 ): Promise<void> {
   const logger = deps.logger ?? silentLogger();
   const t0 = Date.now();
+
+  // A stop requested during a script or between steps lands here: the
+  // finished work is journaled, nothing further starts.
+  if (deps.signal?.aborted) {
+    throw new RunAbortedError(ctx.addr);
+  }
 
   switch (step.type) {
     case "agent": {
@@ -128,21 +180,31 @@ async function runStep(
       if (shouldEmit && !ctx.insideForeach) {
         tracker.advance();
       }
+      const phaseLine = () =>
+        buildPhaseLine(tracker.formatCounter(scope), label, iterSuffix);
+      if (replayIfJournaled(step, scope, deps, ctx, run, shouldEmit ? phaseLine : undefined)) {
+        return;
+      }
       if (shouldEmit) {
-        const counter = tracker.formatCounter(scope);
-        const lineText = buildPhaseLine(counter, label, iterSuffix);
-        logger.phaseBegin(lineText);
+        logger.phaseBegin(phaseLine());
       }
       logger.detail(`agent ${step.prompt}${describeAgentContext(step, scope)}`);
       const logOffset = logger.logFileSize();
       try {
-        await runAgentStep(step, scope, deps);
+        await runAgentStep(step, scope, deps, run);
       } catch (err) {
         const elapsed = Date.now() - t0;
         if (shouldEmit) logger.phaseEnd("FAIL", elapsed);
-        printFailureTail(logger, deps, logOffset);
+        if (!(err instanceof RunAbortedError)) {
+          printFailureTail(logger, deps, logOffset);
+        }
         throw err;
       }
+      await deps.journal?.append({
+        addr: ctx.addr,
+        type: "agent",
+        at: new Date().toISOString(),
+      });
       if (shouldEmit) logger.phaseEnd("DONE", Date.now() - t0);
       return;
     }
@@ -153,10 +215,13 @@ async function runStep(
       if (shouldEmit && !ctx.insideForeach) {
         tracker.advance();
       }
+      const phaseLine = () =>
+        buildPhaseLine(tracker.formatCounter(scope), label, iterSuffix);
+      if (replayIfJournaled(step, scope, deps, ctx, run, shouldEmit ? phaseLine : undefined)) {
+        return;
+      }
       if (shouldEmit) {
-        const counter = tracker.formatCounter(scope);
-        const lineText = buildPhaseLine(counter, label, iterSuffix);
-        logger.phaseBegin(lineText);
+        logger.phaseBegin(phaseLine());
       }
       logger.detail(`script ${step.name}`);
       try {
@@ -170,6 +235,12 @@ async function runStep(
         if (shouldEmit) logger.phaseEnd("FAIL", elapsed);
         throw err;
       }
+      await deps.journal?.append({
+        addr: ctx.addr,
+        type: "script",
+        ...(step.set ? { set: step.set, value: scope[step.set] } : {}),
+        at: new Date().toISOString(),
+      });
       if (shouldEmit) logger.phaseEnd("DONE", Date.now() - t0);
       return;
     }
@@ -177,20 +248,30 @@ async function runStep(
       const items = resolveValue(step.in, scope);
       const count = Array.isArray(items) ? items.length : 0;
       logger.detail(`foreach ${step.var} in ${step.in} (${count} item${count === 1 ? "" : "s"})`);
-      await runForeachWithPhases(step, scope, deps, tracker);
+      await runForeachWithPhases(step, scope, deps, tracker, ctx, run);
       logger.detail(`foreach ${step.var} done (${formatDuration(Date.now() - t0)})`);
       return;
     }
     case "loop": {
       logger.detail(`loop (max=${step.max}, until=${step.until})`);
-      await runLoopWithPhases(step, scope, deps, tracker, ctx);
+      await runLoopWithPhases(step, scope, deps, tracker, ctx, run);
       logger.detail(`loop done (${formatDuration(Date.now() - t0)})`);
       return;
     }
     case "read-file": {
+      if (replayIfJournaled(step, scope, deps, ctx, run, undefined)) {
+        return;
+      }
       const path = interpolate(step.path, scope);
       logger.detail(`read-file ${path} -> \${${step.set}}`);
       await runReadFileStep(step, scope);
+      await deps.journal?.append({
+        addr: ctx.addr,
+        type: "read-file",
+        set: step.set,
+        value: scope[step.set],
+        at: new Date().toISOString(),
+      });
       logger.detail(`read-file done (${formatDuration(Date.now() - t0)})`);
       return;
     }
@@ -199,8 +280,11 @@ async function runStep(
       tracker.recordIfOutcome(step, taken);
       logger.detail(`if ${step.condition} -> ${taken ? "true" : "false (skip)"}`);
       if (taken) {
-        await runIfStep(step, scope, (child, childScope) =>
-          runStep(child, childScope, deps, tracker, ctx),
+        await runIfStep(step, scope, (child, childScope, j) =>
+          runStep(child, childScope, deps, tracker, {
+            ...ctx,
+            addr: ifChildAddress(ctx.addr, j),
+          }, run),
         );
       } else if (ctx.isTopLevel) {
         tracker.advance();
@@ -217,24 +301,54 @@ async function runStep(
   }
 }
 
+/**
+ * Skips a leaf step the journal already holds: re-applies its scope
+ * assignment, keeps the phase display consistent, and reports true.
+ */
+function replayIfJournaled(
+  step: AgentStep | ScriptStep | ReadFileStep,
+  scope: Scope,
+  deps: RunFlowDeps,
+  ctx: StepContext,
+  run: RunState,
+  /** Built after the scope effect is re-applied, so the total is current. */
+  phaseLine: (() => string) | undefined,
+): boolean {
+  const record = deps.journal?.has(ctx.addr);
+  if (!record) return false;
+  const logger = deps.logger ?? silentLogger();
+  if (record.set) {
+    scope[record.set] = record.value;
+  }
+  run.replayed += 1;
+  const what = step.type === "agent" ? step.prompt : step.type === "script" ? step.name : step.path;
+  logger.detail(`${step.type} ${what}: done in an earlier attempt, skipping (${ctx.addr})`);
+  if (phaseLine) {
+    logger.phaseImmediate(`${phaseLine()} (done in earlier run)`, "SKIP");
+  }
+  return true;
+}
+
 async function runForeachWithPhases(
   step: ForeachStep,
   scope: Scope,
   deps: RunFlowDeps,
   tracker: PhaseTracker,
+  parentCtx: StepContext,
+  run: RunState,
 ): Promise<void> {
   await runForeachStep(
     step,
     scope,
-    async (child, iterScope) => {
-      const isFirstInBody = step.do.length > 0 && child === step.do[0];
-      if (isFirstInBody) {
+    async (child, iterScope, j, i) => {
+      if (j === 0) {
         tracker.advance();
       }
       await runStep(child, iterScope, deps, tracker, {
         isTopLevel: false,
         insideForeach: true,
-      });
+        addr: foreachChildAddress(parentCtx.addr, i, j),
+      }, run);
     },
   );
 }
@@ -245,15 +359,16 @@ async function runLoopWithPhases(
   deps: RunFlowDeps,
   tracker: PhaseTracker,
   parentCtx: StepContext,
+  run: RunState,
 ): Promise<void> {
-  await runLoopStep(step, scope, async (child, iterScope) => {
-    const iteration = typeof iterScope.iteration === "number" ? iterScope.iteration : undefined;
+  await runLoopStep(step, scope, async (child, iterScope, j, i) => {
     await runStep(child, iterScope, deps, tracker, {
       isTopLevel: false,
       insideForeach: parentCtx.insideForeach,
-      loopIteration: iteration,
+      loopIteration: i,
       loopMax: step.max,
-    });
+      addr: loopChildAddress(parentCtx.addr, i, j),
+    }, run);
   });
 }
 
@@ -261,6 +376,7 @@ async function runAgentStep(
   step: AgentStep,
   scope: Scope,
   deps: RunFlowDeps,
+  run: RunState,
 ): Promise<void> {
   const promptPath = resolve(PROMPTS_DIR, `${step.prompt}.md`);
 
@@ -272,12 +388,16 @@ async function runAgentStep(
   // `includeRoots` is the shared-partial search path. It is a list so that a
   // project's own prompt directory can be prepended ahead of the package's
   // when custom prompts land, without changing the resolver.
-  const prompt = appendSaagaRules(
-    await renderPromptFile(promptPath, renderedVars, {
-      includeRoots: [PROMPTS_DIR],
-    }),
-    deps.saagaRules,
-  );
+  let rendered = await renderPromptFile(promptPath, renderedVars, {
+    includeRoots: [PROMPTS_DIR],
+  });
+  // The first agent step a resumed run actually executes is the one the
+  // earlier attempt was interrupted in; tell the agent so once.
+  if (run.resumeNote) {
+    rendered = `${rendered.trimEnd()}\n\n${run.resumeNote}\n`;
+    run.resumeNote = undefined;
+  }
+  const prompt = appendSaagaRules(rendered, deps.saagaRules);
 
   // Archive exactly the bytes the agent receives, so a run stays
   // reconstructible now that the plan no longer carries the methodology.
@@ -325,7 +445,14 @@ async function runAgentStep(
     logFile: deps.logFile,
     echo: deps.verbose,
     onEvent: auditor ? (event) => auditor.record(event) : undefined,
+    signal: deps.signal,
   });
+  // Checked before the exit code: a cancelled child reports failure, and
+  // even a child that happened to finish cleanly was told to stop — its
+  // output is not trusted as complete.
+  if (deps.signal?.aborted) {
+    throw new RunAbortedError(step.prompt);
+  }
   if (result.exitCode !== 0) {
     throw new AgentStepFailedError(step.prompt, result.exitCode);
   }
@@ -412,6 +539,20 @@ export class ExpectFileMissingError extends Error {
     this.name = "ExpectFileMissingError";
     this.path = path;
     this.promptName = promptName;
+  }
+}
+
+/**
+ * The run was stopped through `RunFlowDeps.signal`. `where` names the
+ * step (prompt name or journal address) that was current at the time.
+ */
+export class RunAbortedError extends Error {
+  readonly where: string;
+
+  constructor(where: string) {
+    super(`Run interrupted at ${where}`);
+    this.name = "RunAbortedError";
+    this.where = where;
   }
 }
 

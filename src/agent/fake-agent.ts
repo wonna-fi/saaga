@@ -7,6 +7,7 @@ export interface FakeAgentCall {
   additionalDirs?: string[];
   permissions?: AgentPermissions;
   onEvent?: AgentRunOpts["onEvent"];
+  signal?: AbortSignal;
 }
 
 export interface FakeScenarioValue {
@@ -40,6 +41,7 @@ export class FakeAgent implements Agent {
       additionalDirs: opts.additionalDirs,
       permissions: opts.permissions,
       onEvent: opts.onEvent,
+      signal: opts.signal,
     });
 
     for (const [substring, scenario] of Object.entries(this.scenarios)) {
@@ -47,6 +49,10 @@ export class FakeAgent implements Agent {
         const value = scenario as FakeScenarioValue;
         if (value.effect) {
           await value.effect(opts, prompt);
+        }
+        // Mirrors the real backends: a cancelled child reports failure.
+        if (opts.signal?.aborted) {
+          return { exitCode: 1 };
         }
         return { exitCode: value.exitCode };
       }

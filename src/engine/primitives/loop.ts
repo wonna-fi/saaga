@@ -22,8 +22,8 @@ export async function runLoopStep(
   try {
     for (let i = 1; i <= step.max; i++) {
       scope.iteration = i;
-      for (const child of step.do) {
-        await dispatch(child, scope);
+      for (let j = 0; j < step.do.length; j++) {
+        await dispatch(step.do[j], scope, j, i);
       }
       if (evaluatePredicate(step.until, scope)) {
         break;
