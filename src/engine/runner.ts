@@ -1,5 +1,5 @@
 import { mkdir, stat } from "node:fs/promises";
-import { dirname, resolve, sep } from "node:path";
+import { dirname, isAbsolute, resolve, sep } from "node:path";
 import type { PermissionAuditor } from "../agent/audit.js";
 import type { AgentPermissions } from "../agent/permissions.js";
 import type { Agent } from "../agent/types.js";
@@ -410,6 +410,45 @@ async function runLoopWithPhases(
   });
 }
 
+/**
+ * Subset of `node:path` the directory preflight needs. Injectable so the
+ * Windows behavior stays testable from POSIX (pass `path.win32`).
+ */
+export type PathModule = Pick<
+  typeof import("node:path"),
+  "dirname" | "isAbsolute" | "resolve" | "sep"
+>;
+
+const nativePath: PathModule = { dirname, isAbsolute, resolve, sep };
+
+/**
+ * Collect the parent directories to pre-create for agent output paths.
+ *
+ * Flow YAML builds paths by joining segments with "/", so on Windows a
+ * rendered value can mix separators (`C:\app\saaga-docs/metadata/...`) while
+ * `safeDirs` hold native-separator roots — a plain prefix check misses those.
+ * Both sides are normalized with `resolve()` before comparison. Relative
+ * values are skipped: the roots are absolute, so a relative value can never
+ * match them, and resolving one against the process cwd could accidentally
+ * match a root when the value is not a filesystem path at all.
+ */
+export function collectDirsToEnsure(
+  values: readonly string[],
+  safeDirs: readonly string[],
+  path: PathModule = nativePath,
+): Set<string> {
+  const roots = safeDirs.map((root) => path.resolve(root));
+  const dirs = new Set<string>();
+  for (const value of values) {
+    if (!path.isAbsolute(value)) continue;
+    const normalized = path.resolve(value);
+    if (roots.some((root) => normalized.startsWith(root + path.sep))) {
+      dirs.add(path.dirname(normalized));
+    }
+  }
+  return dirs;
+}
+
 async function runAgentStep(
   step: AgentStep,
   scope: Scope,
@@ -456,19 +495,11 @@ async function runAgentStep(
   const safeDirs = [...(runDir ? [runDir] : []), ...writeRoots];
 
   if (safeDirs.length > 0) {
-    const dirsToEnsure = new Set<string>();
-    for (const val of Object.values(renderedVars)) {
-      if (safeDirs.some((root) => val.startsWith(root + sep))) {
-        dirsToEnsure.add(dirname(val));
-      }
-    }
+    const candidates = Object.values(renderedVars);
     if (step.expect_file) {
-      const ef = interpolate(step.expect_file, scope);
-      if (safeDirs.some((root) => ef.startsWith(root + sep))) {
-        dirsToEnsure.add(dirname(ef));
-      }
+      candidates.push(interpolate(step.expect_file, scope));
     }
-    for (const dir of dirsToEnsure) {
+    for (const dir of collectDirsToEnsure(candidates, safeDirs)) {
       await mkdir(dir, { recursive: true });
     }
   }
