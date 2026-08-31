@@ -559,6 +559,11 @@ pass; the zero-findings bar buys marginal quality at ~2 sessions per round.
    step needed; the loop primitive exits silently at the cap).
 3. **Deferred-minors record with a consumer.** On PASS-with-minors, verify appends the
    findings to a run-level report (`<run_dir>/deferred-minors.md`) as the audit trail.
+   Wiring: step vars are interpolated only when declared, and no verify step receives
+   `run_dir` today — so every verifier step in the init/update/verify-quick-updates
+   flows gains a `deferred_minors_path: ${run_dir}/deferred-minors.md` var, and the
+   prompt refers to that variable (fixture asserts the rendered prompt carries a
+   concrete path).
    Its consumer is task 8: docs-gc's prompt reads the reports from run directories (the
    pending test below defines relevance — there is no "recent" window) so the collector
    sweeps deferred minors up instead of them expiring with the run.
