@@ -458,11 +458,16 @@ UX, so the constraint must be automatic.
    `parse-plan` (extend it, or a new `check-plan-budget`) that (a) derives the ceilings
    itself from repository measurements — source line/file counts taken through the same
    ignore filtering the manifest uses (`computeManifest()`'s path rules), so a vendored or
-   generated tree the planner rightly skips cannot inflate the ceilings — with the exact
-   formula living in code and documented in the README, never read from the plan (a
-   ceiling the planner authors is a ceiling the planner can inflate); and (b) sums the
+   generated tree the planner rightly skips cannot inflate the ceilings, **and** through an
+   explicit source classification (an extension allowlist living in code): the manifest
+   returns every eligible file, and lockfiles, snapshots, or checked-in data would
+   otherwise inflate the ceilings just as surely — with the exact formula living in code
+   and documented in the README, never read from the plan (a ceiling the planner authors
+   is a ceiling the planner can inflate); and (b) sums the
    machine-parseable per-doc budgets and the doc count from the plan and fails the flow
-   naming both totals and both ceilings — before any writer session spends tokens.
+   naming both totals and both ceilings — before any slice-writer session spends tokens
+   (the architecture writer necessarily runs earlier; the gate cannot protect that one
+   session, and the error message must not promise otherwise).
    Convention documents are counted toward the doc ceiling but contribute the fixed
    `CONVENTION_MAX_BODY_LINES` cap to the line total instead of a parsed budget — the
    existing plan contract deliberately gives them no per-doc budget, so requiring one
@@ -498,7 +503,8 @@ per-doc budget mechanics (task 4); the update-family flows (the diff budget gove
       ignored by both counts; a plan whose authored non-convention docs lack parseable
       budgets fails conservatively; report mode never throws, enforce mode throws on an
       over-budget verdict; an ignored tree (`.saagaignore`/`.gitignore`) does not raise
-      the measured ceilings (ignored-tree fixture test).
+      the measured ceilings (ignored-tree fixture test); a large tracked non-source file
+      (a lockfile or data snapshot) does not raise them either (classification fixture).
 - [ ] Full test suite green; no linter errors; README documents the gate and formula
       (normal Definition of Done — this task adds a built-in script and rewires the init
       flow).
@@ -522,7 +528,11 @@ pass; the zero-findings bar buys marginal quality at ~2 sessions per round.
 
 1. **Threshold in the verify prompts** (`verify-domain-documentation.md`,
    `verify-architecture.md`): status is PASS when Critical = 0 and Major = 0. Minor
-   findings are still fully reported in the review.
+   findings are still fully reported in the review. One carve-out in the architecture
+   verifier: **Missing Reference findings gate PASS** there despite being Minor — the
+   prompt itself notes ARCHITECTURE starts with no links on init (every planned
+   reference is initially missing), and the loop's fix pass is the only mechanism that
+   inserts them; a blanket threshold would ship an unlinked ARCHITECTURE on round 1.
 2. **`last_verified` becomes per-document: stamped when the doc is clean, removed when
    it carries a minor.** Verify's PASS/FAIL status stays slice-level, but the stamp step
    must not — on a slice PASS-with-minors, each doc with no findings gets today's date,
@@ -562,7 +572,8 @@ pass; the zero-findings bar buys marginal quality at ~2 sessions per round.
 **Acceptance criteria.**
 
 - [ ] Fixture tests: rendered verify prompts contain the threshold rule, the
-      clean-PASS-only `last_verified` rule, and the deferred-minors instruction.
+      clean-PASS-only `last_verified` rule, the deferred-minors instruction, and the
+      architecture verifier's Missing-Reference carve-out.
       (The docs-gc consumption instruction is asserted in task 8's fixtures when it lands.)
 - [ ] Sample run: a slice whose only findings are Minor passes on round 1 and the
       deferred-minors report contains them; the flagged doc's `last_verified` field is
