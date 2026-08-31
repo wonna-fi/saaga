@@ -586,13 +586,17 @@ pass; the zero-findings bar buys marginal quality at ~2 sessions per round.
 "doc without frontmatter → selected" — extends to any doc whose `last_verified` field is
 absent (including a stamp removed by a PASS-with-minors or an exhausted FAIL). Selection
 must not depend on the triggering source still appearing in the BASELINE diff, since the
-update flow regenerates BASELINE at run end. The two machine-generated navigation documents —
-`README.md` and `GLOSSARY.md`, the only files `generate-navigation` authors (task 3) —
-are **excluded** from the absent-stamp rule: they never carry a stamp and are
-regenerated deterministically every run, so selecting them would waste sessions on every
-sweep. The INDEXes are *not* excluded: they are agent-authored and can rot, and the
-glossary copies their one-liners. Task 7's acceptance gains the matching unit tests
-(absent stamp → selected; README/GLOSSARY → never selected; INDEX → eligible).
+update flow regenerates BASELINE at run end. Excluded from the absent-stamp rule: `README.md` and
+`GLOSSARY.md` (the only files `generate-navigation` authors — task 3 — regenerated
+deterministically every run, never stamped), and the category INDEXes. The INDEXes are
+agent-authored, but their staleness is *derivative*: a row rots only when its document
+changes, and the verify checklist already asserts INDEX rows describe the reviewed
+documents accurately — so any doc the sweep selects drags its INDEX row through
+verification, while sweeping an INDEX directly would feed a `type: index` doc into a
+verify path that has no template, `sources`, or stamp for it. Task 7's acceptance gains
+the matching unit tests (absent stamp → selected; README/GLOSSARY/INDEX → never
+selected) plus a fixture asserting the rendered verify prompt retains the INDEX-row
+accuracy check.
 
 ---
 
