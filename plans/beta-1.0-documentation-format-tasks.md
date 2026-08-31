@@ -16,7 +16,8 @@ self-contained: it can be picked up without reading the full analysis.
 - Task 7 depends on task 1. Task 8 depends on tasks 4 and 6.
 - Task 9 is fully independent — start it early, because it turns the verification of tasks 4–6
   from rubric judgment into measurement.
-- Regenerate the corpus **once**, after tasks 0–6 have landed (see Milestone), not per task.
+- Regenerate the corpus **once**, after tasks 0–6 **and 10–11** have landed (see Milestone
+  and wave 1b), not per task.
 
 **Verification model**
 
@@ -366,7 +367,10 @@ rotation at all.
   Consumption semantics, so entries are neither rediscovered nor lost: a report entry is
   *pending* iff its target doc still lacks `last_verified` (task 11 makes the absent stamp the
   canonical pending marker — a doc cleanly re-verified since the report was written is done,
-  regardless of the report's age). The predicate deliberately over-selects: a doc whose stamp
+  regardless of the report's age). An entry whose target document **no longer exists** is
+  consumed, not pending: docs-gc may only delete a doc whose content is demonstrably owned
+  elsewhere (the guardrail above), so deletion resolves the entry's subject by construction.
+  The predicate deliberately over-selects: a doc whose stamp
   was deleted again later re-flags its historical entries too. That is acceptable because
   docs-gc must re-verify every pending entry against the current doc before acting anyway
   (deferred findings go stale), so a resolved historical entry costs one check, not a rewrite;
@@ -582,12 +586,13 @@ pass; the zero-findings bar buys marginal quality at ~2 sessions per round.
 "doc without frontmatter → selected" — extends to any doc whose `last_verified` field is
 absent (including a stamp removed by a PASS-with-minors or an exhausted FAIL). Selection
 must not depend on the triggering source still appearing in the BASELINE diff, since the
-update flow regenerates BASELINE at run end. Machine-generated navigation documents
-(`README.md`, `GLOSSARY.md`, the INDEXes) are **excluded** from the absent-stamp rule:
-they never carry a stamp, are regenerated deterministically every run (task 3), and
-agents are denied writes to them — selecting them would waste or fail sessions on every
-sweep. Task 7's acceptance gains the matching unit tests (absent stamp → selected;
-generated nav doc → never selected).
+update flow regenerates BASELINE at run end. The two machine-generated navigation documents —
+`README.md` and `GLOSSARY.md`, the only files `generate-navigation` authors (task 3) —
+are **excluded** from the absent-stamp rule: they never carry a stamp and are
+regenerated deterministically every run, so selecting them would waste sessions on every
+sweep. The INDEXes are *not* excluded: they are agent-authored and can rot, and the
+glossary copies their one-liners. Task 7's acceptance gains the matching unit tests
+(absent stamp → selected; README/GLOSSARY → never selected; INDEX → eligible).
 
 ---
 
