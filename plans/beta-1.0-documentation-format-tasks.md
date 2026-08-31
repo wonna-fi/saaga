@@ -366,9 +366,12 @@ rotation at all.
   Consumption semantics, so entries are neither rediscovered nor lost: a report entry is
   *pending* iff its target doc still lacks `last_verified` (task 11 makes the absent stamp the
   canonical pending marker — a doc cleanly re-verified since the report was written is done,
-  regardless of the report's age); docs-gc processes pending entries, and its own run report
-  lists which entries it addressed. No mutation of archived run directories, no "recent"
-  window to age out of.
+  regardless of the report's age). The predicate deliberately over-selects: a doc whose stamp
+  was deleted again later re-flags its historical entries too. That is acceptable because
+  docs-gc must re-verify every pending entry against the current doc before acting anyway
+  (deferred findings go stale), so a resolved historical entry costs one check, not a rewrite;
+  docs-gc's run report lists entries as *addressed* or *already-resolved on inspection*. No
+  mutation of archived run directories, no "recent" window to age out of.
 - CLI wiring in `src/cli.ts` (`saaga docs-gc`), behind the unstable-features gate initially.
 - Guardrail: docs-gc may merge and trim but must not delete a document unless its full content is
   demonstrably owned elsewhere; the prompt states this and the deletion report proves it.
@@ -532,11 +535,16 @@ pass; the zero-findings bar buys marginal quality at ~2 sessions per round.
    clean verification restores its stamp. The same deletion applies on an **exhausted
    FAIL**: the loop's final fix runs after the last verification with no re-verify, so
    docs a finding was recorded against in the final review are modified unverified —
-   their stamps are deleted too, keeping them sweep-eligible.
+   their stamps are deleted too, keeping them sweep-eligible. Executable home for that
+   rule: the flows already pass `${iteration}` to verify — they additionally pass the
+   loop's `max`, and the verify prompt instructs that a FAIL on the final round deletes
+   the stamps of implicated docs before the status file is written (no post-loop step
+   needed; the loop primitive exits silently at the cap).
 3. **Deferred-minors record with a consumer.** On PASS-with-minors, verify appends the
    findings to a run-level report (`<run_dir>/deferred-minors.md`) as the audit trail.
-   Its consumer is task 8: docs-gc's prompt reads the reports from recent run directories
-   so the collector sweeps deferred minors up instead of them expiring with the run.
+   Its consumer is task 8: docs-gc's prompt reads the reports from run directories (the
+   pending test below defines relevance — there is no "recent" window) so the collector
+   sweeps deferred minors up instead of them expiring with the run.
    Task 8 has not landed, so this task ships the report and hands task 8 the one-line
    consumption requirement (recorded on its card); until then, item 2's withheld
    `last_verified` stamp is what keeps a deferred doc from falling out of the pipeline.
@@ -553,6 +561,8 @@ pass; the zero-findings bar buys marginal quality at ~2 sessions per round.
       deferred-minors report contains them; the flagged doc's `last_verified` field is
       removed (also when it carried a stamp from an earlier clean pass), while its
       finding-free siblings in the same slice keep freshly written stamps.
+- [ ] Fake-agent flow test: verify receives `iteration` and `max`; a final-round FAIL
+      deletes the stamps of the docs its findings are recorded against.
 - [ ] Fake-agent flow tests green; full suite green; no linter errors (normal Definition
       of Done — the threshold changes user-visible PASS semantics).
 - [ ] README documents the severity threshold and the deferred-minors report.
