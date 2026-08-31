@@ -505,15 +505,18 @@ pass; the zero-findings bar buys marginal quality at ~2 sessions per round.
 1. **Threshold in the verify prompts** (`verify-domain-documentation.md`,
    `verify-architecture.md`): status is PASS when Critical = 0 and Major = 0. Minor
    findings are still fully reported in the review.
-2. **`last_verified` only on a clean PASS; PASS-with-minors removes it.** A clean PASS
-   writes today's date. A PASS-with-minors **deletes** the doc's `last_verified` field —
-   not merely skips the update: a doc verified cleanly in an earlier run already carries
-   an old stamp, and leaving it in place would hide the doc from task 7's sweep once the
-   update flow regenerates BASELINE and the triggering source vanishes from the next
-   diff. An absent stamp is the pipeline's one "verification pending" marker, and task
-   7's conservative default (see the amendment below) selects it unconditionally — so
-   every PASS-with-minors doc stays eligible with no separate pending-state store. The
-   next clean PASS restores the stamp.
+2. **`last_verified` becomes per-document: stamped when the doc is clean, removed when
+   it carries a minor.** Verify's PASS/FAIL status stays slice-level, but the stamp step
+   must not — on a slice PASS-with-minors, each doc with no findings gets today's date,
+   and only the docs named in the Minor findings have their `last_verified` field
+   **deleted** (not merely left un-updated: a doc verified cleanly in an earlier run
+   already carries an old stamp, and leaving it would hide the doc from task 7's sweep
+   once the update flow regenerates BASELINE and the triggering source vanishes from the
+   next diff). An absent stamp is the pipeline's one "verification pending" marker, and
+   task 7's conservative default (see the amendment below) selects it unconditionally —
+   so every doc with a deferred minor stays eligible, clean siblings in the same slice
+   keep their stamps, and no separate pending-state store is needed. The doc's next
+   clean verification restores its stamp.
 3. **Deferred-minors record with a consumer.** On PASS-with-minors, verify appends the
    findings to a run-level report (`<run_dir>/deferred-minors.md`) as the audit trail.
    Its consumer is task 8: docs-gc's prompt reads the reports from recent run directories
@@ -530,9 +533,10 @@ pass; the zero-findings bar buys marginal quality at ~2 sessions per round.
 - [ ] Fixture tests: rendered verify prompts contain the threshold rule, the
       clean-PASS-only `last_verified` rule, and the deferred-minors instruction.
       (The docs-gc consumption instruction is asserted in task 8's fixtures when it lands.)
-- [ ] Sample run: a slice whose only findings are Minor passes on round 1, the
-      deferred-minors report contains them, and the doc's `last_verified` field is
-      removed (also when the doc carried a stamp from an earlier clean pass).
+- [ ] Sample run: a slice whose only findings are Minor passes on round 1 and the
+      deferred-minors report contains them; the flagged doc's `last_verified` field is
+      removed (also when it carried a stamp from an earlier clean pass), while its
+      finding-free siblings in the same slice keep freshly written stamps.
 - [ ] Fake-agent flow tests green; full suite green; no linter errors (normal Definition
       of Done — the threshold changes user-visible PASS semantics).
 - [ ] README documents the severity threshold and the deferred-minors report.
