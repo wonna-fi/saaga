@@ -362,20 +362,11 @@ rotation at all.
   the existing verify/fix loop. A deletion report (what was removed and why) is written to the run
   directory.
 - **Deferred-minors consumption (handover from task 11).** The docs-gc prompt reads the
-  `deferred-minors.md` reports from run directories and sweeps those findings up — task 11's
-  verify loop writes them on PASS-with-minors and designates docs-gc as the consumer.
-  Consumption semantics, so entries are neither rediscovered nor lost: a report entry is
-  *pending* iff its target doc still lacks `last_verified` (task 11 makes the absent stamp the
-  canonical pending marker — a doc cleanly re-verified since the report was written is done,
-  regardless of the report's age). An entry whose target document **no longer exists** is
-  consumed, not pending: docs-gc may only delete a doc whose content is demonstrably owned
-  elsewhere (the guardrail above), so deletion resolves the entry's subject by construction.
-  The predicate deliberately over-selects: a doc whose stamp
-  was deleted again later re-flags its historical entries too. That is acceptable because
-  docs-gc must re-verify every pending entry against the current doc before acting anyway
-  (deferred findings go stale), so a resolved historical entry costs one check, not a rewrite;
-  docs-gc's run report lists entries as *addressed* or *already-resolved on inspection*. No
-  mutation of archived run directories, no "recent" window to age out of.
+  `deferred-minors.md` reports from run directories and sweeps up the *pending* entries: an
+  entry is pending iff its target doc still exists and lacks `last_verified` (deferred
+  findings can be stale, so docs-gc re-verifies each against the current doc before acting;
+  its run report lists entries as addressed or already-resolved). No mutation of archived
+  run directories, no aging window.
 - CLI wiring in `src/cli.ts` (`saaga docs-gc`), behind the unstable-features gate initially.
 - Guardrail: docs-gc may merge and trim but must not delete a document unless its full content is
   demonstrably owned elsewhere; the prompt states this and the deletion report proves it.
@@ -427,192 +418,101 @@ caveats. First iteration answers one question: does the corpus measurably help a
 ## Track E — Plan economics *(added 2026-08-31, from the corpus-regeneration experiments)*
 
 Derived from three regenerations of Saaga's own corpus at the same commit with identical
-prompts: Opus 5 solo (52 planned docs / ~5,050 budgeted lines, $218.69), Opus 4.6 solo
-(26 planned docs, $43.55), and an Opus-5-plans/Opus-4.6-writes hybrid (47 docs / 4,790
-budgeted lines). Full comparison in the investigation artifact; probe material in
-`plans/eval-seed-material.md`.
+prompts: Opus 5 solo (52 planned docs, $218.69), Opus 4.6 solo (26 docs, $43.55), and an
+Opus-5-plans/Opus-4.6-writes hybrid (47 docs, $151.46). Full comparison in the
+investigation artifact; probe material in `plans/eval-seed-material.md`.
 
 ### Task 10: Corpus-level budget — doc-count discipline at plan time
 
-**Motivation.** Doc *length* has a downward force (task 4's per-doc budgets, enforced at
-1.2× — measured working: every doc in all three runs landed in band). Doc *count* has none,
-and it is the planner's one unconstrained axis. Measured: Opus 5 plans ~50 documents for
-this 10.2k-line app reproducibly (52 solo, 47 hybrid) — roughly 2× overkill, since the
-26-doc corpus still referenced all 61 source files with zero orphans and zero broken links.
-Marginal docs (a standalone concept for a 15-line path-helper module) exist because nothing
-asks whether a document earns its existence. Hand-editing the generated plan is unacceptable
-UX, so the constraint must be automatic.
+**Motivation.** Task 4 gave doc *length* a downward force (measured working); doc *count*
+has none, and it is the planner's one unconstrained axis. Opus 5 reproducibly plans ~50
+docs for this 10.2k-line app (52 solo, 47 hybrid) where 26 proved sufficient. Hand-editing
+the plan is unacceptable UX, so the constraint must be automatic.
 
 **Scope.**
 
-1. **Corpus budget in `prompts/plan-init.md`.** State the ceilings for total document count
-   and total budgeted lines and the formula they come from, so the planner aims at them.
-   Calibration points from the measured runs: ~0.3–0.4 total doc-lines per src-line; on this
-   repo a ceiling around 30–35 docs. The plan may record its own totals for reviewability,
-   but recorded values are informational only — see item 3.
-2. **Doc-level consequence test** in the planning guidance: a document must earn its
-   existence — a peripheral source file becomes a row or section in its parent document,
-   never its own file (the amortization rule applied at plan time). Canonical negative
-   example: `package-paths.md` for 15-line `paths.ts`.
-3. **Deterministic gate with independently derived ceilings.** A built-in script after
-   `parse-plan` (extend it, or a new `check-plan-budget`) that (a) derives the ceilings
-   itself from repository measurements — source line/file counts taken through the same
-   ignore filtering the manifest uses (`computeManifest()`'s path rules), so a vendored or
-   generated tree the planner rightly skips cannot inflate the ceilings, **and** through an
-   explicit source classification (an extension allowlist living in code): the manifest
-   returns every eligible file, and lockfiles, snapshots, or checked-in data would
-   otherwise inflate the ceilings just as surely — with the exact formula living in code
-   and documented in the README, never read from the plan (a ceiling the planner authors
-   is a ceiling the planner can inflate); and (b) sums the
-   machine-parseable per-doc budgets and the doc count from the plan and fails the flow
-   naming both totals and both ceilings — before any slice-writer session spends tokens
-   (the architecture writer necessarily runs earlier; the gate cannot protect that one
-   session, and the error message must not promise otherwise).
-   Convention documents are counted toward the doc ceiling but contribute the fixed
-   `CONVENTION_MAX_BODY_LINES` cap to the line total instead of a parsed budget — the
-   existing plan contract deliberately gives them no per-doc budget, so requiring one
-   would reject valid plans. Generated navigation documents (`INDEX.md`, `README.md`,
-   `GLOSSARY.md`) are excluded from both counts: plan-init's Phase 0 creates the INDEXes
-   without budgets, and the README/GLOSSARY are script-generated — the ceiling governs
-   authored content documents only.
-4. **Remedy is re-planning, never editing — and it must be executable in-run.** By the
-   time the gate runs, the init flow has already written `ARCHITECTURE.md`, so the docs
-   directory is non-empty and a fresh `saaga init` would be rejected by the version gate;
-   `--resume` would replay the journaled plan and re-fail. Wrap plan → parse → gate in a
-   bounded retry (the existing loop primitive, max 2–3): on an over-budget verdict the
-   planner reruns with the gate's report as feedback, the same shape as the verify/fix
-   loop. Engine constraint the design must respect: the loop primitive exits silently on
-   `max` exhaustion, and a throwing script step aborts the flow with no retry — so
-   **inside the loop the gate runs in a non-throwing report mode** (it writes the report
-   and `set`s a verdict the loop's `until` reads), and **a post-loop assertion step**
-   (the same script in enforce mode) fails the flow if the verdict is still over-budget.
-   That failure's error names the explicit recovery: delete the partial docs directory,
-   then rerun init. It must not suggest editing the plan.
+1. **Corpus budget in `prompts/plan-init.md`**: the ceilings (total doc count, total
+   budgeted lines) and their formula (calibration: ~0.3–0.4 doc-lines per src-line;
+   ~30–35 docs on this repo), plus a doc-level consequence test — a peripheral source
+   file becomes a row in its parent document, never its own file. Plan-recorded totals
+   are informational only.
+2. **Deterministic gate** after `parse-plan` (new `check-plan-budget`, or extend it):
+   derives the ceilings itself from repository measurement — the manifest's ignore
+   filtering plus a source-extension allowlist, formula in code and README, never read
+   from the plan — and checks the plan's summed budgets and doc count against them.
+   Conventions count toward the doc ceiling at the fixed `CONVENTION_MAX_BODY_LINES`
+   cap; generated INDEX/README/GLOSSARY are excluded. The gate runs before any
+   slice-writer session (the architecture writer necessarily precedes it).
+3. **Executable remedy**: plan → parse → gate in a bounded loop (max 2–3). The gate runs
+   in non-throwing report mode inside the loop (verdict via `set`, read by `until` — the
+   loop exits silently at its cap and a throwing script aborts with no retry), and a
+   post-loop enforce step fails the flow if still over budget, naming the recovery:
+   delete the partial docs directory, rerun init. Never suggest editing the plan.
 
-**Out of scope.** docs-gc (task 8 remains the corrective force for existing corpora);
-per-doc budget mechanics (task 4); the update-family flows (the diff budget governs them).
+**Out of scope.** docs-gc (task 8); per-doc budget mechanics (task 4); the update-family
+flows (the diff budget governs them).
 
 **Acceptance criteria.**
 
-- [ ] Fixture tests: rendered `plan-init` contains the corpus-budget rule and the
-      doc-existence test (assert on distinctive phrases).
-- [ ] Gate unit tests: over-budget plan fails naming totals and ceilings; in-budget plan
-      passes; ceilings come from repository measurement, not from the plan (a plan
-      declaring inflated ceilings still fails); a plan with conventions and no budgets on
-      them passes with the fixed cap counted; generated INDEX/README/GLOSSARY entries are
-      ignored by both counts; a plan whose authored non-convention docs lack parseable
-      budgets fails conservatively; report mode never throws, enforce mode throws on an
-      over-budget verdict; an ignored tree (`.saagaignore`/`.gitignore`) does not raise
-      the measured ceilings (ignored-tree fixture test); a large tracked non-source file
-      (a lockfile or data snapshot) does not raise them either (classification fixture).
-- [ ] Full test suite green; no linter errors; README documents the gate and formula
-      (normal Definition of Done — this task adds a built-in script and rewires the init
-      flow).
-- [ ] Fake-agent init flow contains the plan → parse → gate retry loop and the post-loop
-      enforce step; a fake plan that stays over budget exhausts the retries and fails at
-      the enforce step with the delete-then-rerun message; flow tests green.
-- [ ] Sample regeneration: the generated plan for Saaga lands within the ceiling and
-      passes the gate on the first attempt.
+- [ ] Fixture tests: rendered `plan-init` carries the corpus-budget rule and the
+      doc-existence test.
+- [ ] Gate unit tests: over- and in-budget plans; plan-declared ceilings ignored;
+      conventions counted at the fixed cap; generated docs excluded; missing budgets on
+      authored docs fail conservatively; ignored trees and tracked non-source files do
+      not raise the ceilings; report mode never throws, enforce mode does.
+- [ ] Fake-agent flow: retry loop + enforce step; a persistently over-budget plan fails
+      at the enforce step with the delete-then-rerun message.
+- [ ] Full suite green; no linter errors; README documents the gate (normal DoD).
+- [ ] Sample regeneration: the plan for Saaga lands within the ceiling on the first
+      attempt.
 
 ### Task 11: Verify severity threshold — PASS with minors recorded
 
-**Motivation.** The verify loop fails a slice on *any* finding, and the measured residue at
-round 3 is small: across all three runs, exhausted slices ended at 0 Critical, 0–1 Major,
-1–2 Minor — typically `sources`-frontmatter completeness. Retry exhaustion rates: 4/11
-slices (Opus 5 solo), 2/6 (Opus 4.6 solo), 8/12 (hybrid — cross-model writer/verifier pay
-worst). The loop runs the fix agent after *every* FAIL including the final round, so an
-exhausted slice costs 3 verify + 3 fix = 5 extra agent sessions versus a clean first-round
-pass; the zero-findings bar buys marginal quality at ~2 sessions per round.
+**Motivation.** Verify fails a slice on *any* finding, and the measured round-3 residue
+is 0 Critical, 0–1 Major, 1–2 Minor. Exhaustion rates across the three runs: 4/11, 2/6,
+8/12 slices, at 5 extra agent sessions per exhausted slice (the fix agent also runs after
+the final FAIL).
 
 **Scope.**
 
-1. **Threshold in the verify prompts** (`verify-domain-documentation.md`,
-   `verify-architecture.md`): status is PASS when Critical = 0 and Major = 0. Minor
-   findings are still fully reported in the review. One carve-out in the architecture
-   verifier: **Missing Reference findings gate PASS** there despite being Minor — the
-   prompt itself notes ARCHITECTURE starts with no links on init (every planned
-   reference is initially missing), and the loop's fix pass is the only mechanism that
-   inserts them; a blanket threshold would ship an unlinked ARCHITECTURE on round 1.
-2. **`last_verified` becomes per-document: stamped when the doc is clean, removed when
-   it carries a minor.** Verify's PASS/FAIL status stays slice-level, but the stamp step
-   must not — on a slice PASS-with-minors, each doc with no findings gets today's date,
-   and only the docs a Minor finding is *recorded against* (the review table's Document
-   column — not every doc a finding's Evidence happens to name, e.g. a duplication
-   finding's clean owning doc or a link target) have their `last_verified` field
-   **deleted** (not merely left un-updated: a doc verified cleanly in an earlier run
-   already carries an old stamp, and leaving it would hide the doc from task 7's sweep
-   once the update flow regenerates BASELINE and the triggering source vanishes from the
-   next diff). An absent stamp is the pipeline's one "verification pending" marker, and
-   task 7's conservative default (see the amendment below) selects it unconditionally —
-   so every doc with a deferred minor stays eligible, clean siblings in the same slice
-   keep their stamps, and no separate pending-state store is needed. The doc's next
-   clean verification restores its stamp. The same deletion applies on an **exhausted
-   FAIL**: the loop's final fix runs after the last verification with no re-verify, so
-   docs a finding was recorded against in the final review are modified unverified —
-   their stamps are deleted too, keeping them sweep-eligible. Executable home for that
-   rule: the loop primitive today exposes only `${iteration}` on the scope — `max` stays
-   step config and is not interpolable — so this task extends the primitive to also set
-   `${loop_max}` alongside `${iteration}` (same save/restore-in-`finally` treatment, unit
-   test in the loop tests). The verify steps then receive both as prompt vars, and the
-   verify prompt instructs that a FAIL on the final round (`iteration == loop_max`)
-   deletes the stamps of implicated docs before the status file is written (no post-loop
-   step needed; the loop primitive exits silently at the cap).
-3. **Deferred-minors record with a consumer.** On PASS-with-minors, verify appends the
-   findings to a run-level report (`<run_dir>/deferred-minors.md`) as the audit trail.
-   Wiring: step vars are interpolated only when declared, and no verify step receives
-   `run_dir` today — so every verifier step in the init/update/verify-quick-updates
-   flows gains a `deferred_minors_path: ${run_dir}/deferred-minors.md` var, and the
-   prompt refers to that variable (fixture asserts the rendered prompt carries a
-   concrete path).
-   Its consumer is task 8: docs-gc's prompt reads the reports from run directories (the
-   pending test below defines relevance — there is no "recent" window) so the collector
-   sweeps deferred minors up instead of them expiring with the run.
-   Task 8 has not landed, so this task ships the report and hands task 8 the one-line
-   consumption requirement (recorded on its card); until then, item 2's withheld
-   `last_verified` stamp is what keeps a deferred doc from falling out of the pipeline.
+1. **Threshold in both verify prompts**: PASS when Critical = 0 and Major = 0; minors
+   fully reported. Carve-out: in `verify-architecture.md`, Missing Reference findings
+   still gate PASS — ARCHITECTURE starts link-less on init and the fix pass is what
+   inserts the planned links.
+2. **Per-document stamping**: docs with no findings get today's `last_verified`; docs a
+   finding is recorded against (the review table's Document column) have the field
+   **deleted** — on PASS-with-minors and on a final-round FAIL (that fix runs
+   unverified). The absent stamp is the pipeline's single "verification pending" marker
+   (see the task 7 amendment). For the final-round signal, the loop primitive
+   additionally exposes `${loop_max}` alongside `${iteration}`, and every verifier step
+   receives both plus `deferred_minors_path: ${run_dir}/deferred-minors.md` as vars.
+3. **Deferred-minors report** at that path as the audit trail. Consumer is task 8's
+   docs-gc (recorded in its scope); an entry is pending iff its target doc still exists
+   and lacks `last_verified`.
 4. Fix step unchanged: triggered on FAIL only.
 
 **Out of scope.** The 3-round cap; the severity taxonomy; auto-fixing minors on PASS.
 
 **Acceptance criteria.**
 
-- [ ] Fixture tests: rendered verify prompts contain the threshold rule, the
-      clean-PASS-only `last_verified` rule, the deferred-minors instruction, and the
-      architecture verifier's Missing-Reference carve-out.
-      (The docs-gc consumption instruction is asserted in task 8's fixtures when it lands.)
-- [ ] Sample run: a slice whose only findings are Minor passes on round 1 and the
-      deferred-minors report contains them; the flagged doc's `last_verified` field is
-      removed (also when it carried a stamp from an earlier clean pass), while its
-      finding-free siblings in the same slice keep freshly written stamps.
-- [ ] Loop-primitive unit test: `${loop_max}` is set inside the body, restored after,
-      like `${iteration}`.
-- [ ] Fake-agent flow test: verify receives `iteration` and `loop_max` as prompt vars; a
-      final-round FAIL deletes the stamps of the docs its findings are recorded against.
-- [ ] Fake-agent flow tests green; full suite green; no linter errors (normal Definition
-      of Done — the threshold changes user-visible PASS semantics).
-- [ ] README documents the severity threshold and the deferred-minors report.
-- [ ] Measured on the next regeneration: exhausted-slice rate drops materially against the
-      three baselines above (4/11, 2/6, 8/12). This measurement is **observational, not an
-      acceptance gate** — that regeneration also carries task 10's re-slicing, so the
-      denominator and the verifier's inputs both change; the controlled acceptance for this
-      task is the minor-only sample above. Report the rate alongside the baselines with
-      that caveat.
+- [ ] Fixture tests: threshold rule, per-document stamp rule, deferred-minors
+      instruction with a concrete path, and the Missing-Reference carve-out.
+- [ ] Loop-primitive unit test: `${loop_max}` set inside the body, restored after.
+- [ ] Fake-agent flow tests: a minor-only slice passes round 1 with the flagged doc
+      unstamped and clean siblings stamped; a final-round FAIL unstamps its implicated
+      docs.
+- [ ] Full suite green; no linter errors; README documents the threshold and the report
+      (normal DoD).
+- [ ] Observational, not a gate: the exhausted-slice rate on the milestone regeneration,
+      reported against the 4/11, 2/6, 8/12 baselines (that run also carries task 10's
+      re-slicing, so no causal claim).
 
-**Task 7 amendment (from this task's review).** Task 7's conservative default —
-"doc without frontmatter → selected" — extends to any doc whose `last_verified` field is
-absent (including a stamp removed by a PASS-with-minors or an exhausted FAIL). Selection
-must not depend on the triggering source still appearing in the BASELINE diff, since the
-update flow regenerates BASELINE at run end. Excluded from the absent-stamp rule: `README.md` and
-`GLOSSARY.md` (the only files `generate-navigation` authors — task 3 — regenerated
-deterministically every run, never stamped), and the category INDEXes. The INDEXes are
-agent-authored, but their staleness is *derivative*: a row rots only when its document
-changes, and the verify checklist already asserts INDEX rows describe the reviewed
-documents accurately — so any doc the sweep selects drags its INDEX row through
-verification, while sweeping an INDEX directly would feed a `type: index` doc into a
-verify path that has no template, `sources`, or stamp for it. Task 7's acceptance gains
-the matching unit tests (absent stamp → selected; README/GLOSSARY/INDEX → never
-selected) plus a fixture asserting the rendered verify prompt retains the INDEX-row
-accuracy check.
+**Task 7 amendment.** The conservative default extends to any doc whose `last_verified`
+is absent, independent of the BASELINE diff (the update flow regenerates BASELINE at run
+end). README/GLOSSARY (generated) and the INDEXes are excluded from selection — INDEX
+staleness is derivative, and the verify checklist already asserts row accuracy for every
+reviewed doc. Unit tests: absent stamp → selected; README/GLOSSARY/INDEX → never;
+fixture keeps the INDEX-row check in the verify prompt.
 
 ---
 
