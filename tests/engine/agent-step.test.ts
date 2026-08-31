@@ -290,6 +290,56 @@ describe("agent step invocation", () => {
     expect(dirExistedDuringRun).toBe(true);
   });
 
+  test("pre-creates directories when a var path uses forward slashes under a native write root", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "saaga-agent-step-"));
+    const runDir = join(dir, ".saaga-runs", "run-abc123");
+    await mkdir(runDir, { recursive: true });
+    const docsPath = resolve(dir, "saaga-docs");
+
+    // Flow YAML builds paths by string concatenation with "/" (e.g.
+    // `${app_path}/${docs_dir}/metadata/...`), so on Windows the value is
+    // `C:\...\saaga-docs/metadata/...` while writeRoots hold `C:\...\saaga-docs`.
+    // On POSIX both sides already agree, so this only bites on Windows.
+    const summaryPath = `${dir}/saaga-docs/metadata/quick_updates/run-abc123/summary.md`;
+    let dirExistedDuringRun = false;
+
+    const permissions: AgentPermissions = {
+      readRoots: [dir],
+      writeRoots: [docsPath, runDir],
+      denyPaths: [],
+      shell: "restricted",
+    };
+
+    const fake = new FakeAgent({
+      "Document the Architecture": {
+        exitCode: 0,
+        effect: async () => {
+          dirExistedDuringRun = existsSync(dirname(summaryPath));
+        },
+      },
+    });
+
+    const flow = parseFlowDefinition({
+      name: "test",
+      steps: [
+        {
+          agent: {
+            prompt: "document-architecture",
+            vars: { app: "myapp", summary_path: summaryPath },
+          },
+        },
+      ],
+    });
+
+    await runFlow(
+      flow,
+      { app: "myapp", app_path: dir, run_dir: runDir },
+      { agent: fake, cwd: dir, permissions },
+    );
+
+    expect(dirExistedDuringRun).toBe(true);
+  });
+
   test("does not pre-create directories for paths outside run_dir and writeRoots", async () => {
     const dir = await mkdtemp(join(tmpdir(), "saaga-agent-step-"));
     const runDir = join(dir, ".saaga-runs", "run-abc123");
