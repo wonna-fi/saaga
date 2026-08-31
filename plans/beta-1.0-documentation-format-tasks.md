@@ -427,21 +427,35 @@ UX, so the constraint must be automatic.
 
 **Scope.**
 
-1. **Corpus budget in `prompts/plan-init.md`.** Derive ceilings for total document count and
-   total budgeted lines from repo size, the same way per-doc budgets derive from source size
-   and centrality. Calibration points from the measured runs: ~0.3–0.4 total doc-lines per
-   src-line; on this repo a ceiling around 30–35 docs. The plan records the ceilings and its
-   own totals so they are checkable.
+1. **Corpus budget in `prompts/plan-init.md`.** State the ceilings for total document count
+   and total budgeted lines and the formula they come from, so the planner aims at them.
+   Calibration points from the measured runs: ~0.3–0.4 total doc-lines per src-line; on this
+   repo a ceiling around 30–35 docs. The plan may record its own totals for reviewability,
+   but recorded values are informational only — see item 3.
 2. **Doc-level consequence test** in the planning guidance: a document must earn its
    existence — a peripheral source file becomes a row or section in its parent document,
    never its own file (the amortization rule applied at plan time). Canonical negative
    example: `package-paths.md` for 15-line `paths.ts`.
-3. **Deterministic gate.** A built-in script after `parse-plan` (extend it, or a new
-   `check-plan-budget`) sums the machine-parseable per-doc budgets and the doc count, and
-   fails the flow naming its totals and ceilings — before any writer session spends tokens.
-   Same fail-fast shape as the version gate.
-4. **Remedy is re-planning, never editing.** The gate's error instructs rerunning init;
-   it must not suggest editing the plan.
+3. **Deterministic gate with independently derived ceilings.** A built-in script after
+   `parse-plan` (extend it, or a new `check-plan-budget`) that (a) derives the ceilings
+   itself from repository measurements (source line/file counts it takes directly, with the
+   exact formula living in code and documented in the README — never read from the plan:
+   a ceiling the planner authors is a ceiling the planner can inflate), and (b) sums the
+   machine-parseable per-doc budgets and the doc count from the plan and fails the flow
+   naming both totals and both ceilings — before any writer session spends tokens.
+   Convention documents are counted toward the doc ceiling but contribute the fixed
+   `CONVENTION_MAX_BODY_LINES` cap to the line total instead of a parsed budget — the
+   existing plan contract deliberately gives them no per-doc budget, so requiring one
+   would reject valid plans.
+4. **Remedy is re-planning, never editing — and it must be executable in-run.** By the
+   time the gate runs, the init flow has already written `ARCHITECTURE.md`, so the docs
+   directory is non-empty and a fresh `saaga init` would be rejected by the version gate;
+   `--resume` would replay the journaled plan and re-fail. Wrap plan → parse → gate in a
+   bounded retry (the existing loop primitive, max 2–3): on an over-budget verdict the
+   planner reruns with the gate's report as feedback, the same shape as the verify/fix
+   loop. Only if the retries exhaust does the flow fail, and that error names the explicit
+   recovery: delete the partial docs directory, then rerun init. It must not suggest
+   editing the plan.
 
 **Out of scope.** docs-gc (task 8 remains the corrective force for existing corpora);
 per-doc budget mechanics (task 4); the update-family flows (the diff budget governs them).
@@ -451,8 +465,13 @@ per-doc budget mechanics (task 4); the update-family flows (the diff budget gove
 - [ ] Fixture tests: rendered `plan-init` contains the corpus-budget rule and the
       doc-existence test (assert on distinctive phrases).
 - [ ] Gate unit tests: over-budget plan fails naming totals and ceilings; in-budget plan
-      passes; a plan without parseable budgets fails conservatively.
-- [ ] Fake-agent init flow contains the gate step; flow tests green.
+      passes; ceilings come from repository measurement, not from the plan (a plan
+      declaring inflated ceilings still fails); a plan with conventions and no budgets on
+      them passes with the fixed cap counted; a plan whose non-convention docs lack
+      parseable budgets fails conservatively.
+- [ ] Fake-agent init flow contains the plan → parse → gate retry loop; a fake plan that
+      stays over budget exhausts the retries and fails with the delete-then-rerun message;
+      flow tests green.
 - [ ] Sample regeneration: the generated plan for Saaga lands within the ceiling and
       passes the gate on the first attempt.
 
@@ -461,30 +480,42 @@ per-doc budget mechanics (task 4); the update-family flows (the diff budget gove
 **Motivation.** The verify loop fails a slice on *any* finding, and the measured residue at
 round 3 is small: across all three runs, exhausted slices ended at 0 Critical, 0–1 Major,
 1–2 Minor — typically `sources`-frontmatter completeness. Retry exhaustion rates: 4/11
-slices (Opus 5 solo), 2/6 (Opus 4.6 solo), 8/9 (hybrid — cross-model writer/verifier pay
-worst). Each exhausted slice costs up to 4 extra agent sessions; the zero-findings bar buys
-marginal quality at ~2 sessions per round.
+slices (Opus 5 solo), 2/6 (Opus 4.6 solo), 8/12 (hybrid — cross-model writer/verifier pay
+worst). The loop runs the fix agent after *every* FAIL including the final round, so an
+exhausted slice costs 3 verify + 3 fix = 5 extra agent sessions versus a clean first-round
+pass; the zero-findings bar buys marginal quality at ~2 sessions per round.
 
 **Scope.**
 
 1. **Threshold in the verify prompts** (`verify-domain-documentation.md`,
    `verify-architecture.md`): status is PASS when Critical = 0 and Major = 0. Minor
    findings are still fully reported in the review.
-2. **Deferred-minors record.** On PASS-with-minors, verify appends the findings to a
-   run-level report (e.g. `<run_dir>/deferred-minors.md`) so they feed the next
-   update/verify pass or docs-gc instead of vanishing.
-3. Fix step unchanged: triggered on FAIL only.
+2. **`last_verified` only on a clean PASS.** A PASS-with-minors does not update
+   `last_verified`. This is the wiring that keeps deferred findings inside the pipeline:
+   the residual minors are typically incomplete `sources`, and task 7's staleness sweep
+   selects by `sources` + `last_verified` — stamping a doc whose metadata is known-
+   incomplete would hide it from the sweep. Withholding the stamp leaves the doc eligible.
+3. **Deferred-minors record with a consumer.** On PASS-with-minors, verify appends the
+   findings to a run-level report (`<run_dir>/deferred-minors.md`) as the audit trail.
+   Its consumer is task 8: docs-gc's prompt reads the reports from recent run directories
+   so the collector sweeps deferred minors up instead of them expiring with the run.
+   Task 8 has not landed, so this task ships the report and hands task 8 the one-line
+   consumption requirement (recorded on its card); until then, item 2's withheld
+   `last_verified` stamp is what keeps a deferred doc from falling out of the pipeline.
+4. Fix step unchanged: triggered on FAIL only.
 
 **Out of scope.** The 3-round cap; the severity taxonomy; auto-fixing minors on PASS.
 
 **Acceptance criteria.**
 
-- [ ] Fixture tests: rendered verify prompts contain the threshold rule.
-- [ ] Sample run: a slice whose only findings are Minor passes on round 1, and the
-      deferred-minors report contains them.
+- [ ] Fixture tests: rendered verify prompts contain the threshold rule, the
+      clean-PASS-only `last_verified` rule, and the deferred-minors instruction.
+      (The docs-gc consumption instruction is asserted in task 8's fixtures when it lands.)
+- [ ] Sample run: a slice whose only findings are Minor passes on round 1, the
+      deferred-minors report contains them, and the doc's `last_verified` is unchanged.
 - [ ] Fake-agent flow tests green.
 - [ ] Measured on the next regeneration: exhausted-slice rate drops materially against the
-      three baselines above.
+      three baselines above (4/11, 2/6, 8/12).
 
 ---
 
