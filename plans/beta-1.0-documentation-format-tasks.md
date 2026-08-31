@@ -1,7 +1,8 @@
 # Beta 1.0 documentation-format tasks
 
 Derived from the documentation quality analysis (rubric evaluation, LOD/churn measurements,
-and the Saaga-vs-OpenWiki comparison). Ten tasks in five tracks. Each task is written to be
+and the Saaga-vs-OpenWiki comparison). Ten tasks in five tracks, plus track E (tasks 10–11),
+added 2026-08-31 from the corpus-regeneration experiments. Each task is written to be
 self-contained: it can be picked up without reading the full analysis.
 
 **Sequencing**
@@ -15,7 +16,8 @@ self-contained: it can be picked up without reading the full analysis.
 - Task 7 depends on task 1. Task 8 depends on tasks 4 and 6.
 - Task 9 is fully independent — start it early, because it turns the verification of tasks 4–6
   from rubric judgment into measurement.
-- Regenerate the corpus **once**, after tasks 0–6 have landed (see Milestone), not per task.
+- Regenerate the corpus **once**, after tasks 0–6 **and 10–11** have landed (see Milestone
+  and wave 1b), not per task.
 
 **Verification model**
 
@@ -359,6 +361,12 @@ rotation at all.
   owning doc (task 6's ownership rules), and enforce length budgets. Every gc'd slice goes through
   the existing verify/fix loop. A deletion report (what was removed and why) is written to the run
   directory.
+- **Deferred-minors consumption (handover from task 11).** The docs-gc prompt reads the
+  `deferred-minors.md` reports from run directories and sweeps up the *pending* entries: an
+  entry is pending iff its target doc still exists and lacks `last_verified` (deferred
+  findings can be stale, so docs-gc re-verifies each against the current doc before acting;
+  its run report lists entries as addressed or already-resolved). No mutation of archived
+  run directories, no aging window.
 - CLI wiring in `src/cli.ts` (`saaga docs-gc`), behind the unstable-features gate initially.
 - Guardrail: docs-gc may merge and trim but must not delete a document unless its full content is
   demonstrably owned elsewhere; the prompt states this and the deletion report proves it.
@@ -366,6 +374,8 @@ rotation at all.
 **Acceptance criteria.**
 
 - [ ] Fake-agent flow test covering the gc → verify → fix loop.
+- [ ] Fixture test: the rendered docs-gc prompt contains the deferred-minors consumption
+      instruction.
 - [ ] Real run on `saaga-docs/`: the `prompt-templates.md` / `templates-and-prompt-rendering.md`
       twins are merged, net corpus line count decreases, and all touched slices pass verify.
 - [ ] Deletion report present and human-readable in the run directory.
@@ -405,10 +415,111 @@ caveats. First iteration answers one question: does the corpus measurably help a
 
 ---
 
+## Track E — Plan economics *(added 2026-08-31, from the corpus-regeneration experiments)*
+
+Derived from three regenerations of Saaga's own corpus at the same commit with identical
+prompts: Opus 5 solo (52 planned docs, $218.69), Opus 4.6 solo (26 docs, $43.55), and an
+Opus-5-plans/Opus-4.6-writes hybrid (47 docs, $151.46). Full comparison in the
+investigation artifact; probe material in `plans/eval-seed-material.md`.
+
+### Task 10: Corpus-level budget — doc-count discipline at plan time
+
+**Motivation.** Task 4 gave doc *length* a downward force (measured working); doc *count*
+has none, and it is the planner's one unconstrained axis. Opus 5 reproducibly plans ~50
+docs for this 10.2k-line app (52 solo, 47 hybrid) where 26 proved sufficient. Hand-editing
+the plan is unacceptable UX, so the constraint must be automatic.
+
+**Scope.**
+
+1. **Corpus budget in `prompts/plan-init.md`**: the ceilings (total doc count, total
+   budgeted lines) and their formula (calibration: ~0.3–0.4 doc-lines per src-line;
+   ~30–35 docs on this repo), plus a doc-level consequence test — a peripheral source
+   file becomes a row in its parent document, never its own file. Plan-recorded totals
+   are informational only.
+2. **Deterministic gate** after `parse-plan` (new `check-plan-budget`, or extend it):
+   derives the ceilings itself from repository measurement — the manifest's ignore
+   filtering plus a source-extension allowlist, formula in code and README, never read
+   from the plan — and checks the plan's summed budgets and doc count against them.
+   Conventions count toward the doc ceiling at the fixed `CONVENTION_MAX_BODY_LINES`
+   cap; generated INDEX/README/GLOSSARY are excluded. The gate runs before any
+   slice-writer session (the architecture writer necessarily precedes it).
+3. **Executable remedy**: plan → parse → gate in a bounded loop (max 2–3). The gate runs
+   in non-throwing report mode inside the loop (verdict via `set`, read by `until` — the
+   loop exits silently at its cap and a throwing script aborts with no retry), and a
+   post-loop enforce step fails the flow if still over budget, naming the recovery:
+   delete the partial docs directory, rerun init. Never suggest editing the plan.
+
+**Out of scope.** docs-gc (task 8); per-doc budget mechanics (task 4); the update-family
+flows (the diff budget governs them).
+
+**Acceptance criteria.**
+
+- [ ] Fixture tests: rendered `plan-init` carries the corpus-budget rule and the
+      doc-existence test.
+- [ ] Gate unit tests: over- and in-budget plans; plan-declared ceilings ignored;
+      conventions counted at the fixed cap; generated docs excluded; missing budgets on
+      authored docs fail conservatively; ignored trees and tracked non-source files do
+      not raise the ceilings; report mode never throws, enforce mode does.
+- [ ] Fake-agent flow: retry loop + enforce step; a persistently over-budget plan fails
+      at the enforce step with the delete-then-rerun message.
+- [ ] Full suite green; no linter errors; README documents the gate (normal DoD).
+- [ ] Sample regeneration: the plan for Saaga lands within the ceiling on the first
+      attempt.
+
+### Task 11: Verify severity threshold — PASS with minors recorded
+
+**Motivation.** Verify fails a slice on *any* finding, and the measured round-3 residue
+is 0 Critical, 0–1 Major, 1–2 Minor. Exhaustion rates across the three runs: 4/11, 2/6,
+8/12 slices, at 5 extra agent sessions per exhausted slice (the fix agent also runs after
+the final FAIL).
+
+**Scope.**
+
+1. **Threshold in both verify prompts**: PASS when Critical = 0 and Major = 0; minors
+   fully reported. Carve-out: in `verify-architecture.md`, Missing Reference findings
+   still gate PASS — ARCHITECTURE starts link-less on init and the fix pass is what
+   inserts the planned links.
+2. **Per-document stamping**: docs with no findings get today's `last_verified`; docs a
+   finding is recorded against (the review table's Document column) have the field
+   **deleted** — on PASS-with-minors and on a final-round FAIL (that fix runs
+   unverified). The absent stamp is the pipeline's single "verification pending" marker
+   (see the task 7 amendment). For the final-round signal, the loop primitive
+   additionally exposes `${loop_max}` alongside `${iteration}`, and every verifier step
+   receives both plus `deferred_minors_path: ${run_dir}/deferred-minors.md` as vars.
+3. **Deferred-minors report** at that path as the audit trail. Consumer is task 8's
+   docs-gc (recorded in its scope); an entry is pending iff its target doc still exists
+   and lacks `last_verified`.
+4. Fix step unchanged: triggered on FAIL only.
+
+**Out of scope.** The 3-round cap; the severity taxonomy; auto-fixing minors on PASS.
+
+**Acceptance criteria.**
+
+- [ ] Fixture tests: threshold rule, per-document stamp rule, deferred-minors
+      instruction with a concrete path, and the Missing-Reference carve-out.
+- [ ] Loop-primitive unit test: `${loop_max}` set inside the body, restored after.
+- [ ] Fake-agent flow tests: a minor-only slice passes round 1 with the flagged doc
+      unstamped and clean siblings stamped; a final-round FAIL unstamps its implicated
+      docs.
+- [ ] Full suite green; no linter errors; README documents the threshold and the report
+      (normal DoD).
+- [ ] Observational, not a gate: the exhausted-slice rate on the milestone regeneration,
+      reported against the 4/11, 2/6, 8/12 baselines (that run also carries task 10's
+      re-slicing, so no causal claim).
+
+**Task 7 amendment.** The conservative default extends to any doc whose `last_verified`
+is absent, independent of the BASELINE diff (the update flow regenerates BASELINE at run
+end). README/GLOSSARY (generated) and the INDEXes are excluded from selection — INDEX
+staleness is derivative, and the verify checklist already asserts row accuracy for every
+reviewed doc. Unit tests: absent stamp → selected; README/GLOSSARY/INDEX → never;
+fixture keeps the INDEX-row check in the verify prompt.
+
+---
+
 ## Milestone: corpus regeneration
 
-After tasks 0–6 land: run `saaga init` on Saaga itself once to rebuild the corpus under the new
-rules. This is the integration test for the whole prompt track. Success criteria: task 2's validator
+After tasks 0–6 and 10–11 land (see wave 1b): run `saaga init` on Saaga itself once to rebuild
+the corpus under the new rules. This is the integration test for the whole prompt track. Success criteria: task 2's validator
 passes, total corpus size decreases versus the current 39 files / ~32k words, spot-checked docs meet
 their budgets, and the known stale claims are gone. Then run task 9's eval against old and new
 corpora — the before/after comparison is the beta's headline evidence.
@@ -447,8 +558,9 @@ wait on task 0.
 |------|-------|-------|
 | 0 (start now, parallel) | Task 0, Task 9, Task 2, Task 1 code half | Four independent lanes |
 | 1 (after task 0) | Task 1 prompt half, Tasks 4–6, Task 3 (after 2) | See Track B note below |
-| 2 | Task 7 (after 1), Task 8 (after 4+6) | Prefer landing after the regeneration milestone |
-| Milestone | Regenerate corpus → paired eval → freeze format → `saaga migrate` | |
+| 1b (added 2026-08-31) | Tasks 10–11 (parallel drafting; land 11 then 10) | **Before the milestone regeneration.** Core write sets are disjoint (10: plan prompt + gate script + init flow; 11: verify prompts), but both append to the README and the prompt-fixture tests — designate a landing order (11 first: smaller, prompt-only) and rebase the second |
+| 2 | Task 7 (after 1), Task 8 (after 4+6, consumes task 11's reports) | Prefer landing after the regeneration milestone |
+| Milestone | Regenerate corpus → paired eval → freeze format → `saaga migrate` | Now follows tasks 0–6 **and 10–11**; the 2026-08-31 experimental regenerations were instrumentation runs, not the milestone run |
 
 ### Track B lands sequentially through one owner
 
