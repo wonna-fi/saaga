@@ -1,7 +1,8 @@
 # Beta 1.0 documentation-format tasks
 
 Derived from the documentation quality analysis (rubric evaluation, LOD/churn measurements,
-and the Saaga-vs-OpenWiki comparison). Ten tasks in five tracks. Each task is written to be
+and the Saaga-vs-OpenWiki comparison). Ten tasks in five tracks, plus track E (tasks 10–11),
+added 2026-08-31 from the corpus-regeneration experiments. Each task is written to be
 self-contained: it can be picked up without reading the full analysis.
 
 **Sequencing**
@@ -402,6 +403,88 @@ caveats. First iteration answers one question: does the corpus measurably help a
 - [ ] Harness end-to-end test with the fake agent passes in CI.
 - [ ] One real paired run completed; report committed under `eval/reports/`.
 - [ ] Method and caveats documented in `eval/README.md`.
+
+---
+
+## Track E — Plan economics *(added 2026-08-31, from the corpus-regeneration experiments)*
+
+Derived from three regenerations of Saaga's own corpus at the same commit with identical
+prompts: Opus 5 solo (52 planned docs / ~5,050 budgeted lines, $218.69), Opus 4.6 solo
+(26 planned docs, $43.55), and an Opus-5-plans/Opus-4.6-writes hybrid (47 docs / 4,790
+budgeted lines). Full comparison in the investigation artifact; probe material in
+`plans/eval-seed-material.md`.
+
+### Task 10: Corpus-level budget — doc-count discipline at plan time
+
+**Motivation.** Doc *length* has a downward force (task 4's per-doc budgets, enforced at
+1.2× — measured working: every doc in all three runs landed in band). Doc *count* has none,
+and it is the planner's one unconstrained axis. Measured: Opus 5 plans ~50 documents for
+this 10.2k-line app reproducibly (52 solo, 47 hybrid) — roughly 2× overkill, since the
+26-doc corpus still referenced all 61 source files with zero orphans and zero broken links.
+Marginal docs (a standalone concept for a 15-line path-helper module) exist because nothing
+asks whether a document earns its existence. Hand-editing the generated plan is unacceptable
+UX, so the constraint must be automatic.
+
+**Scope.**
+
+1. **Corpus budget in `prompts/plan-init.md`.** Derive ceilings for total document count and
+   total budgeted lines from repo size, the same way per-doc budgets derive from source size
+   and centrality. Calibration points from the measured runs: ~0.3–0.4 total doc-lines per
+   src-line; on this repo a ceiling around 30–35 docs. The plan records the ceilings and its
+   own totals so they are checkable.
+2. **Doc-level consequence test** in the planning guidance: a document must earn its
+   existence — a peripheral source file becomes a row or section in its parent document,
+   never its own file (the amortization rule applied at plan time). Canonical negative
+   example: `package-paths.md` for 15-line `paths.ts`.
+3. **Deterministic gate.** A built-in script after `parse-plan` (extend it, or a new
+   `check-plan-budget`) sums the machine-parseable per-doc budgets and the doc count, and
+   fails the flow naming its totals and ceilings — before any writer session spends tokens.
+   Same fail-fast shape as the version gate.
+4. **Remedy is re-planning, never editing.** The gate's error instructs rerunning init;
+   it must not suggest editing the plan.
+
+**Out of scope.** docs-gc (task 8 remains the corrective force for existing corpora);
+per-doc budget mechanics (task 4); the update-family flows (the diff budget governs them).
+
+**Acceptance criteria.**
+
+- [ ] Fixture tests: rendered `plan-init` contains the corpus-budget rule and the
+      doc-existence test (assert on distinctive phrases).
+- [ ] Gate unit tests: over-budget plan fails naming totals and ceilings; in-budget plan
+      passes; a plan without parseable budgets fails conservatively.
+- [ ] Fake-agent init flow contains the gate step; flow tests green.
+- [ ] Sample regeneration: the generated plan for Saaga lands within the ceiling and
+      passes the gate on the first attempt.
+
+### Task 11: Verify severity threshold — PASS with minors recorded
+
+**Motivation.** The verify loop fails a slice on *any* finding, and the measured residue at
+round 3 is small: across all three runs, exhausted slices ended at 0 Critical, 0–1 Major,
+1–2 Minor — typically `sources`-frontmatter completeness. Retry exhaustion rates: 4/11
+slices (Opus 5 solo), 2/6 (Opus 4.6 solo), 8/9 (hybrid — cross-model writer/verifier pay
+worst). Each exhausted slice costs up to 4 extra agent sessions; the zero-findings bar buys
+marginal quality at ~2 sessions per round.
+
+**Scope.**
+
+1. **Threshold in the verify prompts** (`verify-domain-documentation.md`,
+   `verify-architecture.md`): status is PASS when Critical = 0 and Major = 0. Minor
+   findings are still fully reported in the review.
+2. **Deferred-minors record.** On PASS-with-minors, verify appends the findings to a
+   run-level report (e.g. `<run_dir>/deferred-minors.md`) so they feed the next
+   update/verify pass or docs-gc instead of vanishing.
+3. Fix step unchanged: triggered on FAIL only.
+
+**Out of scope.** The 3-round cap; the severity taxonomy; auto-fixing minors on PASS.
+
+**Acceptance criteria.**
+
+- [ ] Fixture tests: rendered verify prompts contain the threshold rule.
+- [ ] Sample run: a slice whose only findings are Minor passes on round 1, and the
+      deferred-minors report contains them.
+- [ ] Fake-agent flow tests green.
+- [ ] Measured on the next regeneration: exhausted-slice rate drops materially against the
+      three baselines above.
 
 ---
 
