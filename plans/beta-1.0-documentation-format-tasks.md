@@ -508,7 +508,9 @@ pass; the zero-findings bar buys marginal quality at ~2 sessions per round.
 2. **`last_verified` becomes per-document: stamped when the doc is clean, removed when
    it carries a minor.** Verify's PASS/FAIL status stays slice-level, but the stamp step
    must not — on a slice PASS-with-minors, each doc with no findings gets today's date,
-   and only the docs named in the Minor findings have their `last_verified` field
+   and only the docs a Minor finding is *recorded against* (the review table's Document
+   column — not every doc a finding's Evidence happens to name, e.g. a duplication
+   finding's clean owning doc or a link target) have their `last_verified` field
    **deleted** (not merely left un-updated: a doc verified cleanly in an earlier run
    already carries an old stamp, and leaving it would hide the doc from task 7's sweep
    once the update flow regenerates BASELINE and the triggering source vanishes from the
