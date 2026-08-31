@@ -505,15 +505,15 @@ pass; the zero-findings bar buys marginal quality at ~2 sessions per round.
 1. **Threshold in the verify prompts** (`verify-domain-documentation.md`,
    `verify-architecture.md`): status is PASS when Critical = 0 and Major = 0. Minor
    findings are still fully reported in the review.
-2. **`last_verified` only on a clean PASS.** A PASS-with-minors does not update
-   `last_verified`. This is the wiring that keeps deferred findings inside the pipeline:
-   the residual minors are typically incomplete `sources`, and task 7's staleness sweep
-   selects by `sources` + `last_verified` — stamping a doc whose metadata is known-
-   incomplete would hide it from the sweep. The withheld stamp alone is not sufficient,
-   because the update flow regenerates BASELINE at run end and the triggering source then
-   vanishes from the next diff — so task 7's conservative default is extended (see the
-   task 7 amendment below): a doc whose `last_verified` is absent is always selected,
-   exactly like a doc without frontmatter.
+2. **`last_verified` only on a clean PASS; PASS-with-minors removes it.** A clean PASS
+   writes today's date. A PASS-with-minors **deletes** the doc's `last_verified` field —
+   not merely skips the update: a doc verified cleanly in an earlier run already carries
+   an old stamp, and leaving it in place would hide the doc from task 7's sweep once the
+   update flow regenerates BASELINE and the triggering source vanishes from the next
+   diff. An absent stamp is the pipeline's one "verification pending" marker, and task
+   7's conservative default (see the amendment below) selects it unconditionally — so
+   every PASS-with-minors doc stays eligible with no separate pending-state store. The
+   next clean PASS restores the stamp.
 3. **Deferred-minors record with a consumer.** On PASS-with-minors, verify appends the
    findings to a run-level report (`<run_dir>/deferred-minors.md`) as the audit trail.
    Its consumer is task 8: docs-gc's prompt reads the reports from recent run directories
@@ -531,7 +531,8 @@ pass; the zero-findings bar buys marginal quality at ~2 sessions per round.
       clean-PASS-only `last_verified` rule, and the deferred-minors instruction.
       (The docs-gc consumption instruction is asserted in task 8's fixtures when it lands.)
 - [ ] Sample run: a slice whose only findings are Minor passes on round 1, the
-      deferred-minors report contains them, and the doc's `last_verified` is unchanged.
+      deferred-minors report contains them, and the doc's `last_verified` field is
+      removed (also when the doc carried a stamp from an earlier clean pass).
 - [ ] Fake-agent flow tests green; full suite green; no linter errors (normal Definition
       of Done — the threshold changes user-visible PASS semantics).
 - [ ] README documents the severity threshold and the deferred-minors report.
@@ -540,7 +541,7 @@ pass; the zero-findings bar buys marginal quality at ~2 sessions per round.
 
 **Task 7 amendment (from this task's review).** Task 7's conservative default —
 "doc without frontmatter → selected" — extends to any doc whose `last_verified` field is
-absent (including a stamp withheld by a PASS-with-minors). Selection must not depend on
+absent (including a stamp removed by a PASS-with-minors). Selection must not depend on
 the triggering source still appearing in the BASELINE diff, since the update flow
 regenerates BASELINE at run end. Task 7's acceptance gains the matching unit test.
 
