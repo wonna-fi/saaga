@@ -59,6 +59,24 @@ describe("collectDirsToEnsure", () => {
       const dirs = collectDirsToEnsure(["C:\\app\\saaga-docs"], safeDirs, win32);
       expect(dirs).toEqual(new Set());
     });
+
+    test("matches under a bare UNC share root", () => {
+      const dirs = collectDirsToEnsure(
+        ["\\\\server\\share/exports/run-1/summary.md"],
+        ["\\\\server\\share"],
+        win32,
+      );
+      expect(dirs).toEqual(new Set(["\\\\server\\share\\exports\\run-1"]));
+    });
+
+    test("matches under a bare drive root", () => {
+      const dirs = collectDirsToEnsure(
+        ["C:/out/run-1/file.md"],
+        ["C:\\"],
+        win32,
+      );
+      expect(dirs).toEqual(new Set(["C:\\out\\run-1"]));
+    });
   });
 
   describe("on posix", () => {
@@ -93,6 +111,11 @@ describe("collectDirsToEnsure", () => {
     test("skips relative and non-path values", () => {
       const dirs = collectDirsToEnsure(["myapp", "docs/x.md"], safeDirs, posix);
       expect(dirs).toEqual(new Set());
+    });
+
+    test("matches under the filesystem root", () => {
+      const dirs = collectDirsToEnsure(["/out/file.md"], ["/"], posix);
+      expect(dirs).toEqual(new Set(["/out"]));
     });
   });
 });

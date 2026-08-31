@@ -437,12 +437,18 @@ export function collectDirsToEnsure(
   safeDirs: readonly string[],
   path: PathModule = nativePath,
 ): Set<string> {
-  const roots = safeDirs.map((root) => path.resolve(root));
+  // resolve() keeps the trailing separator on bare roots ("C:\", "/",
+  // "\\server\share\"), so only append one where it is missing. Appending
+  // unconditionally would double it and no descendant would ever match.
+  const roots = safeDirs.map((root) => {
+    const resolved = path.resolve(root);
+    return resolved.endsWith(path.sep) ? resolved : resolved + path.sep;
+  });
   const dirs = new Set<string>();
   for (const value of values) {
     if (!path.isAbsolute(value)) continue;
     const normalized = path.resolve(value);
-    if (roots.some((root) => normalized.startsWith(root + path.sep))) {
+    if (roots.some((root) => normalized.startsWith(root))) {
       dirs.add(path.dirname(normalized));
     }
   }
