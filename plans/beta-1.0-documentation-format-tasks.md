@@ -536,10 +536,13 @@ pass; the zero-findings bar buys marginal quality at ~2 sessions per round.
    FAIL**: the loop's final fix runs after the last verification with no re-verify, so
    docs a finding was recorded against in the final review are modified unverified —
    their stamps are deleted too, keeping them sweep-eligible. Executable home for that
-   rule: the flows already pass `${iteration}` to verify — they additionally pass the
-   loop's `max`, and the verify prompt instructs that a FAIL on the final round deletes
-   the stamps of implicated docs before the status file is written (no post-loop step
-   needed; the loop primitive exits silently at the cap).
+   rule: the loop primitive today exposes only `${iteration}` on the scope — `max` stays
+   step config and is not interpolable — so this task extends the primitive to also set
+   `${loop_max}` alongside `${iteration}` (same save/restore-in-`finally` treatment, unit
+   test in the loop tests). The verify steps then receive both as prompt vars, and the
+   verify prompt instructs that a FAIL on the final round (`iteration == loop_max`)
+   deletes the stamps of implicated docs before the status file is written (no post-loop
+   step needed; the loop primitive exits silently at the cap).
 3. **Deferred-minors record with a consumer.** On PASS-with-minors, verify appends the
    findings to a run-level report (`<run_dir>/deferred-minors.md`) as the audit trail.
    Its consumer is task 8: docs-gc's prompt reads the reports from run directories (the
@@ -561,8 +564,10 @@ pass; the zero-findings bar buys marginal quality at ~2 sessions per round.
       deferred-minors report contains them; the flagged doc's `last_verified` field is
       removed (also when it carried a stamp from an earlier clean pass), while its
       finding-free siblings in the same slice keep freshly written stamps.
-- [ ] Fake-agent flow test: verify receives `iteration` and `max`; a final-round FAIL
-      deletes the stamps of the docs its findings are recorded against.
+- [ ] Loop-primitive unit test: `${loop_max}` is set inside the body, restored after,
+      like `${iteration}`.
+- [ ] Fake-agent flow test: verify receives `iteration` and `loop_max` as prompt vars; a
+      final-round FAIL deletes the stamps of the docs its findings are recorded against.
 - [ ] Fake-agent flow tests green; full suite green; no linter errors (normal Definition
       of Done — the threshold changes user-visible PASS semantics).
 - [ ] README documents the severity threshold and the deferred-minors report.
