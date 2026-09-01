@@ -47,9 +47,7 @@ export async function computeManifest(
   appDir: string,
   docsDir: string,
 ): Promise<FileEntry[]> {
-  const files: string[] = [];
-  await walk(appDir, "", [], files, docsDir);
-  files.sort();
+  const files = await listInScopeFiles(appDir, docsDir);
 
   const entries: FileEntry[] = [];
   for (const rel of files) {
@@ -65,6 +63,25 @@ export async function computeManifest(
     entries.push({ hash: gitBlobHash(buf), path: rel });
   }
   return entries;
+}
+
+/**
+ * Sorted POSIX-relative paths of every in-scope file under `appDir`, applying
+ * the same ignore chain and hard exclusions `computeManifest` documents.
+ *
+ * Split out because a caller that only needs the file list should not pay to
+ * hash every file's bytes, and because the ignore semantics belong in one
+ * place: anything deriving a measurement from "the files that are part of this
+ * project" has to agree with the baseline about what those are.
+ */
+export async function listInScopeFiles(
+  appDir: string,
+  docsDir: string,
+): Promise<string[]> {
+  const files: string[] = [];
+  await walk(appDir, "", [], files, docsDir);
+  files.sort();
+  return files;
 }
 
 /**

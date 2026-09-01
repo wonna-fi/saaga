@@ -87,6 +87,34 @@ Based on the technology stack discovered in Step 1, determine:
 
 Write the plan to `{output_path}`. The plan MUST follow the exact format specified below.
 
+### Corpus Budget
+
+A corpus has a size ceiling, not just a per-document one. Two numbers bound this plan:
+
+- **Total documents**, at roughly one per 420 lines of source.
+- **Total budgeted lines**, at roughly 0.25 documented lines per line of source.
+
+Source means the code this corpus describes: the files left after the ignore rules,
+counted by extension, tests excluded. Measure the repository and work out both numbers
+before choosing what to document. A deterministic gate derives the same two ceilings from
+the repository and checks this plan against them, so a plan over either one is rejected and
+re-planned; any totals you record in the plan are informational.
+
+**The document-existence test.** Every document is a file someone has to find, open and
+keep current, so a source file earns its own document only if a reader would go looking for
+it by name. A peripheral file becomes a row in the table of the document it belongs to —
+its parent concept, pattern or feature — never a file of its own. Ask what breaks if this
+document does not exist: if the answer is "one paragraph moves into its parent", it should
+not exist. Prefer one document covering a coherent area to three covering its parts.
+
+When you are over either ceiling, cut document **count**. Do not shave the per-document
+budgets to fit: the tiers come from centrality and a document trimmed below its tier is
+merely a worse document, while the reader still has the same number of files to open.
+
+If `{budget_report_path}` exists, a previous attempt at this plan exceeded the corpus
+ceiling. Read it first: it names the totals, the ceilings and the overage. Produce a plan
+with **fewer documents**, folding the peripheral ones into their parents.
+
 ### Plan File Format
 
 The plan file uses YAML frontmatter for machine parsing followed by rich markdown content. The YAML frontmatter MUST contain a `phases` array that lists every phase with its number and title. This array is parsed by automation to determine how many phases to execute.

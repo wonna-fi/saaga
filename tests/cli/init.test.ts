@@ -506,7 +506,9 @@ describe("saaga run init > prompt archive", () => {
     // what the agent received.
     expect(archived).toEqual([
       "01-document-architecture.md",
-      "02-plan-init.md",
+      // plan-init runs inside the corpus-budget loop, so it is archived with
+      // the iteration that produced it.
+      "02-plan-init-iter1.md",
       "03-verify-architecture-iter1.md",
       "04-slice-doc-phase0.md",
     ]);
@@ -912,5 +914,117 @@ describe("the verification threshold and the per-document stamp", () => {
       .find((l) => l.includes("Deferred-findings report to write"))!;
     expect(line).toContain(join(app, ".saaga-runs"));
     expect(line).toContain(join("architecture", "deferred-minors.md"));
+  });
+});
+
+/**
+ * Task 10: an over-budget plan is retried, not edited and not accepted. The
+ * loop primitive exits silently at its cap, so the enforce step after it is
+ * what actually stops the run before a slice writer spends anything.
+ */
+describe("saaga run init: the corpus budget", () => {
+  /** An app with enough source that the derived ceilings are nonzero. */
+  async function tmpSourceApp(name: string) {
+    const root = await mkdtemp(join(tmpdir(), "saaga-test-"));
+    const app = join(root, name);
+    await mkdir(join(app, "src"), { recursive: true });
+    await writeFile(join(app, "src", "a.ts"), "x\n".repeat(4200), "utf8");
+    return { root, app };
+  }
+
+  const HEADER = `---\nphases:\n  - number: 0\n    title: "Setup Structure"\n  - number: 1\n    title: "Core"\n---\n\n## Phase 1\n\n`;
+
+  function plan(docCount: number): string {
+    const body = Array.from(
+      { length: docCount },
+      (_, i) =>
+        `- concepts/d${i}.md — Core, 100 lines\n` +
+        `- concepts/d${i}.md — owns: thing ${i}; references: none\n`,
+    ).join("");
+    return HEADER + body;
+  }
+
+  /** Serves a different plan per plan-init call. */
+  function planSequence(plans: string[]): FakeScenarioValue {
+    let call = 0;
+    return {
+      exitCode: 0,
+      effect: async (_opts, prompt) => {
+        const m = prompt.match(/Write the plan to `([^`]+)`/);
+        if (!m) throw new Error("plan path not found in plan-init prompt");
+        await mkdir(dirname(m[1]), { recursive: true });
+        await writeFile(m[1], plans[Math.min(call, plans.length - 1)], "utf8");
+        call++;
+      },
+    };
+  }
+
+  test("an in-budget plan is planned once and proceeds", async () => {
+    const { app } = await tmpSourceApp("budgeted");
+    const fake = new FakeAgent({
+      "Document the Architecture": { exitCode: 0 },
+      "Verify the Architecture Document": verifyScenario(() => "PASS"),
+      "Plan Domain Documentation": planSequence([plan(5)]),
+      "Document a Plan Slice": { exitCode: 0 },
+      "Verify Domain Documentation": verifyScenario(() => "PASS"),
+    });
+
+    expect(await runCli(["run", "init", app], { agent: fake })).toBe(0);
+
+    const planCalls = fake.calls.filter((c) =>
+      c.prompt.includes("Plan Domain Documentation"),
+    );
+    expect(planCalls).toHaveLength(1);
+  });
+
+  test("an over-budget plan is re-planned, and the retry sees the report", async () => {
+    const { app } = await tmpSourceApp("retried");
+    const fake = new FakeAgent({
+      "Document the Architecture": { exitCode: 0 },
+      "Verify the Architecture Document": verifyScenario(() => "PASS"),
+      "Plan Domain Documentation": planSequence([plan(40), plan(4)]),
+      "Document a Plan Slice": { exitCode: 0 },
+      "Verify Domain Documentation": verifyScenario(() => "PASS"),
+    });
+
+    expect(await runCli(["run", "init", app], { agent: fake })).toBe(0);
+
+    const planCalls = fake.calls.filter((c) =>
+      c.prompt.includes("Plan Domain Documentation"),
+    );
+    expect(planCalls).toHaveLength(2);
+
+    // The retry is handed the path the gate writes its verdict to.
+    expect(planCalls[1].prompt).toContain("plan-budget-report.md");
+
+    // One fixed path, overwritten per attempt, so it ends holding the verdict
+    // that let the run continue.
+    const [runDir] = await readdir(join(app, ".saaga-runs"));
+    const report = await readFile(
+      join(app, ".saaga-runs", runDir, "plan-budget-report.md"),
+      "utf8",
+    );
+    expect(report).toContain("Status: **PASS**");
+    expect(report).toContain("| Documents | 4 |");
+  });
+
+  test("a persistently over-budget plan fails at the enforce step", async () => {
+    const { app } = await tmpSourceApp("overbudget");
+    const fake = new FakeAgent({
+      "Document the Architecture": { exitCode: 0 },
+      "Verify the Architecture Document": verifyScenario(() => "PASS"),
+      "Plan Domain Documentation": planSequence([plan(40)]),
+      "Document a Plan Slice": { exitCode: 0 },
+    });
+
+    await expect(runCli(["run", "init", app], { agent: fake })).rejects.toThrow(
+      /delete saaga-docs\/ and run .saaga run init. again/,
+    );
+
+    // Three attempts, then the enforce step — and no slice writer ran.
+    expect(
+      fake.calls.filter((c) => c.prompt.includes("Plan Domain Documentation")),
+    ).toHaveLength(3);
+    expect(fake.calls.some((c) => c.prompt.includes("Document a Plan Slice"))).toBe(false);
   });
 });

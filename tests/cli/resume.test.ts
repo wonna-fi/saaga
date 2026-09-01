@@ -128,9 +128,11 @@ describe("saaga run --resume", () => {
     expect(manifest.flow).toBe("init");
     expect(manifest.initialScope.run_id).toBe(id);
     const journal = await readFile(join(dir, "steps.jsonl"), "utf8");
-    // check-format-version, ensure-gitignore, architecture, plan, parse-plan,
-    // then the architecture verify/fix loop's verify and its read-file
-    expect(journal.trim().split("\n")).toHaveLength(7);
+    // check-format-version, ensure-gitignore, architecture, then the
+    // corpus-budget loop's plan, parse-plan and check-plan-budget, the
+    // post-loop enforce, then the architecture verify/fix loop's verify and
+    // its read-file
+    expect(journal.trim().split("\n")).toHaveLength(9);
   });
 
   test("resumes at the interrupted step and completes", async () => {
@@ -142,7 +144,7 @@ describe("saaga run --resume", () => {
     const exitCode = await runCli(["run", "--resume", id, app], { agent, stderr: err });
 
     expect(exitCode).toBe(0);
-    expect(err.text).toContain(`resuming run ${id} (attempt 2, 7 steps already done)`);
+    expect(err.text).toContain(`resuming run ${id} (attempt 2, 9 steps already done)`);
     expect(firstLines(agent)).toEqual([
       "# Document a Plan Slice",
       "# Document a Plan Slice",
@@ -160,7 +162,7 @@ describe("saaga run --resume", () => {
     const prompts = (await readdir(join(dir, "prompts"))).sort();
     expect(prompts).toEqual([
       "01-document-architecture.md",
-      "02-plan-init.md",
+      "02-plan-init-iter1.md",
       "03-verify-architecture-iter1.md",
       "04-slice-doc-phase0.md",
       "05-slice-doc-phase0.md",
