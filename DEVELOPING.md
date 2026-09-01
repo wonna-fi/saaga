@@ -180,6 +180,19 @@ verifier is scoped to a plan phase and to the four category directories, and
 ARCHITECTURE.md is in neither. See
 [Single home per fact](./README.md#single-home-per-fact).
 
+**The verify/fix threshold** splits the same way. `loop` binds `${iteration}`
+and `${loop_max}` in its body, and the flows hand both to every verifier along
+with `deferred_minors_path` — that is the entire extent of the engine's
+involvement. What the numbers *mean* — that a `FAIL` on the last round is final,
+so its findings are recorded rather than retried — lives in the two verify
+prompts, together with the per-document `last_verified` rule and the report's
+format
+([`partials/deferred-findings.md`](./prompts/partials/deferred-findings.md),
+shared by both verifiers). A verify step moved out of a loop would leave both
+variables undefined and abort the run on the first render, so
+`tests/flows.test.ts` asserts that every verifier sits inside one. See
+[Verification threshold](./README.md#verification-threshold).
+
 The split matters: **prompts carry methodology, generated plans carry
 decisions.** A plan records what this run does — which documents to write,
 which files to read, which templates need repository-specific deltas — and

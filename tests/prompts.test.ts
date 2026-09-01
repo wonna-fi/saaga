@@ -27,6 +27,9 @@ const FLOW_VARS: Record<string, Record<string, string>> = {
     changes_dir: "none",
     docs_dir: "saaga-docs",
     date: "2026-08-29",
+    iteration: "1",
+    loop_max: "3",
+    deferred_minors_path: "/run/slice-1/deferred-minors.md",
   },
   "fix-documentation": {
     plan: "/run/plan.md",
@@ -65,6 +68,9 @@ const FLOW_VARS: Record<string, Record<string, string>> = {
     status_path: "/run/architecture/status-1.txt",
     docs_dir: "saaga-docs",
     date: "2026-08-30",
+    iteration: "1",
+    loop_max: "3",
+    deferred_minors_path: "/run/architecture/deferred-minors.md",
   },
   "document-architecture": {
     app: "saaga",
@@ -171,11 +177,69 @@ describe("frontmatter instructions reach the prompts that write documents", () =
     expect(out).toContain("Do not write a `last_verified` field");
   });
 
-  test("verify stamps last_verified only on PASS", async () => {
+  test("verify stamps the documents it found clean", async () => {
     const out = await render("verify-domain-documentation");
-    expect(out).toContain("## Step 7: Stamp `last_verified` (PASS only)");
+    expect(out).toContain("## Step 7: Stamp `last_verified` per Document");
     expect(out).toContain("set `last_verified: 2026-08-29`");
-    expect(out).toContain("If the status was `FAIL`, do not touch any document");
+    expect(out).toContain("No row of the findings table names it");
+  });
+
+  test("verify deletes the stamp from a document it recorded a finding against", async () => {
+    const out = await render("verify-domain-documentation");
+    expect(out).toContain("A row names it in the Document column");
+    expect(out).toContain("**delete** the `last_verified` line");
+  });
+
+  /**
+   * The stamp says something about one document, so it cannot be gated on the
+   * slice's verdict: a five-document slice held open by one bad document would
+   * otherwise end with all five unstamped, and the sweep that selects on a
+   * missing stamp would re-verify four documents found clean three times.
+   * This is the one assertion pinning that decision.
+   */
+  test("the stamp rule does not depend on the slice verdict", async () => {
+    const out = await render("verify-domain-documentation");
+    expect(out).toContain("Do this on every round, whatever Step 6 wrote.");
+  });
+
+  test("an absent stamp is the verification-pending marker", async () => {
+    const out = await render("verify-domain-documentation");
+    expect(out).toContain('says "verification pending"');
+  });
+
+  test("verify leaves the generated documents' frontmatter alone", async () => {
+    const out = await render("verify-domain-documentation");
+    // Both are rewritten wholesale by `generate-navigation` and are write-denied
+    // by the agent profile, so a stamp attempt burns turns and changes nothing.
+    expect(out).toContain("regenerated from the corpus on");
+    expect(out).toContain("saaga-docs/GLOSSARY.md");
+  });
+
+  test("fix never restores a stamp verification removed", async () => {
+    const out = await render("fix-documentation");
+    expect(out).toContain("**Never write `last_verified`.**");
+  });
+
+  /**
+   * The fixer edits documents the report never named — a Coverage Gap closed
+   * in an existing doc rather than the `(missing)` path, and every INDEX.md it
+   * touches in Step 4. Verification left those stamps standing, so without
+   * this the invariant "a stamp means nothing has edited the document since it
+   * was verified" is false for exactly the documents the fixer changed.
+   */
+  test("fix unstamps the documents it edits that the report did not name", async () => {
+    const out = await render("fix-documentation");
+    expect(out).toContain(
+      "**Delete `last_verified` from any other document you edit.**",
+    );
+    expect(out).toContain("updating an INDEX.md in Step 4");
+  });
+
+  test("the frontmatter rules say an absent stamp means pending", async () => {
+    const out = await render("slice-doc");
+    expect(out).toContain(
+      "how the pipeline marks a document as pending verification",
+    );
   });
 
   test("verify takes the date from the flow rather than computing one", async () => {
@@ -273,6 +337,166 @@ describe("prompt strings the flow tests depend on", () => {
     const out = await render("verify-architecture");
     expect(out).not.toContain("Document the Architecture");
   });
+
+  // tests/cli/* scrape the round, the cap and the report path out of the input
+  // block to drive a scenario that stamps frontmatter the way the real agent
+  // would. A reword here surfaces there as a null match.
+  test.for(["verify-domain-documentation", "verify-architecture"])(
+    "%s keeps the lines the flow tests scrape",
+    async (name) => {
+      const out = await render(name);
+      expect(out).toMatch(/Write the verification status to `([^`]+)`/);
+      expect(out).toMatch(/Deferred-findings report to write: `([^`]+)`/);
+      expect(out).toMatch(/This verification round: `(\d+)` of `(\d+)`/);
+      expect(out).toMatch(/Today's date: `([^`]+)`/);
+    },
+  );
+});
+
+describe("the verification threshold passes a slice with minors", () => {
+  test("verify passes a slice whose only findings are minor", async () => {
+    const out = await render("verify-domain-documentation");
+    expect(out).toContain(
+      "Write exactly `PASS` if the findings table holds no **Critical** and no **Major**",
+    );
+    expect(out).toContain("Minor findings do not fail the slice.");
+  });
+
+  test("a coverage gap still fails the slice", async () => {
+    const out = await render("verify-domain-documentation");
+    expect(out).toContain(
+      "Step 3d grades every Coverage Gap **Critical** or **Major**",
+    );
+  });
+
+  // The threshold hands the model a reason to grade a Major down to end the
+  // loop early. Nothing can test that it doesn't; the prompt at least says so.
+  test("the threshold does not license grading a Major down", async () => {
+    const out = await render("verify-domain-documentation");
+    expect(out).toContain(
+      "A Major\nwritten down as a Minor to end the loop early",
+    );
+  });
+
+  test("verify-architecture holds PASS back until every declared reference is linked", async () => {
+    const out = await render("verify-architecture");
+    expect(out).toContain("and no **Missing Reference** finding");
+    expect(out).toContain("the one **Minor** that still\nholds `PASS` back");
+  });
+
+  /**
+   * The carve-out is a status rule, not a re-grade: the severity taxonomy is
+   * out of scope, and promoting Missing Reference to Major would also change
+   * what the fix step prioritises. So Step 6 gates on it while Step 3c and the
+   * severity ladder still call it Minor.
+   */
+  test("the missing-reference carve-out is not a severity re-grade", async () => {
+    const out = await render("verify-architecture");
+    expect(out).toContain("**Missing Reference** finding (**Minor**)");
+    expect(out).toContain("a declared reference with no link");
+  });
+
+  test("verify-architecture has one document, so the findings table alone decides the stamp", async () => {
+    const out = await render("verify-architecture");
+    expect(out).toContain("**The findings table is empty**");
+    expect(out).toContain("**The table holds even one row, of any severity**");
+  });
+});
+
+describe("the deferred-findings report", () => {
+  test.for(["verify-domain-documentation", "verify-architecture"])(
+    "%s is told the concrete path to write",
+    async (name) => {
+      const out = await render(name);
+      expect(out).toContain(FLOW_VARS[name].deferred_minors_path);
+      expect(out).toContain("## Step 8: Record Deferred Findings");
+    },
+  );
+
+  test.for(["verify-domain-documentation", "verify-architecture"])(
+    "%s carries the report format",
+    async (name) => {
+      const out = await render(name);
+      expect(out).toContain("# Deferred Findings");
+      expect(out).toContain(
+        "| Document | Section | Claim | Severity | Evidence | Verdict | Review |",
+      );
+      // The pending predicate is written into the artifact itself so task 8's
+      // consumer does not have to re-derive it.
+      expect(out).toContain(
+        "pending means the document still\nexists and its frontmatter still has no `last_verified`",
+      );
+    },
+  );
+
+  /**
+   * A final-round FAIL *is* handed to the fix step — what it never gets is a
+   * verification of the result. The header has to say that, or the audit trail
+   * misdescribes half its own rows.
+   */
+  test.for(["verify-domain-documentation", "verify-architecture"])(
+    "%s describes the entries as unverified, not unfixed",
+    async (name) => {
+      const out = await render(name);
+      expect(out).toContain(
+        "recorded but never verified as resolved",
+      );
+      expect(out).toContain("final-round findings whose fix nothing re-checked");
+    },
+  );
+
+  test("each verifier stamps the report with its own run date", async () => {
+    expect(await render("verify-domain-documentation")).toContain(
+      "Recorded 2026-08-29",
+    );
+    expect(await render("verify-architecture")).toContain("Recorded 2026-08-30");
+  });
+
+  // Only the round that ends the slice writes, so each file has exactly one
+  // writer and a finding a later round fixed never reaches the ledger.
+  test("only the terminal round records anything", async () => {
+    const out = await render("verify-domain-documentation");
+    expect(out).toContain("is equal to the cap, `3`");
+    expect(out).toContain("Write nothing when the findings table is empty");
+  });
+
+  test("the report excludes documents that can never carry a stamp", async () => {
+    const out = await render("verify-domain-documentation");
+    expect(out).toContain(
+      "Leave out any row whose Document is `README.md` or `GLOSSARY.md`",
+    );
+  });
+
+  /**
+   * A Coverage Gap names a `(missing)` path, and the fix step that runs after
+   * a final-round FAIL may create that document — unstamped, and with no other
+   * record of why. The consumer's "document exists" test discards the row on
+   * its own if the fixer never created it.
+   */
+  test("the report keeps a coverage gap's missing target", async () => {
+    const out = await render("verify-domain-documentation");
+    expect(out).toContain("Keep a row whose Document is marked `(missing)`");
+    expect(out).toContain(
+      "a reader checks that the document exists before acting on it",
+    );
+  });
+
+  test("verify-architecture supplies the Document column it does not have", async () => {
+    const out = await render("verify-architecture");
+    expect(out).toContain(
+      "write `saaga-docs/ARCHITECTURE.md` into\nthe report's Document column",
+    );
+  });
+
+  test.for(["verify-domain-documentation", "verify-architecture"])(
+    "%s says the round number does not change the grading",
+    async (name) => {
+      const out = await render(name);
+      expect(out).toContain(
+        "exactly as you would have graded it\non the first",
+      );
+    },
+  );
 });
 
 describe("consumer prompts reference only plan sections the plan still emits", () => {

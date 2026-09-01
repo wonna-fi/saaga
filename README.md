@@ -33,8 +33,9 @@ Claude Code) through a multi-phase workflow:
    creates a phased plan.
 3. **Document** — each phase is written as structured domain docs
    (concepts, features, patterns, and conventions where the codebase has them).
-4. **Verify** — a self-critic loop reviews each phase and fixes issues
-   before moving on.
+4. **Verify** — a self-critic loop reviews each phase and fixes the errors
+   that make a document wrong; minor findings are recorded and the slice
+   moves on.
 5. **Baseline** — a content snapshot is saved so future runs only
    re-document what actually changed.
 
@@ -99,13 +100,18 @@ sources:
 | `title` | the writer | The document's title — the same text as its heading. |
 | `type` | the writer | `concept`, `pattern`, `convention`, `feature`, `architecture`, or `index`. |
 | `sources` | the writer | Source paths and globs whose behaviour the document's claims describe. |
-| `last_verified` | verification only, on PASS | ISO date of the last verification pass that found no errors. |
+| `last_verified` | verification only | ISO date of the last verification that found nothing wrong with *this* document. Absent means verification is pending. |
 | `terms` | the writer, optionally | Extra names this document is the home for — synonyms and sub-concepts a reader might look up. Feeds the generated glossary. |
 
 `sources` and `last_verified` are what later runs use to tell a fresh document
 from a stale one: a document whose sources changed after it was last verified
 is a candidate for re-verification. Field names follow OKF v0.1 where they
 overlap, so external tooling can read the corpus without a translation layer.
+
+A document with no `last_verified` is the corpus's single "verification
+pending" marker: verification deletes the field from any document it records a
+finding against, so a stamp is never left standing over a known problem. See
+[Verification threshold](#verification-threshold).
 
 `terms` carries *names only*, never definitions. The glossary copies each
 definition from the document's INDEX row, so a term listed here gets its
@@ -264,6 +270,11 @@ saaga doctor                    Check backend CLI availability and
 - **The structural validation report** for the run is written to
   `<project>/.saaga-runs/<run-id>/doc-validation.md` (see
   [Documentation validation](#documentation-validation)).
+- **Deferred-findings reports** are written to
+  `<project>/.saaga-runs/<run-id>/slice-<n>/deferred-minors.md` (and
+  `architecture/` for ARCHITECTURE.md) when a verification passed a slice with
+  minor findings, or ran out of rounds (see
+  [Verification threshold](#verification-threshold)).
 - **Generated docs** land in `<project>/saaga-docs/`.
 
 ### Corpus format version
@@ -409,6 +420,38 @@ applies to flowcharts only (other diagram types use the same characters as gramm
 unmatched closing brackets (the asymmetric node `A>text]` is valid), and it skips
 anything inside quotes. A valid diagram whose type is not recognised is a one-line
 addition to `MERMAID_DIAGRAM_TYPES` in `src/docs/validate.ts`.
+
+### Verification threshold
+
+Every slice goes through a verify/fix loop: a critic reviews the documents against the
+source, a fixer acts on what it found, up to three rounds.
+
+A slice passes when the critic records no Critical and no Major finding. Minor findings —
+a modest budget overrun, a duplicated table row, a passage that fails the consequence
+test — are reported in full and do not hold the loop open. Failing on any finding at all
+cost roughly five extra agent sessions per slice for a residue that was measurably one or
+two Minors; the fix loop is for the errors that make a document wrong. The practical
+consequence is that the budget ceiling the loop actually enforces is 1.5x, where a
+Budget Overrun becomes Major, rather than the 1.2x at which one is first reported.
+
+Passing with minors is not forgetting them. Two things happen instead.
+
+**The stamp is per document.** Verification writes `last_verified` on every document it
+found nothing wrong with, and *deletes* the field from every document it recorded a
+finding against — including on the last round of a slice that never passed, where the
+fixer's work is no longer checked by anything. A document with no `last_verified` is the
+corpus's "verification pending" marker, and later runs select on exactly that.
+
+**The findings are kept.** They go to `.saaga-runs/<run-id>/slice-<n>/deferred-minors.md`:
+one table per slice holding the document, section, claim, evidence and severity, and
+whether the round passed or ran out of rounds. It is the audit trail behind every missing
+stamp.
+
+`ARCHITECTURE.md` has one carve-out. Its verifier reports a Minor when the plan says the
+document should link to another document and it does not — and that Minor still fails the
+pass, because the fix step is the only thing in the pipeline that inserts those links and
+it runs only on a failure. On `init` the document is written before any other exists, so
+it starts with every declared link missing.
 
 ### Level of detail
 

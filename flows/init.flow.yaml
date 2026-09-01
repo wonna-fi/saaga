@@ -55,6 +55,9 @@ steps:
               status_path: ${run_dir}/architecture/status-${iteration}.txt
               docs_dir: ${docs_dir}
               date: ${iso_date}
+              iteration: ${iteration}
+              loop_max: ${loop_max}
+              deferred_minors_path: ${run_dir}/architecture/deferred-minors.md
 
         - read-file:
             path: ${run_dir}/architecture/status-${iteration}.txt
@@ -120,6 +123,9 @@ steps:
                     changes_dir: none
                     docs_dir: ${docs_dir}
                     date: ${iso_date}
+                    iteration: ${iteration}
+                    loop_max: ${loop_max}
+                    deferred_minors_path: ${run_dir}/slice-${phase.number}/deferred-minors.md
 
               - read-file:
                   path: ${run_dir}/slice-${phase.number}/status-${iteration}.txt

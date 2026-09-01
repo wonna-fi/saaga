@@ -14,6 +14,7 @@ import {
   readFormatVersion,
   writeFormatVersion,
 } from "../../src/docs/format-version.js";
+import { parseDoc } from "../../src/docs/frontmatter.js";
 
 class StringWritable extends Writable {
   private chunks: string[] = [];
@@ -652,5 +653,264 @@ describe("saaga run init: corpus format version", () => {
     expect(report).toContain(
       "0 broken links, 0 invalid diagrams, 0 orphans, 0 over-cap conventions.",
     );
+  });
+});
+
+/**
+ * What these prove is the *wiring*: that the loop binds real numbers into the
+ * verify prompt, that `deferred_minors_path` renders to a writable path under
+ * the run directory, that a `PASS` written with findings outstanding ends the
+ * loop without a fix session, and that a corpus with deleted stamps still
+ * survives generate-baseline, generate-navigation and validate-docs.
+ *
+ * They do not prove the model obeys the prompt — the fake agent here does what
+ * a compliant verifier would do. tests/prompts.test.ts pins the instructions.
+ */
+describe("the verification threshold and the per-document stamp", () => {
+  const ALPHA = ["concepts", "alpha.md"];
+  const BETA = ["concepts", "beta.md"];
+
+  function doc(title: string, stamp: string | null): string {
+    return [
+      "---",
+      `title: ${title}`,
+      "type: concept",
+      ...(stamp ? [`last_verified: ${stamp}`] : []),
+      "sources:",
+      "  - src/x.ts",
+      "---",
+      "",
+      `# ${title}`,
+      "",
+    ].join("\n");
+  }
+
+  /** Writes a two-document slice; alpha carries a stale stamp so its deletion is observable. */
+  function writeCorpus(docs: string): FakeScenarioValue {
+    return {
+      exitCode: 0,
+      effect: async () => {
+        await mkdir(join(docs, "concepts"), { recursive: true });
+        await writeFile(
+          join(docs, "ARCHITECTURE.md"),
+          "# Architecture — stampdemo\n",
+          "utf8",
+        );
+        await writeFile(
+          join(docs, "concepts", "INDEX.md"),
+          [
+            "# Concepts Index",
+            "",
+            "| Name | Description |",
+            "|------|-------------|",
+            "| [Alpha](./alpha.md) | the first thing |",
+            "| [Beta](./beta.md) | the second thing |",
+            "",
+          ].join("\n"),
+          "utf8",
+        );
+        await writeFile(join(docs, ...ALPHA), doc("Alpha", "2020-01-01"), "utf8");
+        await writeFile(join(docs, ...BETA), doc("Beta", null), "utf8");
+      },
+    };
+  }
+
+  function scrape(prompt: string) {
+    const status = prompt.match(/Write the verification status to `([^`]+)`/);
+    const date = prompt.match(/Today's date: `([^`]+)`/);
+    const deferred = prompt.match(/Deferred-findings report to write: `([^`]+)`/);
+    const round = prompt.match(/This verification round: `(\d+)` of `(\d+)`/);
+    if (!status || !date || !deferred || !round) {
+      throw new Error("verify prompt did not carry the lines the test scrapes");
+    }
+    return {
+      statusPath: status[1],
+      date: date[1],
+      deferredPath: deferred[1],
+      round: Number(round[1]),
+      cap: Number(round[2]),
+    };
+  }
+
+  /** Updates the field if present, adds it if not — the prompt's own wording. */
+  async function stamp(path: string, date: string): Promise<void> {
+    const content = await readFile(path, "utf8");
+    await writeFile(
+      path,
+      content
+        .replace(/^last_verified: .*\n/m, "")
+        .replace(/^type: concept$/m, `type: concept\nlast_verified: ${date}`),
+      "utf8",
+    );
+  }
+
+  async function unstamp(path: string): Promise<void> {
+    const content = await readFile(path, "utf8");
+    await writeFile(path, content.replace(/^last_verified: .*\n/m, ""), "utf8");
+  }
+
+  async function stampOf(path: string): Promise<string | undefined> {
+    return parseDoc(await readFile(path, "utf8")).frontmatter?.last_verified;
+  }
+
+  test("a minor-only slice passes on the first round: the flagged doc loses its stamp, its clean sibling keeps one", async () => {
+    const { app } = await tmpAppEnv("stampdemo");
+    const docs = join(app, DEFAULT_DOCS_DIR);
+
+    const verifySlice: FakeScenarioValue = {
+      exitCode: 0,
+      effect: async (_opts, prompt) => {
+        const { statusPath, date, deferredPath } = scrape(prompt);
+        // One Minor against alpha: under the new threshold that is a PASS.
+        await mkdir(dirname(statusPath), { recursive: true });
+        await writeFile(statusPath, "PASS", "utf8");
+        await unstamp(join(docs, ...ALPHA));
+        await stamp(join(docs, ...BETA), date);
+        await mkdir(dirname(deferredPath), { recursive: true });
+        await writeFile(
+          deferredPath,
+          [
+            "# Deferred Findings",
+            "",
+            "| Document | Section | Claim | Severity | Evidence | Verdict | Review |",
+            "|---|---|---|---|---|---|---|",
+            `| ${join(DEFAULT_DOCS_DIR, ...ALPHA)} | # Alpha | Budget Overrun | Minor | 1.3x | PASS (minor deferred) | r |`,
+            "",
+          ].join("\n"),
+          "utf8",
+        );
+      },
+    };
+
+    const fake = new FakeAgent({
+      "Document the Architecture": { exitCode: 0 },
+      "Verify the Architecture Document": verifyScenario(() => "PASS"),
+      "Plan Domain Documentation": planInitScenario(ONE_NONZERO_PHASE_PLAN).scenario,
+      "Document a Plan Slice": writeCorpus(docs),
+      "Verify Domain Documentation Slice": verifySlice,
+      "Fix Documentation Errors": { exitCode: 0 },
+    });
+
+    expect(await runCli(["run", "init", app], { agent: fake })).toBe(0);
+
+    // The point of the task: one verify session, and no fix session at all,
+    // where the old threshold would have spent three of each.
+    const verifies = fake.calls.filter((c) =>
+      c.prompt.includes("Verify Domain Documentation Slice"),
+    );
+    const fixes = fake.calls.filter((c) =>
+      c.prompt.includes("Fix Documentation Errors"),
+    );
+    expect(verifies).toHaveLength(1);
+    expect(fixes).toHaveLength(0);
+    expect(verifies[0].prompt).toContain("`1` of `3`");
+
+    expect(await stampOf(join(docs, ...ALPHA))).toBeUndefined();
+    expect(await stampOf(join(docs, ...BETA))).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+
+    const runs = await readdir(join(app, ".saaga-runs"));
+    const deferred = await readFile(
+      join(app, ".saaga-runs", runs[0], "slice-1", "deferred-minors.md"),
+      "utf8",
+    );
+    expect(deferred).toContain("# Deferred Findings");
+    expect(deferred).toContain(join(DEFAULT_DOCS_DIR, ...ALPHA));
+    expect(deferred).toContain("PASS (minor deferred)");
+  });
+
+  test("a final-round FAIL unstamps the documents it implicates", async () => {
+    const { app } = await tmpAppEnv("exhausted");
+    const docs = join(app, DEFAULT_DOCS_DIR);
+
+    const verifySlice: FakeScenarioValue = {
+      exitCode: 0,
+      effect: async (_opts, prompt) => {
+        const { statusPath, date, deferredPath, round, cap } = scrape(prompt);
+        await mkdir(dirname(statusPath), { recursive: true });
+        await writeFile(statusPath, "FAIL", "utf8");
+        // The stamp rule runs every round, so beta is stamped each time and
+        // alpha — named by a finding — never is.
+        await unstamp(join(docs, ...ALPHA));
+        await stamp(join(docs, ...BETA), date);
+        if (round === cap) {
+          await mkdir(dirname(deferredPath), { recursive: true });
+          await writeFile(
+            deferredPath,
+            [
+              "# Deferred Findings",
+              "",
+              "| Document | Section | Claim | Severity | Evidence | Verdict | Review |",
+              "|---|---|---|---|---|---|---|",
+              `| ${join(DEFAULT_DOCS_DIR, ...ALPHA)} | # Alpha | wrong API | Major | src/x.ts | FAIL (round ${round} of ${cap}) | r |`,
+              "",
+            ].join("\n"),
+            "utf8",
+          );
+        }
+      },
+    };
+
+    const fake = new FakeAgent({
+      "Document the Architecture": { exitCode: 0 },
+      "Verify the Architecture Document": verifyScenario(() => "PASS"),
+      "Plan Domain Documentation": planInitScenario(ONE_NONZERO_PHASE_PLAN).scenario,
+      "Document a Plan Slice": writeCorpus(docs),
+      "Verify Domain Documentation Slice": verifySlice,
+      "Fix Documentation Errors": { exitCode: 0 },
+    });
+
+    expect(await runCli(["run", "init", app], { agent: fake })).toBe(0);
+
+    const verifies = fake.calls.filter((c) =>
+      c.prompt.includes("Verify Domain Documentation Slice"),
+    );
+    // Three verifies and three fixes: the fix after the final FAIL is the
+    // unverified session the motivation counts.
+    expect(verifies).toHaveLength(3);
+    expect(
+      fake.calls.filter((c) => c.prompt.includes("Fix Documentation Errors")),
+    ).toHaveLength(3);
+
+    // The end-to-end proof of ${loop_max}: the cap reaches the prompt and the
+    // round counts up to it.
+    expect(verifies.map((c) => c.prompt.match(/`(\d)` of `(\d)`/)![0])).toEqual([
+      "`1` of `3`",
+      "`2` of `3`",
+      "`3` of `3`",
+    ]);
+
+    expect(await stampOf(join(docs, ...ALPHA))).toBeUndefined();
+    expect(await stampOf(join(docs, ...BETA))).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+
+    const runs = await readdir(join(app, ".saaga-runs"));
+    const deferred = await readFile(
+      join(app, ".saaga-runs", runs[0], "slice-1", "deferred-minors.md"),
+      "utf8",
+    );
+    expect(deferred).toContain("FAIL (round 3 of 3)");
+  });
+
+  test("the architecture verifier gets the round and its own report path", async () => {
+    const { app } = await tmpAppEnv("archdeferred");
+
+    const fake = new FakeAgent({
+      "Document the Architecture": { exitCode: 0 },
+      "Verify the Architecture Document": verifyScenario(() => "PASS"),
+      "Plan Domain Documentation": planInitScenario(SINGLE_PHASE_PLAN).scenario,
+      "Document a Plan Slice": { exitCode: 0 },
+    });
+
+    expect(await runCli(["run", "init", app], { agent: fake })).toBe(0);
+
+    const prompt = fake.calls.find((c) =>
+      c.prompt.includes("Verify the Architecture Document"),
+    )!.prompt;
+    expect(prompt).toContain("`1` of `3`");
+    // Its own file, not the slices': one writer per report.
+    const line = prompt
+      .split("\n")
+      .find((l) => l.includes("Deferred-findings report to write"))!;
+    expect(line).toContain(join(app, ".saaga-runs"));
+    expect(line).toContain(join("architecture", "deferred-minors.md"));
   });
 });

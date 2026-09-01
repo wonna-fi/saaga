@@ -68,6 +68,8 @@ If any fixes changed document titles or added/removed documents, update the corr
 
 - **Only fix what was flagged.** Do not rewrite sections that were not identified as errors.
 - **Do not modify the verification report.** It is a record of what was found.
+- **Never write `last_verified`.** Verification removed it from every document this report names, and that absence is what tells the next run the document still needs checking. Restoring it would claim a review that never happened.
+- **Delete `last_verified` from any other document you edit.** Closing a Coverage Gap in an existing document rather than the `(missing)` path, and updating an INDEX.md in Step 4, both change a document the report did not name — so verification left its stamp standing. An edited document is no longer the document that was verified: delete the single `last_verified:` line, change nothing else in the frontmatter, and never add one back.
 - **Follow the templates below.** All fixes must maintain the document structure they define, plus any deltas the plan's Template Adaptations section records.
 - **Base all fixes on source code evidence.** Read the actual source files before making changes. Do not guess.
 - **Preserve existing correct content.** Minimize changes to reduce the risk of introducing new errors.
