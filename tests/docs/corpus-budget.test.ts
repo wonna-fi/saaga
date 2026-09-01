@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
@@ -55,6 +55,24 @@ describe("what counts as source", () => {
     expect(isSourceFile("src/thing.ts")).toBe(true);
   });
 
+  // Test naming is language convention, not one rule; missing a language's
+  // form lets its test volume buy a bigger corpus.
+  test("language-standard test names are excluded too", () => {
+    expect(isSourceFile("pkg/server_test.go")).toBe(false);
+    expect(isSourceFile("src/lib_test.rs")).toBe(false);
+    expect(isSourceFile("app/test_models.py")).toBe(false);
+    expect(isSourceFile("src/OrderServiceTest.java")).toBe(false);
+    expect(isSourceFile("src/OrderTests.cs")).toBe(false);
+  });
+
+  // The allowlist silently disables the whole feature for a language it omits,
+  // so the mainstream ones have to be present.
+  test("mainstream compiled and mobile languages count as source", () => {
+    for (const p of ["a.c", "a.h", "a.cpp", "a.hpp", "a.dart", "a.swift", "a.kt", "a.ex"]) {
+      expect(isSourceFile(`src/${p}`), p).toBe(true);
+    }
+  });
+
   // "latest.ts" ends in "test" only as a substring of the stem.
   test("a filename merely containing 'test' is still source", () => {
     expect(isSourceFile("src/latest.ts")).toBe(true);
@@ -105,6 +123,17 @@ describe("measuring a repository", () => {
   test("a file without a trailing newline still counts its last line", async () => {
     const app = await tmpApp({ "src/a.ts": "one\ntwo" });
     expect((await measureSource(app, "saaga-docs")).lines).toBe(2);
+  });
+
+  // The manifest hashes a link's target string rather than following it.
+  // Following one here could count an ignored file, count an in-repo file
+  // twice, or pull an external file into the ceiling.
+  test("symlinks are not followed", async () => {
+    const app = await tmpApp({ "src/a.ts": lines(100) });
+    await writeFile(join(app, "big.txt"), lines(9000), "utf8");
+    await symlink(join(app, "big.txt"), join(app, "src", "link.ts"));
+
+    expect(await measureSource(app, "saaga-docs")).toEqual({ files: 1, lines: 100 });
   });
 });
 
@@ -249,9 +278,40 @@ phases:
     expect(parse.docs).toHaveLength(1);
   });
 
+  // A convention named in a references list or in prose is being referred to,
+  // not created; counting it costs three re-plans over a document the plan
+  // never makes.
+  test("a convention only mentioned is not a convention planned", () => {
+    const parse = parsePlannedDocs(
+      "- concepts/a.md — Core, 100 lines\n" +
+        "- concepts/a.md — owns: a; references: saaga-docs/conventions/naming.md\n" +
+        "The naming rule already lives in saaga-docs/conventions/naming.md today.\n",
+      "saaga-docs",
+    );
+
+    expect(parse.docs.map((d) => d.path)).toEqual(["concepts/a.md"]);
+  });
+
+  test("a convention listed as its own deliverable line is planned", () => {
+    const parse = parsePlannedDocs("- `saaga-docs/conventions/naming.md`\n", "saaga-docs");
+    expect(parse.docs.map((d) => d.path)).toEqual(["conventions/naming.md"]);
+  });
+
   test("counts the phases that author documents", () => {
     expect(countNonZeroPhases(PLAN)).toBe(1);
     expect(countNonZeroPhases("# no frontmatter")).toBe(0);
+  });
+
+  // parse-plan accepts CRLF frontmatter. If this did not, a CRLF plan would
+  // report zero phases, skipping the empty-roster guard and passing as a
+  // zero-document corpus.
+  test("CRLF plans are read the same as LF plans", () => {
+    const crlf = PLAN.replace(/\n/g, "\r\n");
+
+    expect(countNonZeroPhases(crlf)).toBe(1);
+    expect(parsePlannedDocs(crlf, "saaga-docs").docs.map((d) => d.path)).toEqual(
+      parsePlannedDocs(PLAN, "saaga-docs").docs.map((d) => d.path),
+    );
   });
 });
 
@@ -260,9 +320,10 @@ describe("the verdict", () => {
   const source = { files: 20, lines: 4000 };
   const parsed = (text: string) => parsePlannedDocs(text, "saaga-docs");
 
-  function budgetedDocs(n: number, linesEach: number): string {
+  /** `tier` matters: a budget below its band is charged the band's floor. */
+  function budgetedDocs(n: number, linesEach: number, tier = "Core"): string {
     return Array.from({ length: n }, (_, i) =>
-      `- concepts/d${i}.md — Core, ${linesEach} lines\n- concepts/d${i}.md — owns: x; references: none\n`,
+      `- concepts/d${i}.md — ${tier}, ${linesEach} lines\n- concepts/d${i}.md — owns: x; references: none\n`,
     ).join("");
   }
 
@@ -274,10 +335,29 @@ describe("the verdict", () => {
   });
 
   test("too many documents fails even when the lines fit", () => {
-    const report = checkPlanBudget(parsed(budgetedDocs(20, 10)), ceilings, source, 1);
+    // 20 Peripheral documents at their band's floor: 500 lines, well inside
+    // the 1000 ceiling, so only the count can fail this.
+    const report = checkPlanBudget(parsed(budgetedDocs(20, 25, "Peripheral")), ceilings, source, 1);
     expect(report.status).toBe("OVER");
     expect(report.reasons).toContain("over-doc-count");
     expect(report.reasons).not.toContain("over-line-budget");
+  });
+
+  // Otherwise the line ceiling is met by shrinking numbers rather than cutting
+  // documents — the one response the policy rules out.
+  test("a budget below its declared tier is charged the tier's floor", () => {
+    const report = checkPlanBudget(parsed(budgetedDocs(5, 1)), ceilings, source, 1);
+
+    expect(report.lines).toBe(500);
+    expect(report.reasons).toContain("below-tier");
+    expect(report.belowTier).toHaveLength(5);
+  });
+
+  test("a budget inside its band is charged as written", () => {
+    const report = checkPlanBudget(parsed(budgetedDocs(5, 150)), ceilings, source, 1);
+
+    expect(report.lines).toBe(750);
+    expect(report.reasons).not.toContain("below-tier");
   });
 
   test("too many lines fails even when the count fits", () => {
@@ -290,13 +370,17 @@ describe("the verdict", () => {
   // the ceiling.
   test("an unbudgeted document is charged the Core band, not nothing", () => {
     const report = checkPlanBudget(
-      parsed("- concepts/a.md — owns: x; references: none\n- concepts/b.md — Core, 10 lines\n- concepts/b.md — owns: y; references: none\n"),
+      parsed(
+        "- concepts/a.md — owns: x; references: none\n" +
+          "- concepts/b.md — Core, 120 lines\n" +
+          "- concepts/b.md — owns: y; references: none\n",
+      ),
       ceilings,
       source,
       1,
     );
     expect(report.unbudgeted).toEqual(["concepts/a.md"]);
-    expect(report.lines).toBe(UNBUDGETED_CHARGE + 10);
+    expect(report.lines).toBe(UNBUDGETED_CHARGE + 120);
     expect(report.reasons).toContain("unbudgeted");
   });
 

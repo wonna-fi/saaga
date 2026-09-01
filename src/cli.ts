@@ -35,6 +35,7 @@ import {
   buildCostSummary,
   confirmAgentCosts,
 } from "./cli/confirm.js";
+import { NonResumableError } from "./engine/errors.js";
 import { agentSteps, flowExists, listFlows, loadFlow } from "./engine/loader.js";
 import { flowHash, openJournal, createJournal, type RunJournal } from "./engine/journal.js";
 import { AgentStepFailedError, RunAbortedError, runFlow } from "./engine/runner.js";
@@ -911,7 +912,12 @@ async function runFlowSubcommand(input: RunFlowSubcommandInput): Promise<void> {
       status: interrupted ? "interrupted" : "failed",
       lastError: err instanceof Error ? err.message : String(err),
     });
-    stderr.write(`${interrupted ? "interrupted" : "failed"}. ${resumeHint}\n`);
+    // Resuming replays the journal, so a failure its inputs decide would just
+    // recur. Offering the hint there contradicts the error's own recovery.
+    const resumable = !(err instanceof NonResumableError);
+    stderr.write(
+      `${interrupted ? "interrupted" : "failed"}.${resumable ? ` ${resumeHint}` : ""}\n`,
+    );
     throw err;
   } finally {
     process.off("SIGINT", abort);

@@ -510,8 +510,8 @@ them: roughly **one document per 420 lines of source**, and **0.25 documented
 lines per line of source**. Source means the files left after `.saagaignore`,
 filtered to code extensions, with tests excluded — tests describe the code
 rather than being a subject the corpus covers, and counting them would let test
-volume buy a bigger corpus. On Saaga itself that is 13,240 lines, so 32
-documents and 3,310 lines.
+volume buy a bigger corpus. On Saaga itself that is roughly 13,400 lines, so 32
+documents and about 3,350 lines.
 
 The ceilings are computed in code and never read from the plan, so a plan
 cannot raise its own limit; any totals it records are informational. Convention

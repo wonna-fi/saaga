@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { lstat, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { parse as parseYaml } from "yaml";
 
@@ -12,28 +12,29 @@ import { CONVENTION_MAX_BODY_LINES } from "./validate.js";
  * not ignored them, a lock file or a CI matrix would raise the ceiling far more
  * than it adds documentable domain, and a ceiling is only useful if it tracks
  * the amount of behaviour a reader has to understand.
+ *
+ * An allowlist will always trail some language, and a stack it does not
+ * recognise measures zero — which passes every plan. That failure is silent by
+ * construction, so the gate reports it (`no-measurable-source`) rather than
+ * treating it as an ordinary pass; adding an extension here is the fix.
  */
 export const SOURCE_EXTENSIONS = [
-  ".ts",
-  ".tsx",
-  ".js",
-  ".jsx",
-  ".mjs",
-  ".cjs",
-  ".py",
-  ".rb",
-  ".go",
-  ".rs",
-  ".java",
-  ".kt",
-  ".swift",
-  ".cs",
-  ".php",
-  ".scala",
-  ".sh",
-  ".sql",
-  ".vue",
-  ".svelte",
+  // Web / scripting
+  ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".mts", ".cts",
+  ".vue", ".svelte", ".astro",
+  ".py", ".rb", ".php", ".pl", ".pm", ".lua", ".r",
+  // Systems / compiled
+  ".c", ".h", ".cc", ".cpp", ".cxx", ".hh", ".hpp", ".hxx",
+  ".go", ".rs", ".zig", ".d", ".nim", ".cr",
+  // JVM / .NET
+  ".java", ".kt", ".kts", ".scala", ".groovy", ".clj", ".cljs", ".cljc",
+  ".cs", ".fs", ".fsx", ".vb",
+  // Apple / mobile
+  ".swift", ".m", ".mm", ".dart",
+  // Functional / other
+  ".ex", ".exs", ".erl", ".hrl", ".hs", ".ml", ".mli", ".elm", ".jl",
+  // Shell and data access
+  ".sh", ".bash", ".zsh", ".ps1", ".sql",
 ];
 
 /**
@@ -78,10 +79,24 @@ export function isTestPath(relPath: string): boolean {
   const file = segments[segments.length - 1];
 
   if (segments.slice(0, -1).some((s) => TEST_DIR_NAMES.includes(s))) return true;
-  return /\.(test|spec)\./.test(file);
+  return TEST_FILE_PATTERNS.some((re) => re.test(file));
 }
 
 const TEST_DIR_NAMES = ["test", "tests", "spec", "specs", "__tests__", "__mocks__"];
+
+/**
+ * Test-file naming, which is language convention rather than one rule. Go and
+ * Rust put `foo_test.go` beside the code it tests, Python uses `test_foo.py`,
+ * and the JVM/.NET world capitalises a suffix — none of which look like the
+ * JavaScript `foo.test.ts`. Missing any of them lets test volume buy a bigger
+ * corpus, which is the thing this exclusion exists to prevent.
+ */
+const TEST_FILE_PATTERNS = [
+  /\.(test|spec)\./i,
+  /_(test|spec)\.[a-z0-9]+$/i,
+  /^test_[^/]*\.[a-z0-9]+$/i,
+  /^(?:.*[a-z0-9])(?:Test|Tests|Spec)\.[a-z0-9]+$/,
+];
 
 export function isSourceFile(relPath: string): boolean {
   const lower = relPath.toLowerCase();
@@ -98,20 +113,28 @@ export async function measureSource(
 ): Promise<SourceMeasurement> {
   const paths = (await listInScopeFiles(appDir, docsDir)).filter(isSourceFile);
 
+  let files = 0;
   let lines = 0;
   for (const rel of paths) {
+    const abs = join(appDir, rel);
     let content: string;
     try {
-      content = await readFile(join(appDir, rel), "utf8");
+      // Never dereference a symlink. The manifest hashes the link target
+      // string rather than following it, and following one here would count an
+      // ignored file, count an in-repo file twice, or pull an entirely
+      // external file into the ceiling.
+      if ((await lstat(abs)).isSymbolicLink()) continue;
+      content = await readFile(abs, "utf8");
     } catch {
-      // A dangling symlink or an unreadable file is not worth failing a run
-      // over: it contributes nothing to the ceiling either way.
+      // A dangling link or an unreadable file is not worth failing a run over:
+      // it contributes nothing to the ceiling either way.
       continue;
     }
+    files += 1;
     lines += countLines(content);
   }
 
-  return { files: paths.length, lines };
+  return { files, lines };
 }
 
 function countLines(content: string): number {
@@ -146,11 +169,26 @@ export function deriveCeilings(measurement: SourceMeasurement): Ceilings {
  */
 export const UNBUDGETED_CHARGE = 200;
 
+/**
+ * The floor of each tier's band, from the level-of-detail policy. A budget
+ * below its own tier is charged the floor: the tiers come from centrality, so
+ * "Core, 1 line" is not a small Core document, it is a misdeclared one — and
+ * without this the total-line ceiling could be met by shrinking numbers rather
+ * than cutting documents, which is the one response the policy rules out.
+ */
+export const TIER_MINIMUM_LINES: Record<string, number> = {
+  core: 100,
+  supporting: 60,
+  peripheral: 25,
+};
+
 export interface PlannedDoc {
   /** Normalized, docs-dir-relative path. */
   path: string;
   /** Lines the plan assigned, or null when it assigned none. */
   budget: number | null;
+  /** Lowercased tier from the budget line, absent for ARCHITECTURE. */
+  tier: string | null;
   isConvention: boolean;
   hasOwns: boolean;
 }
@@ -170,7 +208,7 @@ const TRAIL = String.raw`(?:\*\*|__|\x60)?\s*`;
 
 const BUDGET_TIERED = new RegExp(
   `${LEAD}${PATH_TOKEN}${TRAIL}${DASH}` +
-    String.raw`\s*(?:Core|Supporting|Peripheral)\s*[,:]?\s*(\d+)\s*lines?\b`,
+    String.raw`\s*(Core|Supporting|Peripheral)\s*[,:]?\s*(\d+)\s*lines?\b`,
   "i",
 );
 const BUDGET_TIERLESS = new RegExp(
@@ -190,7 +228,7 @@ const MD_TOKEN = /[^\s`*()[\],;"']+\.md/gi;
 function stripFences(text: string): string {
   const out: string[] = [];
   let inFence = false;
-  for (const line of text.split("\n")) {
+  for (const line of text.replace(/\r\n?/g, "\n").split("\n")) {
     if (/^\s*(```|~~~)/.test(line)) {
       inFence = !inFence;
       continue;
@@ -223,6 +261,15 @@ export function normalizeDocPath(raw: string, docsDir: string): string | null {
   return p.toLowerCase().endsWith(".md") ? p : null;
 }
 
+/**
+ * Drop backticks and emphasis *wrapping* a path. Anchored at the ends, never
+ * global: underscores are ordinary characters inside a filename, and stripping
+ * them everywhere turns `{docs_dir}/x.md` into an unrecognisable path.
+ */
+function stripDecoration(text: string): string {
+  return text.trim().replace(/^[`*_]+/, "").replace(/[`*_]+$/, "");
+}
+
 function isGenerated(path: string): boolean {
   const base = (path.split("/").pop() ?? "").toLowerCase();
   return GENERATED_DOC_NAMES.some((n) => n.toLowerCase() === base);
@@ -249,7 +296,13 @@ export function parsePlannedDocs(planText: string, docsDir: string): PlanParse {
   const upsert = (path: string): PlannedDoc => {
     let doc = byPath.get(path);
     if (!doc) {
-      doc = { path, budget: null, isConvention: isConventionPath(path), hasOwns: false };
+      doc = {
+        path,
+        budget: null,
+        tier: null,
+        isConvention: isConventionPath(path),
+        hasOwns: false,
+      };
       byPath.set(path, doc);
     }
     return doc;
@@ -260,13 +313,19 @@ export function parsePlannedDocs(planText: string, docsDir: string): PlanParse {
     // right-hand side names other documents, and counting those would inflate
     // the roster with documents this line does not create. Both patterns are
     // anchored at line start, so a right-hand side can never match.
-    const budget = BUDGET_TIERED.exec(line) ?? BUDGET_TIERLESS.exec(line);
+    const tiered = BUDGET_TIERED.exec(line);
+    const budget = tiered ?? BUDGET_TIERLESS.exec(line);
     if (budget) {
+      // Tiered: [path, tier, lines]. Tier-less (ARCHITECTURE): [path, lines].
+      const rawTier = tiered ? tiered[2] : null;
+      const rawLines = tiered ? tiered[3] : budget[2];
+
       const path = normalizeDocPath(budget[1], docsDir);
       if (path && !isGenerated(path)) {
         sawBudgetLine = true;
         const doc = upsert(path);
-        const n = Number.parseInt(budget[2], 10);
+        if (rawTier) doc.tier = rawTier.toLowerCase();
+        const n = Number.parseInt(rawLines, 10);
         if (Number.isFinite(n)) doc.budget = Math.max(doc.budget ?? 0, n);
       }
       continue;
@@ -282,10 +341,25 @@ export function parsePlannedDocs(planText: string, docsDir: string): PlanParse {
     }
   }
 
-  // Conventions, found anywhere in the body — they get no line of their own.
-  for (const match of body.matchAll(MD_TOKEN)) {
-    const path = normalizeDocPath(match[0], docsDir);
-    if (path && isConventionPath(path) && !isGenerated(path)) upsert(path);
+  // Conventions get neither a budget nor an ownership line — the conventions
+  // phase lists them as bare deliverables. Only a line that is *just* such a
+  // path counts: a convention named inside an `owns:`/`references:` line or in
+  // prose is being referred to, not created, and counting those would cost
+  // three re-plans and a failure over documents the plan never makes.
+  for (const raw of body.split("\n")) {
+    const line = raw.trim().replace(/^[-*+]\s+/, "");
+    if (/owns\s*:|references\s*:/i.test(line)) continue;
+
+    const tokens = [...line.matchAll(MD_TOKEN)].map((m) => m[0]);
+    if (tokens.length !== 1) continue;
+
+    const path = normalizeDocPath(stripDecoration(tokens[0]), docsDir);
+    if (!path || !isConventionPath(path) || isGenerated(path)) continue;
+
+    // The path must be effectively the whole line, so a sentence merely
+    // mentioning one document does not create it.
+    if (stripDecoration(line).replace(/[.,;:]$/, "") !== stripDecoration(tokens[0])) continue;
+    upsert(path);
   }
 
   return { ...collapseBasenames(byPath), sawBudgetLine, sawOwnsLine };
@@ -329,7 +403,16 @@ function collapseBasenames(byPath: Map<string, PlannedDoc>): {
 /** Lines a planned document is charged against the corpus line ceiling. */
 export function docCost(doc: PlannedDoc): number {
   if (doc.isConvention) return CONVENTION_MAX_BODY_LINES;
-  return doc.budget ?? UNBUDGETED_CHARGE;
+  if (doc.budget === null) return UNBUDGETED_CHARGE;
+
+  const floor = doc.tier ? TIER_MINIMUM_LINES[doc.tier] : undefined;
+  return floor === undefined ? doc.budget : Math.max(doc.budget, floor);
+}
+
+/** True when a budget sits below the floor of the tier it declares. */
+export function isBelowTier(doc: PlannedDoc): boolean {
+  const floor = doc.tier ? TIER_MINIMUM_LINES[doc.tier] : undefined;
+  return floor !== undefined && doc.budget !== null && doc.budget < floor;
 }
 
 export type BudgetStatus = "PASS" | "OVER" | "UNPARSEABLE";
@@ -339,6 +422,7 @@ export type BudgetReason =
   | "over-doc-count"
   | "over-line-budget"
   | "unbudgeted"
+  | "below-tier"
   | "ambiguous-path"
   | "empty-roster"
   | "one-sided-roster";
@@ -351,6 +435,8 @@ export interface BudgetReport {
   ceilings: Ceilings;
   source: SourceMeasurement;
   unbudgeted: string[];
+  /** Documents whose budget sits below the floor of the tier they declare. */
+  belowTier: string[];
   ambiguous: string[];
 }
 
@@ -379,6 +465,7 @@ export function checkPlanBudget(
     ceilings,
     source,
     unbudgeted,
+    belowTier: parse.docs.filter(isBelowTier).map((d) => d.path),
     ambiguous: parse.ambiguous,
   };
 
@@ -399,6 +486,7 @@ export function checkPlanBudget(
 
   if (parse.ambiguous.length > 0) reasons.push("ambiguous-path");
   if (unbudgeted.length > 0) reasons.push("unbudgeted");
+  if (base.belowTier.length > 0) reasons.push("below-tier");
   if (docs > ceilings.docs) reasons.push("over-doc-count");
   if (lines > ceilings.lines) reasons.push("over-line-budget");
 
@@ -412,7 +500,10 @@ export function checkPlanBudget(
  * it is checking whether it understood the plan at all.
  */
 export function countNonZeroPhases(planText: string): number {
-  const match = /^---\n([\s\S]*?)\n---/.exec(planText);
+  // `\r?\n` matches parse-plan: a CRLF plan it accepts must not read as
+  // zero phases here, or the empty-roster guard would be skipped and an
+  // unreadable plan would pass as a zero-document corpus.
+  const match = /^---\r?\n([\s\S]*?)\r?\n---/.exec(planText);
   if (!match) return 0;
   try {
     const data = parseYaml(match[1]) as { phases?: { number?: number }[] } | null;

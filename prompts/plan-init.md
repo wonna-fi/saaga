@@ -111,9 +111,14 @@ When you are over either ceiling, cut document **count**. Do not shave the per-d
 budgets to fit: the tiers come from centrality and a document trimmed below its tier is
 merely a worse document, while the reader still has the same number of files to open.
 
-If `{budget_report_path}` exists, a previous attempt at this plan exceeded the corpus
-ceiling. Read it first: it names the totals, the ceilings and the overage. Produce a plan
-with **fewer documents**, folding the peripheral ones into their parents.
+If `{budget_report_path}` exists, a previous attempt at this plan was rejected. Read it
+first and follow the status it reports — the two failures need opposite responses:
+
+- **OVER** — the plan was too large. Produce a plan with **fewer documents**, folding the
+  peripheral ones into their parents.
+- **UNPARSEABLE** — the plan's per-document decisions could not be read. This is a format
+  problem, not a size one: do not cut documents. Write the budget line and the owns /
+  references line for every document exactly as specified above.
 
 ### Plan File Format
 

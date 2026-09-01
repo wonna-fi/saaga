@@ -1130,8 +1130,18 @@ describe("the corpus budget constrains plan-init", () => {
     const out = await render("plan-init");
 
     expect(out).toContain("/run/plan-budget-report.md");
-    expect(out).toMatch(/a previous attempt at this plan exceeded the corpus\s+ceiling/);
+    expect(out).toMatch(/a previous attempt at this plan was\s+rejected/);
     expect(out).toContain("**fewer documents**");
+  });
+
+  // Over-budget and unreadable need opposite responses; steering an
+  // unreadable plan toward cutting documents repeats the syntax error.
+  test("the retry follows the reported status rather than assuming an overage", async () => {
+    const out = await render("plan-init");
+
+    expect(out).toContain("**OVER**");
+    expect(out).toContain("**UNPARSEABLE**");
+    expect(out).toMatch(/format\s+problem, not a size one: do not cut documents/);
   });
 
   // The budget bands belong to the LOD policy; restating them here would give

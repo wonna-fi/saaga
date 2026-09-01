@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
 
+import { NonResumableError } from "../../src/engine/errors.js";
 import { checkPlanBudgetScript } from "../../src/scripts/check-plan-budget.js";
 
 const PHASES = `---
@@ -85,13 +86,19 @@ describe("check-plan-budget", () => {
     ).rejects.toThrow(/delete saaga-docs\/ and run 'saaga run init' again/);
   });
 
-  // Resuming replays the journaled loop and re-throws here, so suggesting it
-  // would send the user in a circle.
-  test("the failure says resuming will not help", async () => {
+  // Resuming replays the journaled loop and re-throws here, so the error says
+  // so — and is typed non-resumable, which is what suppresses the CLI's
+  // generic "To resume:" hint that would otherwise contradict it.
+  test("the failure is non-resumable and says so", async () => {
     const env = await tmpEnv(planWith(40, 100));
+
     await expect(
       checkPlanBudgetScript(args(env, "enforce"), { cwd: env.app }),
-    ).rejects.toThrow(/Resuming will not help/);
+    ).rejects.toThrow(/Resuming replays the same plan/);
+
+    await expect(
+      checkPlanBudgetScript(args(env, "enforce"), { cwd: env.app }),
+    ).rejects.toThrow(NonResumableError);
   });
 
   test("ceilings the plan declares for itself are ignored", async () => {
@@ -146,6 +153,31 @@ describe("check-plan-budget", () => {
     await expect(
       checkPlanBudgetScript(args(env, "enforce"), { cwd: env.app }),
     ).rejects.toThrow(/could not be read/);
+  });
+
+  // An unreadable plan and an oversized one need opposite responses, so the
+  // report must not steer a retry toward cutting documents.
+  test("the unparseable report asks for the format, not fewer documents", async () => {
+    const env = await tmpEnv(`${PHASES}\n# Plan body\n`);
+    await checkPlanBudgetScript(args(env, "report"), { cwd: env.app });
+
+    const report = await readFile(env.report, "utf8");
+    expect(report).toContain("Status: **UNPARSEABLE**");
+    expect(report).toContain("a **format** problem, not a size problem");
+    expect(report).toContain("<path> — <Core|Supporting|Peripheral>, <N> lines");
+    expect(report).not.toContain("Cut document **count** first");
+  });
+
+  test("a no-source pass says why, so it is not mistaken for merit", async () => {
+    const env = await tmpEnv(planWith(50, 900), 0);
+    const warnings: string[] = [];
+
+    await checkPlanBudgetScript(args(env, "report"), {
+      cwd: env.app,
+      warn: (m) => warnings.push(m),
+    });
+
+    expect(warnings.join("\n")).toContain("no source files were measured");
   });
 
   // This is what keeps the fake-agent CLI fixtures green: their app is a
