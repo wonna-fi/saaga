@@ -290,27 +290,52 @@ describe("agent step model keys", () => {
  * and before the phase-0 slice, so a trimmed document is what the rest of the
  * run reads.
  */
+/**
+ * `init` has two top-level loops — planning and architecture — so both are
+ * located by what they contain. Selecting "the first loop" would silently
+ * follow whichever one happens to come first.
+ */
+function topLevelLoopWith(steps: Step[], prompt: string) {
+  const loop = steps.find(
+    (s) => s.type === "loop" && agentSteps(s.do).some((a) => a.prompt === prompt),
+  );
+  if (loop?.type !== "loop") throw new Error(`init has no top-level loop running ${prompt}`);
+  return loop;
+}
+
+function topLevelIndexOfLoopWith(steps: Step[], prompt: string): number {
+  return steps.findIndex(
+    (s) => s.type === "loop" && agentSteps(s.do).some((a) => a.prompt === prompt),
+  );
+}
+
+/** Script steps directly in a step list (one level, no recursion needed here). */
+function scriptStepsIn(steps: Step[]): ScriptStep[] {
+  return steps.filter((s): s is ScriptStep => s.type === "script");
+}
+
 describe("the architecture verify/fix loop in init", () => {
   test("runs after the plan is parsed and before the first slice", async () => {
     const flow = await loadFlow("init");
-    const kinds = flow.steps.map((s) =>
-      s.type === "script" ? `script:${s.name}` : s.type === "agent" ? `agent:${s.prompt}` : s.type,
+
+    // parse-plan lives inside the planning loop, so its position is that loop's.
+    const planning = topLevelIndexOfLoopWith(flow.steps, "plan-init");
+    const architecture = topLevelIndexOfLoopWith(flow.steps, "verify-architecture");
+    const firstSlice = flow.steps.findIndex(
+      (s) => s.type === "agent" && s.prompt === "slice-doc",
     );
 
-    const parse = kinds.indexOf("script:parse-plan");
-    const loop = kinds.indexOf("loop");
-    const firstSlice = kinds.indexOf("agent:slice-doc");
+    expect(planning).toBeGreaterThanOrEqual(0);
+    const planningLoop = topLevelLoopWith(flow.steps, "plan-init");
+    expect(scriptStepsIn(planningLoop.do).map((s) => s.name)).toContain("parse-plan");
 
-    expect(parse).toBeGreaterThanOrEqual(0);
-    expect(loop).toBeGreaterThan(parse);
-    expect(firstSlice).toBeGreaterThan(loop);
+    expect(architecture).toBeGreaterThan(planning);
+    expect(firstSlice).toBeGreaterThan(architecture);
   });
 
   test("verifies and fixes the architecture inside one bounded loop", async () => {
     const flow = await loadFlow("init");
-    const loop = flow.steps.find((s) => s.type === "loop");
-    expect(loop, "init has no top-level loop").toBeDefined();
-    if (loop?.type !== "loop") throw new Error("unreachable");
+    const loop = topLevelLoopWith(flow.steps, "verify-architecture");
 
     expect(loop.max).toBe(3);
 
@@ -323,11 +348,63 @@ describe("the architecture verify/fix loop in init", () => {
   // would leave a stale "PASS" in scope and let that loop exit before verifying.
   test("uses its own status variable, not the per-phase one", async () => {
     const flow = await loadFlow("init");
-    const loop = flow.steps.find((s) => s.type === "loop");
-    if (loop?.type !== "loop") throw new Error("init has no top-level loop");
+    const loop = topLevelLoopWith(flow.steps, "verify-architecture");
 
     expect(loop.until).toContain("arch_status");
     expect(loop.until).not.toContain("${status}");
+  });
+});
+
+/**
+ * Task 10: doc *count* is the planner's one unconstrained axis, so planning is
+ * retried against a budget derived from the repository. The loop exits silently
+ * at its cap, which is why a separate enforce step has to follow it.
+ */
+describe("the corpus-budget planning loop in init", () => {
+  test("plans, parses and checks the budget inside one bounded loop", async () => {
+    const flow = await loadFlow("init");
+    const loop = topLevelLoopWith(flow.steps, "plan-init");
+
+    expect(loop.max).toBe(3);
+    expect(loop.until).toContain("budget.status");
+
+    const scripts = scriptStepsIn(loop.do).map((s) => s.name);
+    expect(scripts).toEqual(["parse-plan", "check-plan-budget"]);
+    expect(scriptStepsIn(loop.do).at(-1)!.args.mode).toBe("report");
+  });
+
+  test("the planner is handed the previous attempt's report", async () => {
+    const flow = await loadFlow("init");
+    const loop = topLevelLoopWith(flow.steps, "plan-init");
+    const planner = agentSteps(loop.do).find((s) => s.prompt === "plan-init")!;
+    const gate = scriptStepsIn(loop.do).at(-1)!;
+
+    // One fixed path, not report-${iteration}.md: inside iteration N the planner
+    // would be pointed at a report that does not exist until the end of N.
+    expect(planner.vars?.budget_report_path).toBe(gate.args.report_path);
+    expect(planner.vars?.budget_report_path).not.toContain("${iteration}");
+  });
+
+  test("enforces after the loop, because the loop itself never fails", async () => {
+    const flow = await loadFlow("init");
+    const loopIndex = topLevelIndexOfLoopWith(flow.steps, "plan-init");
+    const enforce = flow.steps.findIndex(
+      (s) => s.type === "script" && s.name === "check-plan-budget" && s.args.mode === "enforce",
+    );
+    const firstSlice = flow.steps.findIndex(
+      (s) => s.type === "agent" && s.prompt === "slice-doc",
+    );
+
+    expect(enforce).toBeGreaterThan(loopIndex);
+    expect(firstSlice).toBeGreaterThan(enforce);
+
+    // ${iteration} and ${loop_max} are deleted when the loop exits, so a
+    // post-loop step referencing either throws at arg interpolation.
+    const step = flow.steps[enforce] as ScriptStep;
+    for (const value of Object.values(step.args)) {
+      expect(value).not.toContain("${iteration}");
+      expect(value).not.toContain("${loop_max}");
+    }
   });
 });
 

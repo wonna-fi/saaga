@@ -459,7 +459,7 @@ Documentation pipelines have a natural ratchet: every mechanism in them adds det
 and nothing removes it. Left alone, a corpus drifts toward uniform length regardless
 of what matters — a small, peripheral module gets documented as thoroughly as the one
 every command passes through, and private helpers get transcribed because
-completeness is the only thing being scored. Saaga pushes back in three places.
+completeness is the only thing being scored. Saaga pushes back in four places.
 
 **Length budgets.** The plan assigns every document a line budget before the writer
 starts, and verification enforces it. The budget comes from *centrality*, not from how
@@ -498,6 +498,39 @@ spinner's glyph sequence and frame interval are cosmetics with no dependents —
 pending line animates while a phase runs" says everything a reader needs. Transcribing
 a private constant's value, listing internal helper names, or restating a function body
 in prose all fail the test.
+
+**A corpus budget.** Length budgets bound each document; nothing bounded how
+many there are. That is the planner's one unconstrained axis, and it is the
+expensive one — every extra document is a writer session plus up to three
+verify/fix rounds. Measured on this repository, one model reproducibly planned
+around 50 documents where 26 proved sufficient.
+
+So `init` derives two ceilings from the repository itself and holds the plan to
+them: roughly **one document per 420 lines of source**, and **0.25 documented
+lines per line of source**. Source means the files left after `.saagaignore`,
+filtered to code extensions, with tests excluded — tests describe the code
+rather than being a subject the corpus covers, and counting them would let test
+volume buy a bigger corpus. On Saaga itself that is roughly 13,400 lines, so 32
+documents and about 3,350 lines.
+
+The ceilings are computed in code and never read from the plan, so a plan
+cannot raise its own limit; any totals it records are informational. Convention
+documents count at their fixed 20-line cap rather than a budget, generated
+`INDEX.md`, `README.md` and `GLOSSARY.md` do not count at all, and a document
+the plan lists but never budgets is charged the Core band's 200 lines — an
+unbudgeted document must not be the cheapest way to fit.
+
+The rule that follows from it is a test on whether a document should exist at
+all: a peripheral source file becomes a row in the table of the document it
+belongs to, never a file of its own. Ask what breaks if the document does not
+exist; if the answer is "one paragraph moves into its parent", it should not.
+
+An over-budget plan is re-planned, never hand-edited — the plan is a product
+artifact, and its phase list is journaled mid-run, so editing it desyncs the
+run from its own state. `init` re-plans up to three times, handing each attempt
+the previous verdict, and fails with a delete-and-rerun message if the plan is
+still over. The check runs before the first document is written, so a rejected
+plan costs planning sessions rather than a corpus.
 
 **A growth budget on small changes.** `update` and `quick-update` count the changed
 source files. Below roughly five, at most one or two documents may get *longer*, and no

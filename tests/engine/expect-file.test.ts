@@ -101,4 +101,77 @@ describe("agent.expect_file", () => {
       ),
     ).resolves.toBeUndefined();
   });
+
+  /**
+   * A step that runs more than once against one output path — a retry loop —
+   * would otherwise accept the previous attempt's leftover as a fresh answer,
+   * spending the remaining attempts on a verdict already reached.
+   */
+  describe("inside a retry loop", () => {
+    function loopFlow(expected: string) {
+      return parseFlowDefinition({
+        name: "test",
+        steps: [
+          {
+            loop: {
+              max: 2,
+              // Never satisfied, so the body runs its full two attempts.
+              until: '"no" == "yes"',
+              do: [
+                {
+                  agent: {
+                    prompt: "document-architecture",
+                    vars: { app: "myapp" },
+                    expect_file: expected,
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      });
+    }
+
+    test("an attempt that writes nothing is not passed off as a fresh answer", async () => {
+      const dir = await mkdtemp(join(tmpdir(), "saaga-expect-"));
+      const expected = join(dir, "plan.md");
+
+      let calls = 0;
+      const fake = new FakeAgent({
+        "Document the Architecture": {
+          exitCode: 0,
+          effect: async () => {
+            calls++;
+            // Only the first attempt writes; the second exits cleanly having
+            // produced nothing, leaving the rejected plan on disk.
+            if (calls === 1) await writeFile(expected, "first attempt", "utf8");
+          },
+        },
+      });
+
+      await expect(
+        runFlow(loopFlow(expected), { app_path: dir, run_dir: dir }, { agent: fake, cwd: dir }),
+      ).rejects.toThrow(/left expect_file unchanged/);
+    });
+
+    // Judged on the answer, not on novelty: a planner that re-ran and reached
+    // the same conclusion did its work.
+    test("an attempt that rewrites the same content still counts as produced", async () => {
+      const dir = await mkdtemp(join(tmpdir(), "saaga-expect-"));
+      const expected = join(dir, "plan.md");
+
+      const fake = new FakeAgent({
+        "Document the Architecture": {
+          exitCode: 0,
+          effect: async () => {
+            await writeFile(expected, "identical every time", "utf8");
+          },
+        },
+      });
+
+      await expect(
+        runFlow(loopFlow(expected), { app_path: dir, run_dir: dir }, { agent: fake, cwd: dir }),
+      ).resolves.toBeUndefined();
+    });
+  });
 });

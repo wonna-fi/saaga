@@ -25,21 +25,51 @@ steps:
         docs_dir: ${docs_dir}
         scratch_path: ${run_dir}/app-structure.md
 
-  - agent:
-      prompt: plan-init
-      model: high
-      label: planning documentation
-      vars:
-        app: ${app}
-        docs_dir: ${docs_dir}
-        output_path: ${run_dir}/plans/${app}-init.plan.md
-      expect_file: ${run_dir}/plans/${app}-init.plan.md
+  # Planning is retried against a corpus budget the gate derives from the
+  # repository. One fixed report path, deliberately: inside iteration N the
+  # planner would be handed iteration N's report, which does not exist yet, and
+  # the expression language has no arithmetic to ask for N-1. Overwriting one
+  # file hands the next attempt the previous verdict for free.
+  - loop:
+      max: 3
+      until: '${budget.status} == "PASS"'
+      do:
+        - agent:
+            prompt: plan-init
+            model: high
+            label: planning documentation
+            vars:
+              app: ${app}
+              docs_dir: ${docs_dir}
+              output_path: ${run_dir}/plans/${app}-init.plan.md
+              budget_report_path: ${run_dir}/plan-budget-report.md
+            expect_file: ${run_dir}/plans/${app}-init.plan.md
 
+        - script:
+            name: parse-plan
+            label: parsing plan
+            file: ${run_dir}/plans/${app}-init.plan.md
+            set: phases
+
+        - script:
+            name: check-plan-budget
+            label: checking corpus budget
+            app_dir: ${app_path}
+            docs_dir: ${docs_dir}
+            plan: ${run_dir}/plans/${app}-init.plan.md
+            report_path: ${run_dir}/plan-budget-report.md
+            mode: report
+            set: budget
+
+  # The loop exits silently at its cap, so this is what actually fails the run.
   - script:
-      name: parse-plan
-      label: parsing plan
-      file: ${run_dir}/plans/${app}-init.plan.md
-      set: phases
+      name: check-plan-budget
+      label: enforcing corpus budget
+      app_dir: ${app_path}
+      docs_dir: ${docs_dir}
+      plan: ${run_dir}/plans/${app}-init.plan.md
+      report_path: ${run_dir}/plan-budget-report.md
+      mode: enforce
 
   - loop:
       max: 3

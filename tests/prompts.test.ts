@@ -41,6 +41,7 @@ const FLOW_VARS: Record<string, Record<string, string>> = {
     app: "saaga",
     docs_dir: "saaga-docs",
     output_path: "/run/plans/saaga-init.plan.md",
+    budget_report_path: "/run/plan-budget-report.md",
   },
   "plan-update": {
     app: "saaga",
@@ -1082,3 +1083,77 @@ describe("verify and fix can act on a duplication finding", () => {
   });
 });
 
+
+/**
+ * Task 10: doc *length* has a downward force (the per-document budgets); doc
+ * *count* had none, and it is the one axis a planner can inflate without any
+ * rule saying no. The ceiling is enforced by a deterministic gate, so the
+ * prompt states the rule and the gate decides the numbers.
+ */
+describe("the corpus budget constrains plan-init", () => {
+  test("plan-init carries both ceilings and the formula behind them", async () => {
+    const out = await render("plan-init");
+
+    expect(out).toContain("### Corpus Budget");
+    expect(out).toContain("one per 420 lines of source");
+    expect(out).toContain("0.25 documented lines per line of source");
+    expect(out).toContain("tests excluded");
+  });
+
+  test("the ceilings are the gate's, not the plan's", async () => {
+    const out = await render("plan-init");
+
+    expect(out).toContain("A deterministic gate derives the same two ceilings");
+    expect(out).toContain("informational");
+  });
+
+  test("plan-init carries the document-existence test", async () => {
+    const out = await render("plan-init");
+
+    expect(out).toContain("**The document-existence test.**");
+    expect(out).toContain(
+      "A peripheral file becomes a row in the table of the document it belongs to",
+    );
+    expect(out).toContain("never a file of its own");
+  });
+
+  test("over budget means fewer documents, not thinner ones", async () => {
+    const out = await render("plan-init");
+
+    expect(out).toContain("cut document **count**");
+    expect(out).toMatch(/Do not shave the per-document\s+budgets to fit/);
+  });
+
+  // The first attempt has no report; the loop overwrites one fixed path, so a
+  // retry reads the previous attempt's verdict.
+  test("a retry is told to read the previous attempt's report", async () => {
+    const out = await render("plan-init");
+
+    expect(out).toContain("/run/plan-budget-report.md");
+    expect(out).toMatch(/a previous attempt at this plan was\s+rejected/);
+    expect(out).toContain("**fewer documents**");
+  });
+
+  // Over-budget and unreadable need opposite responses; steering an
+  // unreadable plan toward cutting documents repeats the syntax error.
+  test("the retry follows the reported status rather than assuming an overage", async () => {
+    const out = await render("plan-init");
+
+    expect(out).toContain("**OVER**");
+    expect(out).toContain("**UNPARSEABLE**");
+    expect(out).toMatch(/format\s+problem, not a size one: do not cut documents/);
+  });
+
+  // The budget bands belong to the LOD policy; restating them here would give
+  // the planner two sources for one rule.
+  test("the corpus rule does not restate the per-document bands", async () => {
+    const out = await render("plan-init");
+    const section = out.slice(
+      out.indexOf("### Corpus Budget"),
+      out.indexOf("### Plan File Format"),
+    );
+
+    expect(section).not.toContain("100–200");
+    expect(section).not.toContain("Peripheral");
+  });
+});
