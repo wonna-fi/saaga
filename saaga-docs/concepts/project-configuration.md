@@ -1,158 +1,110 @@
+---
+title: Project Configuration
+type: concept
+sources:
+  - src/cli/config.ts
+  - src/saaga-rules.ts
+  - src/unstable-features.ts
+  - src/cli.ts
+terms:
+  - .saaga/config.yaml
+  - .saagarules
+  - unstable feature
+last_verified: 2026-09-01
+---
+
 # Project Configuration
 
 ## Business Definition
 
-Project configuration is the mechanism by which a Saaga-managed project declares persistent default settings — backend, per-backend model key overrides, and rule targets — in a version-controlled YAML file. These settings serve as the second-priority source in every resolution chain: CLI flags override them, and built-in defaults fill in when they are absent.
+Everything a repository can say about how Saaga should treat it: which agent backend and
+models to use, where the corpus lives, which rule files to install, whether to ask before
+spending money, and any project-specific instructions the agent must follow. It is read
+once per invocation, before any flow starts.
 
 ## Configuration
 
-| Source | Description |
-|--------|-------------|
-| `.saaga/config.yaml` | YAML file in the project directory containing all project-level settings |
+| Source | Precedence | Description |
+|--------|------------|-------------|
+| CLI flags | 1 (highest) | `--backend`, `--model`, `--rule-targets`, `--yes` override the file per field |
+| `.saaga/config.yaml` | 2 | The project's own settings; an absent file means an empty config, not an error |
+| Built-in default | 3 | `agentsmd` for rule targets, `saaga-docs` for the corpus directory, no auto-approval |
+
+`.saaga/config.yaml` fields, all optional:
+
+| Field | Validation |
+|-------|------------|
+| `defaultBackend` | Must be a string; the value itself is checked during [backend resolution](./backend-resolution.md) |
+| `backends` | Mapping keyed by `cursor`, `copilot` or `claude`; each entry accepts only `models`, a mapping of model key to model name |
+| `ruleTargets` | String or array of strings, normalized to a comma-separated string; selects the files [install-rules](../features/install-rules.md) writes |
+| `docsDir` | Must be a string; defaults to `DEFAULT_DOCS_DIR` |
+| `autoApprove` | Must be a boolean; skips the cost confirmation the same way `--yes` does |
+| `unstableFeatures` | Array of strings, each a name in `UNSTABLE_FEATURES` |
+
+Any violation throws `ConfigError` naming the offending key path; see
+[error messages](../conventions/error-messages.md) for the phrasing.
+
+An unstable feature is enabled for the whole process, not per call: every subcommand
+validates the names from both sources, unions them with `resolveUnstableFeatures()`,
+installs them with `initUnstableFeatures()`, and prints one `[WARN]` line naming the
+enabled set. An unknown name in `--unstable-feature` exits 1; an unknown name in the
+config file throws `ConfigError`. `UNSTABLE_FEATURES` currently holds only the
+placeholder `none`, so the registry ships with nothing real to enable.
 
 **How to access:**
-
-- `loadConfig(projectDir)` — reads and validates `.saaga/config.yaml` from the given directory; returns a `SaagaConfig` object (empty `{}` when the file does not exist)
-- `CONFIG_DIR` (constant) — the directory name `".saaga"` where the config file lives
-- `CONFIG_FILE` (constant) — the file name `"config.yaml"`
-- `DEFAULT_DOCS_DIR` (constant) — `"saaga-docs"`, the default documentation directory name when `docsDir` is not configured
+- `loadConfig(projectDir)` - the parsed `SaagaConfig`, or `{}` when the file is missing
+- `loadSaagaRules(projectRoot)` - returns the `.saagarules` text, or `undefined`
+- `DEFAULT_DOCS_DIR` (constant) - the corpus directory used when `docsDir` is unset
+- `SAAGA_RULES_FILE` (constant) - the rules filename, resolved against the project root
 
 ## Data Storage
 
-| Object/Model/Type | Field/Property | Purpose |
+| Artifact | Field/Property | Purpose |
 |--------|-------|---------|
-| `SaagaConfig` | `defaultBackend` | Optional backend name (`"cursor"`, `"copilot"`, or `"claude"`); used as fallback when `--backend` flag is absent |
-| `SaagaConfig` | `backends` | Optional per-backend settings; a mapping from backend name to a `BackendConfig` object |
-| `SaagaConfig` | `ruleTargets` | Optional rule targets string; accepts a comma-separated string or a YAML list of strings; used as fallback when `--rule-targets` flag is absent |
-| `SaagaConfig` | `docsDir` | Optional documentation directory name; overrides the default `"saaga-docs"` directory where BASELINE and metadata are stored |
-| `SaagaConfig` | `autoApprove` | Optional boolean; when `true`, skips the interactive cost confirmation prompt before agent-backed commands (see [Cost Confirmation](./cost-confirmation.md)) |
-| `SaagaConfig` | `unstableFeatures` | Optional array of known unstable feature names; unioned with `--unstable-feature` CLI flags (see [Unstable Features](./unstable-features.md)) |
-| `BackendConfig` | `models` | Optional open map of model key → model name (e.g. `low`, `medium`, `high`, plus custom keys) |
+| `.saaga/config.yaml` | `SaagaConfig` | The six fields above, as a YAML mapping |
+| `.saagarules` | file body | Free-form project instructions, appended to every agent prompt |
+| `.saagaignore` | file body | Optional, user-created; its syntax and effect belong to [baseline and change detection](./baseline-and-change-detection.md) |
 
-### Config File Example
+`.saagarules` sits at the project root, capped at 64 KiB. Absent, empty or whitespace-only
+yields `undefined`; oversized, invalid UTF-8 or unreadable throws `SaagaRulesError` rather
+than silently dropping the maintainer's instructions. `appendSaagaRules()` wraps the text
+in a bounded-priority section ranking it high but below output formats, file paths and
+permission constraints — see [prompt templates](./prompt-templates.md) for where it lands.
 
-```yaml
-defaultBackend: cursor
-backends:
-  cursor:
-    models:
-      high: claude-4.6-opus-high-thinking
-      medium: cursor-grok-4.5-high
-      triage: composer-2.5
-  claude:
-    models:
-      high: opus
-ruleTargets: agentsmd,cursor
-autoApprove: true
-unstableFeatures: []
-```
-
-The `ruleTargets` field also accepts a YAML list:
-
-```yaml
-ruleTargets:
-  - agentsmd
-  - cursor
-```
-
-For projects that previously used the hardcoded `docs/` directory, set `docsDir` to preserve the existing path:
-
-```yaml
-docsDir: docs
-```
-
-> **Migration**: the removed fields `modelLow` / `modelMedium` / `modelHigh` are rejected with a `ConfigError` naming the replacement (`backends.<backend>.models.low` / `.medium` / `.high`).
-
-## Key Services/Functions (PUBLIC/EXPORTED only)
+## Key Services/Functions
 
 | Module | Function/Method | Purpose |
 |---------|--------|---------|
-| `src/cli/config.ts` | `loadConfig()` | Load and validate `.saaga/config.yaml`; returns `SaagaConfig` (empty object when file is absent) |
-| `src/cli/config.ts` | `ConfigError` (class) | Error class thrown for malformed YAML or invalid field types |
-| `src/cli/config.ts` | `SaagaConfig` (interface) | Shape of the parsed config: `defaultBackend?`, `backends?`, `ruleTargets?`, `docsDir?`, `autoApprove?`, `unstableFeatures?` |
-| `src/cli/config.ts` | `BackendConfig` (interface) | Per-backend settings: `models?` (open map of model key → model name) |
-| `src/cli/config.ts` | `CONFIG_DIR` (constant) | String `".saaga"` — directory containing the config file |
-| `src/cli/config.ts` | `CONFIG_FILE` (constant) | String `"config.yaml"` — config file name |
-| `src/cli/config.ts` | `DEFAULT_DOCS_DIR` (constant) | String `"saaga-docs"` — default documentation directory name |
+| `cli/config` | `loadConfig()` | Reads and validates `<projectDir>/.saaga/config.yaml` |
+| `cli/config` | `SaagaConfig`, `BackendConfig` | The validated shape a loaded config has |
+| `cli/config` | `ConfigError` | Thrown for malformed YAML or an invalid field |
+| `saaga-rules` | `loadSaagaRules()` | Reads, size-checks and UTF-8-validates `.saagarules` |
+| `saaga-rules` | `appendSaagaRules()` | Appends the rules section to a rendered prompt |
+| `saaga-rules` | `SaagaRulesError` | Thrown when `.saagarules` exists but cannot be used |
+| `unstable-features` | `isUnstableFeature()` | Type guard for a known feature name |
+| `unstable-features` | `findUnknownFeature()` | First unrecognized name in a list, if any |
+| `unstable-features` | `resolveUnstableFeatures()` | Unions config and CLI names, first-seen order |
+| `unstable-features` | `initUnstableFeatures()` | Replaces the process-wide enabled set |
+| `unstable-features` | `getEnabledUnstableFeatures()` | The enabled set, sorted, for the warning line |
+| `unstable-features` | `resetUnstableFeatures()` | Clears the set; test isolation only |
 
 ## Internal Implementation
 
-> Functions below are internal and should not be called directly. They are documented for understanding the internal logic.
->
-> - `normalizeRuleTargets()` in `src/cli/config.ts` — converts `ruleTargets` from either a string or an array of strings into a single comma-separated string suitable for `parseRuleTargets()`
-> - `parseBackends()` in `src/cli/config.ts` — validates the `backends` mapping and parses each entry via `parseBackendConfig()`
-> - `parseBackendConfig()` in `src/cli/config.ts` — validates each backend entry; rejects legacy `modelLow`/`modelMedium`/`modelHigh`; parses optional `models` via `parseModelsMap()`
-> - `parseModelsMap()` in `src/cli/config.ts` — validates model keys (`isValidModelKey`) and string values
-> - `resolveRuleTargets()` in `src/cli.ts` — resolves the effective rule-target string from CLI flag → `config.ruleTargets` → default `"agentsmd"`, then validates via `parseRuleTargets()`
-> - `resolveDocsDir()` in `src/cli.ts` — resolves the effective documentation directory from `config.docsDir` → `DEFAULT_DOCS_DIR` (`"saaga-docs"`)
-> - `parseUnstableFeatures()` in `src/cli/config.ts` — validates `unstableFeatures` is a string array of known `UNSTABLE_FEATURES` names
-> - `bootstrapUnstableFeatures()` in `src/cli.ts` — loads config, validates CLI feature names, initializes the process-wide registry, emits a warning when any are enabled
+> - `cli/config.parseBackendConfig()` - rejects any key under a backend other than
+>   `models`, and maps the removed `modelLow`/`modelMedium`/`modelHigh` fields to a
+>   migration hint naming their `models.<key>` replacement rather than a generic error.
 
-## Loading Behavior
-
-1. **File absent**: `loadConfig()` returns an empty `SaagaConfig` (`{}`) — no error
-2. **File present, empty content**: returns `{}` (null/undefined YAML values are treated as absent)
-3. **Malformed YAML**: throws `ConfigError: "Failed to parse .saaga/config.yaml: <parse error>"`
-4. **Non-mapping root** (e.g., an array or scalar): throws `ConfigError: ".saaga/config.yaml must be a YAML mapping, got <type>"`
-5. **Invalid field type** (e.g., `defaultBackend: 123`): throws `ConfigError: ".saaga/config.yaml: 'defaultBackend' must be a string"`
-6. **`backends` is not a mapping**: throws `ConfigError: ".saaga/config.yaml: 'backends' must be a YAML mapping"`
-7. **Unknown backend key in `backends`**: throws `ConfigError: ".saaga/config.yaml: 'backends.<name>' is not a valid backend (must be 'cursor', 'copilot', or 'claude')"`
-8. **`backends.<backend>` is not a mapping**: throws `ConfigError: ".saaga/config.yaml: 'backends.<backend>' must be a YAML mapping"`
-9. **Legacy `modelLow`/`modelMedium`/`modelHigh` present**: throws `ConfigError` naming the replacement `backends.<backend>.models.<low|medium|high>`
-10. **Unknown field under `backends.<backend>`** (other than `models`): throws `ConfigError: "... is not a valid field (expected 'models')"`
-11. **`backends.<backend>.models` is not a mapping**: throws `ConfigError: ".saaga/config.yaml: 'backends.<backend>.models' must be a YAML mapping"`
-12. **Invalid model key shape**: throws `ConfigError` describing the key pattern
-13. **Model value is not a string**: throws `ConfigError: ".saaga/config.yaml: 'backends.<backend>.models.<key>' must be a string"`
-14. **Invalid `ruleTargets` type** (e.g., array containing non-strings): throws `ConfigError: ".saaga/config.yaml: 'ruleTargets' array items must be strings"`
-15. **Invalid `ruleTargets` type** (e.g., a number): throws `ConfigError: ".saaga/config.yaml: 'ruleTargets' must be a string or array of strings"`
-16. **Invalid `docsDir` type** (e.g., `docsDir: 123`): throws `ConfigError: ".saaga/config.yaml: 'docsDir' must be a string"`
-17. **Invalid `autoApprove` type** (e.g., `autoApprove: "yes"`): throws `ConfigError: ".saaga/config.yaml: 'autoApprove' must be a boolean"`
-18. **`unstableFeatures` is not an array**: throws `ConfigError: ".saaga/config.yaml: 'unstableFeatures' must be an array of strings"`
-19. **`unstableFeatures` array contains non-string**: throws `ConfigError: ".saaga/config.yaml: 'unstableFeatures' array items must be strings"`
-20. **Unknown feature in `unstableFeatures`**: throws `ConfigError: ".saaga/config.yaml: 'unstableFeatures' contains unknown feature '<name>' (available: ...)"`
-
-## Resolution Chains
-
-Config values participate in every resolution chain as the second-priority source:
-
-| Setting | Resolution order |
-|---------|-----------------|
-| Backend | `--backend` flag → `config.defaultBackend` → `BackendError` |
-| Model (any key) | `--model <key>=<model>` → `config.backends.<backend>.models.<key>` → built-in default (`low`/`medium`/`high` only) → `BackendError` |
-| Rule targets | `--rule-targets` flag → `config.ruleTargets` → `"agentsmd"` |
-| Docs dir | `config.docsDir` → `DEFAULT_DOCS_DIR` (`"saaga-docs"`) |
-| Auto-approve | `--yes` flag → `config.autoApprove` → `false` |
-| Unstable features | Union of `config.unstableFeatures` then `--unstable-feature` flags (deduped; config first) → empty set |
-
-Bundled commands select these built-in keys: **`high`** (`init`, `update`, `verify-quick-updates`), **`medium`** (`quick-update`), **`low`** (`doctor` probes).
-
-## Error Handling
-
-| Scenario | Error |
-|----------|-------|
-| Malformed YAML | `ConfigError: "Failed to parse .saaga/config.yaml: <message>"` |
-| Root is not a mapping | `ConfigError: ".saaga/config.yaml must be a YAML mapping, got <type>"` |
-| `defaultBackend` is not a string | `ConfigError: ".saaga/config.yaml: 'defaultBackend' must be a string"` |
-| `backends` is not a mapping | `ConfigError: ".saaga/config.yaml: 'backends' must be a YAML mapping"` |
-| Unknown backend key | `ConfigError: ".saaga/config.yaml: 'backends.<name>' is not a valid backend ..."` |
-| Legacy model field present | `ConfigError` naming `backends.<backend>.models.<replacement>` |
-| Invalid model key or non-string model value | `ConfigError` describing the models map field |
-| `ruleTargets` is not a string or array | `ConfigError: ".saaga/config.yaml: 'ruleTargets' must be a string or array of strings"` |
-| `ruleTargets` array contains non-string | `ConfigError: ".saaga/config.yaml: 'ruleTargets' array items must be strings"` |
-| `docsDir` is not a string | `ConfigError: ".saaga/config.yaml: 'docsDir' must be a string"` |
-| `autoApprove` is not a boolean | `ConfigError: ".saaga/config.yaml: 'autoApprove' must be a boolean"` |
-| `unstableFeatures` is not an array of strings | `ConfigError: ".saaga/config.yaml: 'unstableFeatures' must be an array of strings"` |
-| Unknown unstable feature name | `ConfigError: ".saaga/config.yaml: 'unstableFeatures' contains unknown feature '...'"` |
+> **Observation:** unknown keys *under* `backends.<backend>` are rejected, but unknown
+> keys at the top level of the file are ignored. This may be intentional or a bug.
 
 ## Reference Implementations
 
-- `src/cli/config.ts` — the canonical module containing config loading, validation, and type definitions
-- `tests/cli/config.test.ts` — unit tests covering all validation paths, missing files, empty content, and type coercion
-- `tests/cli/config-integration.test.ts` — integration tests for config loading with real file system
+- `src/cli/config.ts` - the whole load-and-validate path, one guarded block per field
+- `src/cli.ts` - `bootstrapUnstableFeatures()`, the shared subcommand preamble
+- `tests/cli/config.test.ts` - the accepted and rejected shapes, field by field
 
 ## Related Concepts
 
-- [Backend Resolution](./backend-resolution.md) — uses `config.defaultBackend` and `config.backends` in the resolution chain
-- [Cost Confirmation](./cost-confirmation.md) — uses `config.autoApprove` to skip the interactive cost prompt
-- [Unstable Features](./unstable-features.md) — uses `config.unstableFeatures` in the enablement union
-- [Saaga Rules](./saaga-rules.md) — separate project-root instructions file (not part of `config.yaml`)
+- [Backend Resolution](./backend-resolution.md)
+- [Run Context](./run-context.md)
+- [Feature: CLI Entry Point](../features/cli-entry-point.md)

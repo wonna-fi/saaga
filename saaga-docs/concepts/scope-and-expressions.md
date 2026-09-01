@@ -1,140 +1,96 @@
+---
+title: Scope and Expressions
+type: concept
+sources:
+  - src/engine/expression.ts
+  - src/engine/primitives/foreach.ts
+  - src/engine/primitives/loop.ts
+  - src/engine/primitives/read-file.ts
+  - src/engine/primitives/script.ts
+terms:
+  - scope
+  - interpolation
+  - predicate
+---
+
 # Scope and Expressions
 
 ## Business Definition
 
-The expression system provides variable interpolation and predicate evaluation for the flow engine. It enables flow YAML files to reference runtime data via `${var}` syntax, traverse nested objects with dot-path notation (`${var.field}`), and express conditions for control-flow primitives (`foreach.when`, `loop.until`, `if.condition`). The scope is the mutable key-value store that holds all runtime variables during flow execution.
+**Scope** is the single bag of named values a running flow reads from and writes to: a flat
+`Record<string, unknown>` seeded by the CLI with the run's identity and paths, and extended
+as steps produce values. Every `${…}` in a flow file is an **expression** read against it.
 
-## Configuration
-
-| Source | Description |
-|--------|-------------|
-| Initial scope (passed to `runFlow()`) | Variables set by the CLI before execution (e.g. `app`, `app_path`, `run_dir`) |
-| `script` steps with `set:` | Scripts can write return values into the scope |
-| `read-file` steps with `set:` | File contents are stored as scope variables |
-| `foreach` steps with `var:` | The loop variable is bound to the current item during iteration |
-| `loop` steps | Automatically set `${iteration}` to the current 1-indexed count |
-
-**How to access:**
-
-- `interpolate(template, scope)` — substitutes all `${path}` references in a string, returning a string
-- `resolveValue(expr, scope)` — returns the raw value (preserving type) if the expression is a single `${path}`, otherwise interpolates as a string
-- `evaluatePredicate(expr, scope)` — evaluates a comparison or truthy-check expression, returning a boolean
+The expression language is deliberately tiny — path lookup, string interpolation, and
+one-comparison predicates. It has no arithmetic, no boolean operators and no function
+calls, so a flow file cannot grow logic that belongs in a script.
 
 ## Data Storage
 
-| Type | Field/Property | Purpose |
-|------|----------------|---------|
-| `Scope` | (any key) | `Record<string, unknown>` — holds primitives, objects, and arrays set during flow execution |
+| Object | Field/Property | Purpose |
+|--------|-------|---------|
+| `Scope` | `app`, `app_path`, `docs_dir`, `run_id`, `run_dir`, `date`, `iso_date` | Seeded by the CLI before the flow starts; `init` also gets `rule_targets` |
+| `Scope` | `iteration`, `loop_max` | Bound by `loop` for the duration of its body: the 1-based round, and the cap |
+| `Scope` | _the `foreach` variable_ | Bound by `foreach` to the current item for the duration of the body |
+| `Scope` | _anything a step `set`s_ | Whatever a `script` returned or a `read-file` read |
 
-### Variables Set by Primitives
+There is one scope per run, shallow-copied from the initial scope so the caller's object is
+never mutated. It lives as long as the run: a value a step sets stays visible to every
+later step, including steps outside the block that set it. The three bindings that are
+*not* permanent are the loop's two and the foreach variable — each is saved before the body
+runs and restored, or deleted, afterwards, so a nested loop shadows its parent rather than
+overwriting it and a post-loop step referencing `${iteration}` fails rather than reading a
+stale round number.
 
-| Primitive | Variable | Value |
-|-----------|----------|-------|
-| `foreach` | `${<var>}` (user-defined name) | Current iteration item from the array |
-| `loop` | `${iteration}` | 1-indexed iteration counter |
-| `script` (with `set:`) | `${<set>}` (user-defined name) | Return value of the script handler |
-| `read-file` | `${<set>}` (user-defined name) | UTF-8 file contents (optionally trimmed) |
+Only `script.set` and `read-file.set` write to scope; an `agent` step's output reaches the
+flow by being written to a file that a later `read-file` picks up. Values that arrive this
+way are journaled and replayed on resume, which is why a script's return value has to be
+JSON-serialisable — see [flow execution](../features/flow-execution.md).
 
-## Expression Syntax
-
-### Interpolation (`${path}`)
-
-The pattern `${name}` or `${name.field.subfield}` is substituted with the resolved value from scope:
-
-| Pattern | Meaning |
-|---------|---------|
-| `${var}` | Resolves the top-level scope key `var` |
-| `${var.field}` | Resolves `var` in scope, then reads property `field` from it |
-| `${var.0.title}` | Resolves `var`, reads index `0` (array access), then reads `title` |
-
-Path segments must match `[a-zA-Z0-9_]+` (after the first segment which must start with a letter or underscore).
-
-**Behavior:**
-
-- `interpolate()` always returns a string (coerces values via `String()`)
-- `resolveValue()` preserves the raw type when the entire expression is a single `${path}` reference — this is how `foreach.in` receives arrays rather than the string `"[object Object]"`
-- `null`/`undefined` values are coerced to empty string `""` during string interpolation
-- Accessing an undefined path throws `ExpressionError`
-
-### Predicate Evaluation
-
-Predicates are used in `when:`, `until:`, and `if:` clauses. Two forms are supported:
-
-**Comparison form:** `<lhs> <op> <rhs>`
-
-| Operator | Behavior |
-|----------|----------|
-| `==` | String equality (both sides coerced to string) |
-| `!=` | String inequality (both sides coerced to string) |
-| `<` | Numeric less-than (both sides coerced to number) |
-| `>` | Numeric greater-than (both sides coerced to number) |
-| `<=` | Numeric less-than-or-equal (both sides coerced to number) |
-| `>=` | Numeric greater-than-or-equal (both sides coerced to number) |
-
-**Truthy form:** bare `${expr}`
-
-Evaluates the resolved value with JavaScript `Boolean()` coercion.
-
-### Operand Types
-
-Operands in a comparison can be:
-
-| Form | Example | Interpreted as |
-|------|---------|----------------|
-| `${var}` or `${var.field}` | `${phase.number}` | Resolved from scope |
-| Quoted string | `"PASS"` or `'PASS'` | String literal (quotes stripped) |
-| Numeric literal | `0`, `3`, `-1.5` | Number |
-| Bare word | `PASS` | String literal |
-
-> **Note:** `==` and `!=` use string coercion, so `${phase.number} != 0` works correctly even when `number` is a JavaScript number — both sides are converted to strings before comparison.
-
-## Key Services/Functions (PUBLIC/EXPORTED only)
+## Key Services/Functions
 
 | Module | Function/Method | Purpose |
-|--------|-----------------|---------|
-| `src/engine/expression.ts` | `interpolate()` | Substitutes all `${path}` references in a template string, returning a string |
-| `src/engine/expression.ts` | `resolveValue()` | Returns raw value for single-expression strings, otherwise interpolates to string |
-| `src/engine/expression.ts` | `evaluatePredicate()` | Evaluates a predicate expression (comparison or truthy check) to boolean |
-| `src/engine/expression.ts` | `ExpressionError` (class) | Thrown when a path is undefined or an unknown operator is used |
+|---------|--------|---------|
+| `engine/expression` | `interpolate()` | Substitutes every `${…}` in a string and returns a string |
+| `engine/expression` | `resolveValue()` | The raw value when the whole expression is one `${…}`, otherwise the interpolated string |
+| `engine/expression` | `evaluatePredicate()` | Evaluates a `when:`, `until:` or `if:` predicate to a boolean |
+| `engine/expression` | `ExpressionError` | Thrown for an undefined path or an unknown operator |
 
-## Internal Implementation
+### Grammar
 
-- `resolvePath(path, scope)` — traverses dot-separated path segments against the scope object tree (not exported)
-- `parseOperand(operand, scope)` — classifies an operand as variable reference, quoted string, number, or bare word (not exported)
-- `compare(lhs, op, rhs)` — applies the comparison operator with appropriate type coercion (not exported)
+**Paths.** `${name}` reads a top-level variable; `${a.b}` and `${phases.0.title}` walk into
+objects and arrays. The first segment must be an identifier; later segments may also be
+numeric indices.
 
-## Scope Lifecycle and Variable Binding
+**Interpolation.** `interpolate()` replaces each reference in place and coerces the result
+to a string, so `${run_dir}/plans/${app}-init.plan.md` is a path and `"${status}"` is text.
+A reference whose value is `null` or `undefined` becomes the empty string. Because a
+string is all it can produce, fields that need a real array — `foreach.in` above all — go
+through `resolveValue()` instead, which returns the value untouched when the field is
+exactly one reference and nothing else.
 
-### Variable Restoration
+**Predicates.** A predicate is either `<lhs> <op> <rhs>` with `==`, `!=`, `<`, `>`, `<=` or
+`>=`, or a bare expression tested for truthiness. Each operand is a `${…}` reference, a
+single- or double-quoted string literal, a number literal, or a bare word taken as a string
+literal. `==` and `!=` compare by string coercion, so `${phase.number} != 0` holds whether
+YAML parsed the number as a number or a string; the four ordering operators coerce both
+sides with `Number()`.
 
-Both `foreach` and `loop` primitives save and restore scope variables they shadow:
-
-1. Before the loop: if the scope already has a variable with the same name, the old value is saved
-2. During the loop: the variable is rebound on each iteration
-3. After the loop: the original value is restored (or the variable is deleted if it didn't exist before)
-
-This prevents inner loops from corrupting outer scope state.
-
-### Scope Mutation Flow
-
-```
-CLI sets initial scope → runFlow() copies scope → steps mutate scope in-place
-                                                     ↓
-                                          agent: reads scope vars
-                                          script: may write set: variable
-                                          read-file: writes set: variable
-                                          foreach: binds var per item
-                                          loop: binds iteration counter
-```
+**Undefined variables are fatal.** Reading a name that is not in scope throws
+`ExpressionError` rather than yielding an empty string, and the error names the path. That
+is what turns a typo in a flow file into a failed step instead of a prompt with a hole in
+it. The one place the throw is swallowed is the phase counter, which treats an
+unresolvable `foreach.in` as "total not known yet" and prints `Phase 3/?`.
 
 ## Reference Implementations
 
-- `src/engine/expression.ts` — the complete expression evaluation module (interpolation, resolution, predicates)
-- `src/engine/primitives/foreach.ts` — demonstrates `resolveValue()` for array resolution and `evaluatePredicate()` for `when:` filtering
-- `src/engine/primitives/loop.ts` — demonstrates `evaluatePredicate()` for `until:` condition and automatic `iteration` variable binding
-- `src/engine/primitives/read-file.ts` — demonstrates `interpolate()` for path resolution and scope mutation via `set:`
+- `src/engine/expression.ts` - the whole language: paths, interpolation, predicates
+- `src/engine/primitives/loop.ts` - save/restore of `iteration` and `loop_max` around a body
+- `src/engine/primitives/foreach.ts` - the same for the item variable, in a `finally`
+- `tests/engine/expression.test.ts` - the grammar case by case
 
 ## Related Concepts
 
-- [Flow DSL](./flow-dsl.md)
-- [Templates and Prompt Rendering](./templates-and-prompt-rendering.md)
+- [Flow Definitions](./flow-definitions.md)
+- [Feature: Flow Execution](../features/flow-execution.md)
+- [Run Context](./run-context.md)

@@ -1,112 +1,124 @@
-# Agent Permissions and Restriction
+---
+title: Agent Permissions
+type: concept
+sources:
+  - src/agent/permissions.ts
+  - src/agent/claude-agent.ts
+  - src/agent/copilot-agent.ts
+  - src/agent/cursor-agent.ts
+  - src/cli.ts
+  - src/doctor/full-probes.ts
+terms:
+  - permission profile
+  - AgentPermissions
+  - restricted shell
+  - ALLOWED_SHELL_COMMANDS
+last_verified: 2026-09-01
+---
+
+# Agent Permissions
 
 ## Business Definition
 
-Agent permissions define a declarative profile that constrains what an agent backend can read, write, and execute during a Saaga run. By default, agents run under a restricted profile that limits filesystem access to the workspace and documentation directories, denies modification of rule files and baselines, and restricts shell usage to a fixed set of safe utility commands and read-only git subcommands. This prevents documentation runs from accidentally modifying source code, configuration, or files outside the project.
+A **permission profile** is what a run will let the agent touch: which trees it may read,
+which it may write, which paths are withheld outright, and whether it gets a shell. Saaga
+states that once in backend-neutral terms and each backend translates it into its own CLI's
+syntax, so the same guarantee holds whichever agent is driving.
+
+The default profile is deliberately narrow: the agent reads the whole repository, writes only
+the documentation directory and the run directory, and runs only read-only shell commands.
+Everything a documentation run must not rewrite — the rule files it is governed by, the
+machine-managed corpus files — is denied by path even though it sits inside a granted tree.
 
 ## Configuration
 
-| Source | Description |
-|--------|-------------|
-| `BuildProfileInput` parameter to `buildProfile()` | Provides `appPath`, `docsDir`, `runDir`, and optional `allowDirs` |
-| CLI flag `--allow-dir` | Appends extra directories to both `readRoots` and `writeRoots` |
-| CLI flag `--dangerously-allow-all` | Disables the permission system entirely (no profile is built) |
+| Source | Precedence | Description |
+|--------|------------|-------------|
+| `--dangerously-allow-all` | 1 (highest) | No profile is built at all; the backend uses its own unrestricted flags |
+| `--allow-dir <path>` (repeatable) | 2 | Each path is appended to *both* `readRoots` and `writeRoots` |
+| `docsDir` in [`.saaga/config.yaml`](./project-configuration.md) | 3 | Decides which directory becomes the writable corpus root |
+| `buildProfile()` defaults | 4 | Everything else: the app tree, the run directory, the deny list, `shell: "restricted"` |
+
+The [CLI](../features/cli-entry-point.md) builds the profile once per run, records it in the
+run directory, and passes it to every agent step; there is no per-step profile.
 
 **How to access:**
-- `buildProfile(input)` — constructs the default restricted `AgentPermissions` profile
-- `enumerateExcludedPaths(keepPaths)` — lists all sibling filesystem entries outside the keep paths (used by Cursor backend)
-- `ALLOWED_SHELL_COMMANDS` (constant) — commands permitted under the `"restricted"` shell policy: `utilities` (`cd`, `ls`, `pwd`, `grep`, `head`, `tail`, `wc`, `dirname`, `basename`) and `git` read-only subcommands
+- `buildProfile({ appPath, docsDir, runDir, allowDirs })` - the profile for a run
+- `enumerateExcludedPaths(keepPaths)` - the paths to deny so only `keepPaths` stay reachable
+- `ALLOWED_SHELL_COMMANDS` (constant) - the restricted shell policy, grouped `utilities` and `git`
 
 ## Data Storage
 
-| Object/Model/Type | Field/Property | Purpose |
+| Type | Field/Property | Purpose |
 |--------|-------|---------|
-| `AgentPermissions` | `readRoots` | Directories the agent may read (absolute paths) |
-| `AgentPermissions` | `writeRoots` | Directories the agent may write (absolute paths) |
-| `AgentPermissions` | `denyPaths` | Paths the agent must never access, even within a root (supports glob `**` suffix) |
-| `AgentPermissions` | `shell` | Shell policy: `"none"` or `"restricted"` |
-| `BuildProfileInput` | `appPath` | The application root directory |
-| `BuildProfileInput` | `docsDir` | Relative path to the documentation directory (becomes a write root) |
-| `BuildProfileInput` | `runDir` | Absolute path to the run directory (becomes a write root) |
-| `BuildProfileInput` | `allowDirs` | Optional extra directories to grant full access to |
+| `AgentPermissions` | `readRoots` | Trees the agent may read: the app tree, plus any `--allow-dir` |
+| `AgentPermissions` | `writeRoots` | Trees it may write: `<app>/<docsDir>`, the run directory, plus any `--allow-dir` |
+| `AgentPermissions` | `denyPaths` | Paths withheld even inside a granted root; globs end in `**` |
+| `AgentPermissions` | `shell` | `"none"` or `"restricted"` |
 
-## Key Services/Functions (PUBLIC/EXPORTED only)
+The default `denyPaths` are `AGENTS.md`, `CLAUDE.md`, `.cursor/rules/**`,
+`.github/instructions/**` and `.saagarules` — the rule files an agent must obey rather than
+edit, see [install rules](../features/install-rules.md) — plus `BASELINE`, `FORMAT`,
+`README.md` and `GLOSSARY.md` under the docs directory. The last two are denied because
+[navigation generation](../features/navigation-generation.md) rewrites them from the INDEX
+files every run: a hand edit vanishes without trace, and an agent "fixing" them against a
+template would churn the diff every time.
+
+## Key Services/Functions
 
 | Module | Function/Method | Purpose |
 |---------|--------|---------|
-| `src/agent/permissions.ts` | `buildProfile()` | Constructs the default restricted permission profile from app path, docs dir, run dir, and optional extra dirs |
-| `src/agent/permissions.ts` | `enumerateExcludedPaths()` | Walks ancestor chains of keep paths and lists all sibling entries that fall outside, used for backends that only support deny rules |
-| `src/agent/permissions.ts` | `AgentPermissions` (interface) | The shape of a permission profile: read/write roots, deny paths, shell policy |
-| `src/agent/permissions.ts` | `BuildProfileInput` (interface) | Input shape for `buildProfile()` |
-| `src/agent/permissions.ts` | `ALLOWED_SHELL_COMMANDS` (constant) | Commands allowed under the restricted shell policy: `utilities` (`cd`, `ls`, `pwd`, `grep`, `head`, `tail`, `wc`, `dirname`, `basename`) and `git` read-only subcommands (`log`, `show`, `diff`, `blame`, `status`, `ls-files`, `cat-file`, `rev-parse`) |
+| `agent/permissions` | `AgentPermissions`, `BuildProfileInput` | The profile shape and what it is derived from |
+| `agent/permissions` | `buildProfile()` | Build the default restricted profile for a run |
+| `agent/permissions` | `enumerateExcludedPaths()` | Turn "keep these" into "deny everything else" |
+| `agent/permissions` | `ALLOWED_SHELL_COMMANDS` | The restricted shell policy |
+| `agent/claude-agent` | `CLAUDE_RESTRICTED_TOOLS` | The tool surface a restricted claude run should be left with |
 
-## Default Profile Grants
+### The restricted shell
 
-When `buildProfile()` is called with standard inputs, the resulting profile grants:
+`shell: "restricted"` permits two groups: navigation and inspection utilities, and read-only
+git subcommands. Read the membership from `ALLOWED_SHELL_COMMANDS`; what governs it is that a
+permitted command must neither mutate the repository nor be a general escape hatch. Git rules
+anchor on the *subcommand*, which defeats `git -c core.pager='sh -c …' log`: that command
+begins `git -c`, not `git log`.
 
-- **Read**: entire app tree (the run dir is inside the app tree since it lives at `<appPath>/.saaga-runs/`)
-- **Write**: `<appPath>/<docsDir>/**` and the run directory
-- **Deny**: `AGENTS.md`, `CLAUDE.md`, `.cursor/rules/**`, `.github/instructions/**`, `.saagarules`, `<docsDir>/BASELINE`
-- **Shell**: restricted (utilities + read-only git subcommands)
+### Per-backend translation
 
-## Backend Translation
+| Backend | Allowed by | Denied by | Shell |
+|---|---|---|---|
+| `claude` | `Edit(//<writeRoot>/**)` in a `--settings` JSON, plus `additionalDirectories` for roots outside `cwd`; `--permission-mode dontAsk` makes that JSON authoritative instead of prompting | A named tool deny list, `Edit(//<denyPath>)`, patterns closing claude's built-in Bash set, and `--strict-mcp-config`, which leaves the session with no MCP servers so an ambient user or project config cannot widen the tool surface | Scoped `Bash(cmd:*)` / `Bash(git sub:*)` allows, or a bare `Bash` deny under `shell: "none"` |
+| `copilot` | `--available-tools` names the visible tools; `--allow-tool write` grants file changes inside the workspace | `--disallow-temp-dir`, and the workspace boundary itself; roots outside `cwd` are re-granted with `--add-dir` | `shell(cmd:*)` / `shell(git:sub*)` entries on `--allow-tool`, and `bash` withheld from the tool list otherwise |
+| `cursor` | Nothing: with `--trust`, reads and writes are permitted by default | A generated `<runDir>/.cursor-cli/cli-config.json`, reached via `CURSOR_CONFIG_DIR`, denying every path `enumerateExcludedPaths()` returns plus each `denyPath` | `Shell(cmd:*)` / `Shell(git:sub*)` allow entries — shell is the one default-deny surface |
 
-Each backend translates the `AgentPermissions` profile into its native permission mechanism:
-
-| Backend | Unrestricted Mode | Restricted Mode |
-|---------|-------------------|-----------------|
-| Cursor | `--force` | `--trust` + `cli-config.json` deny rules (via `CURSOR_CONFIG_DIR` env) |
-| Copilot | `--allow-all-tools` | `--available-tools` allowlist + `--allow-tool` + `--disallow-temp-dir` |
-| Claude | `--dangerously-skip-permissions` | `--permission-mode dontAsk` + `--settings` JSON (allow/deny/additionalDirectories) |
-
-### Cursor Translation Details
-
-Cursor's `--trust` mode enforces deny rules only (reads and writes are permitted by default). The profile is expressed by:
-1. Enumerating all paths **outside** `readRoots` as `Read`/`Write`/`Edit` deny rules
-2. Enumerating all paths **outside** `writeRoots` as `Write`/`Edit` deny rules
-3. Adding explicit deny paths as `Write`/`Edit` deny rules
-4. Allowing shell via `Shell(<util>:*)` patterns for each utility in `ALLOWED_SHELL_COMMANDS.utilities` and `Shell(git:<subcommand>*)` patterns for each entry in `ALLOWED_SHELL_COMMANDS.git`
-
-The configuration is written to `<runDir>/.cursor-cli/cli-config.json` and pointed to via the `CURSOR_CONFIG_DIR` environment variable.
-
-### Copilot Translation Details
-
-Copilot has no middle ground between restricted and unrestricted. Under restriction:
-- File tools are allowed via `--available-tools`: `view`, `create`, `edit`, `glob`, `grep`, plus `bash` when `shell` is `"restricted"`
-- When `shell` is `"restricted"`, `--allow-tool` grants a `shell(<command>:*)` / `shell(git:<subcommand>*)` pattern for each `ALLOWED_SHELL_COMMANDS` entry, alongside the `write` tool grant
-- `--disallow-temp-dir` closes the temp directory hole
-- Extra roots outside `cwd` are added via `--add-dir`
-
-### Claude Translation Details
-
-Claude uses `--permission-mode dontAsk` with a `--settings` JSON payload:
-- Write roots are expressed as `Edit(//<path>/**)` allow rules
-- Denied paths are expressed as `Edit(//<path>)` deny rules
-- Unwanted tools (`Task`, `WebFetch`, `WebSearch`, subagent/cron tools, etc.) are denied by name
-- Additional read directories are listed in `additionalDirectories`
-- When `shell` is `"restricted"`, each `ALLOWED_SHELL_COMMANDS` entry becomes a scoped `Bash(<command>:*)` / `Bash(git <subcommand>:*)` allow rule. Claude still auto-runs a built-in set of read-only Bash commands under `dontAsk` regardless of `permissions.allow`, so the adapter also denies the built-ins that fall outside the restricted policy (`Bash(cat *)`, `Bash(echo *)`, `Bash(find *)`, `Bash(python3 *)`, etc., see `CLAUDE_BUILTIN_BASH_DENY` in `src/agent/claude-agent.ts`)
-- When `shell` is `"none"`, a bare `Bash` deny is emitted instead — that deny would otherwise override every scoped allow, which is why it is only used for the no-shell case
+Two structural differences drive that table. Under cursor's `--trust` a deny overrides any
+allow, so the permitted set cannot be stated positively and has to be carved out instead:
+`enumerateExcludedPaths()` walks the ancestor chain of each kept root and denies the siblings
+at every level. Copilot cannot scope writes *within* the workspace at all, so there the
+workspace boundary is the whole file guarantee and `denyPaths` go unenforced — which is why a
+denial is classified against the profile rather than taken at face value; see
+[agent events](./agent-events.md).
 
 ## Internal Implementation
 
-> Functions below are internal and should not be called directly. They are documented for understanding the internal logic.
->
-> - `src/agent/cursor-agent.ts`.`writeCursorConfig()` — generates the `cli-config.json` and returns the env override
-> - `src/agent/cursor-agent.ts`.`pathRules()` — emits deny rule strings in both bare and glob form for a given path
-> - `src/agent/copilot-agent.ts`.`buildRestrictedCopilotArgs()` — builds the restricted CLI argument array for Copilot
-> - `src/agent/claude-agent.ts`.`buildClaudeSettings()` — constructs the settings JSON for Claude's permission layer
-> - `src/agent/claude-agent.ts`.`restrictedBashAllowRules()` — maps `ALLOWED_SHELL_COMMANDS` into `Bash(...)` allow rule strings
-> - `src/agent/claude-agent.ts`.`CLAUDE_BUILTIN_BASH_DENY` (constant) — Bash command patterns denied by name to close Claude's built-in read-only Bash gap under `dontAsk`
+> - `agent/claude-agent.buildClaudeSettings()` - encodes four verified gotchas: file checks
+>   honour `Edit(path)` and ignore `Write(path)`; an absolute path needs a doubled slash
+>   (`//abs/path/**`); `additionalDirectories` grants reach but not edit rights, so a root
+>   outside `cwd` needs both; and claude runs a built-in read-only Bash set without prompting
+>   in every mode, so those commands are denied by name to hold the restricted policy.
+> - `agent/claude-agent.DENIED_TOOLS` - with no exclusive tool allowlist available, unwanted
+>   tools are denied by name, so a tool added in a later release arrives *enabled*. The
+>   `claude/tool-surface` probe in [doctor](../features/doctor.md) catches that drift.
 
 ## Reference Implementations
 
-- `src/agent/permissions.ts` — canonical definition of the permission profile and profile builder
-- `src/agent/cursor-agent.ts` — demonstrates the most complex translation: deny-rule enumeration via `enumerateExcludedPaths()` and `cli-config.json` generation
-- `src/agent/copilot-agent.ts` — demonstrates the tool-allowlist approach with `--available-tools`
-- `src/agent/claude-agent.ts` — demonstrates the settings JSON approach with `--permission-mode dontAsk`
+- `src/agent/permissions.ts` - the profile, the shell policy, and the exclusion walk
+- `src/agent/cursor-agent.ts` - `writeCursorConfig()`, the deny-only translation in full
+- `tests/agent/permissions.test.ts` - what `buildProfile()` grants and withholds
+- `tests/agent/{claude,copilot}-agent.test.ts` - the argv and settings a profile produces
 
 ## Related Concepts
 
-- [Agent Interface](./agent-interface.md) — the `AgentRunOpts.permissions` field that carries the profile to backends
-- [Agent Events and Denial Parsing](./agent-events.md) — structured reporting and auditing of permission denials
-- [Saaga Rules](./saaga-rules.md) — `.saagarules` is on the default deny list
+- [Agent Interface](./agent-interface.md)
+- [Agent Events](./agent-events.md)
+- [Baseline and Change Detection](./baseline-and-change-detection.md)
+- [Feature: CLI Entry Point](../features/cli-entry-point.md)

@@ -1,17 +1,19 @@
-# Features Index
+---
+title: "Feature Index"
+type: index
+---
+
+# Feature Index
 
 | Name | Description |
 |------|-------------|
-| [Agent Invocation](./agent-invocation.md) | How the system resolves a backend, constructs an agent, and invokes it with a rendered prompt |
-| [Flow Execution](./flow-execution.md) | How `runFlow()` iterates steps, dispatches by type, renders agent prompts, runs scripts, evaluates predicates, and handles assertions |
-| [Flow Loading and Validation](./flow-loading-and-validation.md) | How `loadFlow()` reads YAML, parses it, and validates the structure into typed `FlowDefinition` |
-| [CLI Entry Point](./cli-entry-point.md) | How `run` / `install-rules` / `doctor` parse arguments; how `saaga run <flow>` lists flows, resolves the agent, creates a run context, and executes flows |
-| [Doctor Diagnostic System](./doctor.md) | Check backend CLI availability and run capability/restriction probes at fast or full tier; preflight gating for flow execution |
-| [Plan Parsing](./plan-parsing.md) | How `parse-plan` extracts YAML frontmatter phases from a plan file |
-| [Change Detection](./change-detection.md) | How `detect-changes` compares the work tree against BASELINE and classifies differences |
-| [Baseline Generation](./baseline-generation.md) | How `generate-baseline` creates the `<docs_dir>/BASELINE` content manifest |
-| [Init Workflow](./init-workflow.md) | End-to-end: architecture → plan → phase-0 slice → install-rules → foreach phase (slice + verify/fix) → baseline |
-| [Install Rules](./install-rules.md) | Install always-on documentation rule stubs into an app directory; used standalone or as a step in the init workflow |
-| [Update Workflow](./update-workflow.md) | End-to-end: detect changes → if changes exist: plan → foreach phase (slice + verify/fix) → regenerate baseline |
-| [Quick-Update Workflow](./quick-update-workflow.md) | Fast single-session doc update using a cheaper model; produces a metadata artifact for later verification |
-| [Verify Quick Updates Workflow](./verify-quick-updates-workflow.md) | Consolidate and harden unverified quick-update artifacts: plan → slice + verify/fix per phase → remove processed artifacts |
+| [CLI Entry Point](./cli-entry-point.md) | The `saaga` command surface — `run`, `install-rules` and `doctor`, their flags and exit codes, and the lifecycle of a flow run from cost approval to the last line printed. |
+| [Corpus Gates](./corpus-gates.md) | The deterministic checks a documentation flow is bracketed by: the format-version gate that refuses an incompatible corpus, the budget gate that holds a plan to its ceilings, and the structural validation that fails a run whose output is broken. |
+| [Doctor](./doctor.md) | The diagnostic that establishes whether a backend's CLI is installed, still accepts the flags Saaga passes it, and can do a flow's work — at a fast tier that makes no model calls and a full tier that probes a real agent in a throwaway repository. |
+| [Eval Harness](./eval-harness.md) | The repo-only experiment measuring whether the documentation corpus helps a coding agent: pre-registered tasks run in isolated sandboxes under different documentation conditions, scored and reported per condition. |
+| [Flow Execution](./flow-execution.md) | How the runner executes a flow: step dispatch, the agent- and script-step lifecycles, phase numbering, prompt archiving, and the step journal a resumed run reads. |
+| [Init Workflow](./init-workflow.md) | The flow that documents a repository from scratch: architecture, a budgeted plan, then one write/verify/fix pass per slice, ending in a baseline and a validated corpus. |
+| [Install Rules](./install-rules.md) | Writing the always-on "read the docs first" rule into a repository's own agent-rule files, between markers that leave the user's own content untouched. |
+| [Navigation Generation](./navigation-generation.md) | How the corpus's `README.md` and `GLOSSARY.md` are derived from the category INDEX files, with every definition copied verbatim from the row that owns it. |
+| [Quick-Update Workflows](./quick-update-workflows.md) | The cheap daily pass that records a change and leaves an artifact behind, and the batched pass that later verifies every artifact and deletes it. |
+| [Update Workflow](./update-workflow.md) | The flow that re-documents only what changed since the baseline, planning one phase per change group and short-circuiting when nothing did. |

@@ -1,157 +1,89 @@
-# Agent Events and Denial Parsing
+---
+title: Agent Events
+type: concept
+sources:
+  - src/agent/events.ts
+  - src/agent/audit.ts
+  - src/agent/claude-agent.ts
+  - src/agent/copilot-agent.ts
+  - src/agent/cursor-agent.ts
+  - src/cli.ts
+terms:
+  - AgentEvent
+  - denial
+  - denial class
+  - permission auditor
+last_verified: 2026-09-01
+---
+
+# Agent Events
 
 ## Business Definition
 
-Agent events are structured messages parsed from a backend CLI's output stream during a restricted run. They provide machine-checkable evidence of permission decisions — most importantly, which tool calls were refused and why — rather than relying on model narration which varies between runs and is sometimes wrong about the cause. The audit system collects these denial events, classifies them against the permission profile, and writes a grouped summary that highlights actionable problems.
-
-## Configuration
-
-| Source | Description |
-|--------|-------------|
-| `AgentRunOpts.onEvent` | When set, the backend switches to structured output (NDJSON) and forwards parsed events to this callback |
-| CLI flag `--audit-permissions` | Activates event parsing and creates a `PermissionAuditor` for the run |
-
-**How to access:**
-- `consumeEvents(stream, parser, sink)` — drives a parser over an async stream, forwarding events to the sink
-- `LineSplitter` (class) — reassembles whole lines from arbitrarily chunked stream data
-- `parseJsonLine(line)` — attempts to parse a line as JSON, ignoring non-JSON noise
-- `createCursorEventParser()` — factory for the Cursor backend event parser
-- `createCopilotEventParser()` — factory for the Copilot backend event parser
-- `createClaudeEventParser()` — factory for the Claude backend event parser
-- `PermissionAuditor` (class) — collects denial events, classifies them, writes the audit log
+The normalized facts Saaga extracts from a backend while it runs: which tool calls were
+refused, which toolset the session opened with, and what it cost. Every backend can be asked
+for newline-delimited JSON instead of prose, and each has a parser turning its dialect into
+the same three event kinds. The point is not tidier output — it is that a refusal is reported
+by the CLI's own code rather than narrated by the model, whose narration varies and is
+sometimes wrong: copilot once blamed "/etc requires root privileges" for its own refusal.
 
 ## Data Storage
 
-| Object/Model/Type | Field/Property | Purpose |
+| Type | Field/Property | Purpose |
 |--------|-------|---------|
-| `DenialEvent` | `kind` | Always `"denial"` — discriminant |
-| `DenialEvent` | `tool` | Name of the tool that was refused, in the backend's own naming |
-| `DenialEvent` | `path` | Absolute path the call targeted (optional; not all backends report it) |
-| `DenialEvent` | `command` | Command the call would have run (optional; shell tools report this when the backend reveals it) |
-| `DenialEvent` | `message` | Message emitted by the CLI (not by the model) |
-| `SessionEvent` | `kind` | Always `"session"` — discriminant |
-| `SessionEvent` | `tools` | The toolset the backend announced at session start |
-| `ClassifiedDenial` | `event` | The original `DenialEvent` |
-| `ClassifiedDenial` | `className` | The `DenialClass` assigned by classification |
-| `ClassifiedDenial` | `resolvedPath` | Absolute form of the event's path, when one could be determined |
-| `AuditResult` | `logPath` | Path to the written audit log file |
-| `AuditResult` | `counts` | Record of `DenialClass` → count |
-| `AuditResult` | `unexpected` | Array of denials classified as `"unexpected"` (indicates profile bugs) |
+| `DenialEvent` | `tool`, `path?`, `command?`, `message` | A refused call, in the backend's own tool naming, with whatever target it disclosed |
+| `SessionEvent` | `tools` | The toolset announced when the session opened |
+| `UsageEvent` | `turns?`, `inputTokens?`, `outputTokens?`, `cacheReadTokens?`, `cacheCreationTokens?`, `costUsd?`, `durationMs?` | Totals reported at session end; all optional, because the terminal message's shape varies by CLI version |
+| `ClassifiedDenial` | `event`, `className`, `resolvedPath?` | A denial placed against the [profile](./agent-permissions.md) |
 
-## Denial Classification
-
-The `classifyDenial()` function places each denial against the permission profile:
-
-| `DenialClass` | Meaning | Action |
-|---------------|---------|--------|
-| `"unexpected"` | Refused inside a directory the profile grants | Profile bug or backend drift; the run is silently degraded |
-| `"out-of-workspace"` | Path is outside the workspace | Pass `--allow-dir <path>` if genuinely needed |
-| `"protected-path"` | Deliberately withheld path | Working as intended |
-| `"shell"` | A command rather than a path | Expected under every backend profile |
-| `"unknown"` | No path recovered | Cannot be placed |
-
-Classification priority:
-1. Shell tool names (`bash`, `shell`, `terminal`, `run_terminal_cmd`) → `"shell"`
-2. No path on the event → `"unknown"`
-3. Path matches an explicit deny path → `"protected-path"`
-4. Path inside a write root → `"unexpected"` (should have been allowed)
-5. Path inside a read root (but not write root) → `"protected-path"` (write was refused correctly)
-6. Otherwise → `"out-of-workspace"`
-
-## Key Services/Functions (PUBLIC/EXPORTED only)
+## Key Services/Functions
 
 | Module | Function/Method | Purpose |
 |---------|--------|---------|
-| `src/agent/events.ts` | `DenialEvent` (interface) | A tool call refused on permission grounds |
-| `src/agent/events.ts` | `SessionEvent` (interface) | The toolset announced at session start |
-| `src/agent/events.ts` | `AgentEvent` (type) | Discriminated union: `DenialEvent \| SessionEvent` |
-| `src/agent/events.ts` | `AgentEventSink` (type) | Callback signature: `(event: AgentEvent) => void` |
-| `src/agent/events.ts` | `EventParser` (interface) | Contract for backend-specific parsers: `push(line) → AgentEvent[]` |
-| `src/agent/events.ts` | `LineSplitter` (class) | Reassembles whole lines from chunked stream data via `push(chunk)` and `flush()` |
-| `src/agent/events.ts` | `parseJsonLine()` | Parses a line as JSON, returning `undefined` for non-JSON noise |
-| `src/agent/events.ts` | `consumeEvents()` | Drives a parser over an async stream, forwarding each event to the sink |
-| `src/agent/audit.ts` | `DenialClass` (type) | Union of classification labels: `"unexpected" \| "out-of-workspace" \| "protected-path" \| "shell" \| "unknown"` |
-| `src/agent/audit.ts` | `ClassifiedDenial` (interface) | A denial event paired with its classification and resolved path |
-| `src/agent/audit.ts` | `classifyDenial()` | Places a denial event against the permission profile, returning a `ClassifiedDenial` |
-| `src/agent/audit.ts` | `AuditResult` (interface) | Output of an audit flush: log path, counts by class, unexpected denials |
-| `src/agent/audit.ts` | `PermissionAuditor` (class) | Collects denial events via `record()`, classifies them, and writes a grouped summary via `flush()` |
-| `src/agent/cursor-agent.ts` | `createCursorEventParser()` | Factory for parsing Cursor's `stream-json` tool_call completion output |
-| `src/agent/copilot-agent.ts` | `createCopilotEventParser()` | Factory for parsing Copilot's JSONL output (correlates requests with `error.code: "denied"` responses) |
-| `src/agent/claude-agent.ts` | `createClaudeEventParser()` | Factory for parsing Claude's `stream-json` output (matches denial patterns in `tool_result` errors) |
-| `src/agent/spawn.ts` | `EventConsumer` (interface) | Pairs an `EventParser` with an `AgentEventSink` for `awaitProcess()` |
-| `src/agent/spawn.ts` | `awaitProcess()` | Awaits a spawned process while concurrently draining its stdout through event parsing |
-| `src/agent/stdio.ts` | `buildStdio()` | Builds execa stdio options for non-event-parsed runs (inherit or log file) |
-| `src/agent/stdio.ts` | `buildPipedStdio()` | Builds execa stdio options that pipe stdout for event parsing |
+| `agent/events` | `AgentEvent`, `AgentEventSink`, `EventParser` | The event union, the callback, and the incremental parser contract |
+| `agent/events` | `consumeEvents()` | Drive a parser over a stream and forward every event to a sink |
+| `agent/events` | `LineSplitter`, `parseJsonLine()` | Reassemble whole lines from chunks; decode one, tolerantly |
+| `agent/{claude,copilot,cursor}-agent` | `createClaudeEventParser()`, `createCopilotEventParser()`, `createCursorEventParser()` | One parser per backend dialect |
+| `agent/audit` | `classifyDenial()`, `DenialClass` | Place a denial against the profile |
+| `agent/audit` | `PermissionAuditor`, `AuditResult` | Collect denials over a run and write the classified summary |
 
-## Event Parsing Pipeline
+### Parsing
 
-The event system forms a pipeline:
+A parser takes one line at a time and returns what that line yielded; claude and copilot
+report a refusal by call id only, so both remember tool calls to recover its target. Output
+that is not an event is simply not one — `parseJsonLine()` ignores any line that does not
+start with `{` or does not parse, so interleaved prose is skipped rather than failing the run.
+What marks a refusal differs: claude a message pattern, since it flags refusals with the same
+`is_error` as ordinary tool failures; copilot `error.code: "denied"`; cursor three shapes.
 
-1. **stdio selection** — `buildPipedStdio()` pipes stdout so the parent process can read it
-2. **process lifecycle** — `awaitProcess()` drains the stream concurrently with the child process to avoid pipe-buffer deadlocks
-3. **line reassembly** — `LineSplitter` handles arbitrary chunk boundaries
-4. **JSON extraction** — `parseJsonLine()` skips non-JSON output interleaved by backends
-5. **backend-specific parsing** — each `EventParser` implementation understands its backend's structured output format
-6. **event delivery** — each parsed event is forwarded to the `AgentEventSink`
-7. **classification and auditing** — `PermissionAuditor.record()` classifies each denial as it arrives
+### Denial classes
 
-## Per-Backend Parser Details
+The useful question about a refusal is not its wording but which path it hit, so every class
+compares that path to the roots in the profile. Shell tools are matched by name and never
+resolved; a relative path resolves against the app path, because copilot reports relative ones.
 
-### Cursor (`createCursorEventParser`)
+| Class | Meaning |
+|---|---|
+| `unexpected` | Refused inside a root the profile grants. A Saaga bug or backend drift; the run was silently degraded, so the CLI warns about each one |
+| `out-of-workspace` | The agent wanted a path outside every granted root. `--allow-dir <path>` is the fix if it genuinely needs it |
+| `protected-path` | Refused a path the profile deliberately withholds — an explicit `denyPaths` entry, or a readable-but-not-writable source file |
+| `shell` | A command rather than a path. Expected under every profile |
+| `unknown` | No path was reported, so the denial cannot be placed |
 
-Parses `stream-json` output where refusals appear as `tool_call` completions with:
-- `result.writePermissionDenied` — carries `{ path, error }`
-- `result.rejected` — carries `{ command?, path?, reason, isReadonly? }`; `command` is taken from the rejection or the tool-call args
-- `result.error.errorMessage` containing "permission denied" — read-tool failures
-
-### Copilot (`createCopilotEventParser`)
-
-Parses JSONL output where:
-- `assistant.message` events carry `toolRequests` with call IDs and arguments (including optional `path` and `command`)
-- `tool.execution_complete` events carry `error.code: "denied"` correlated by call ID
-
-The parser maintains a pending map of call IDs to recover the tool name, path, and command from the original request.
-
-### Claude (`createClaudeEventParser`)
-
-Parses `stream-json` output where:
-- `system` init events carry the announced `tools` array (emitted as `SessionEvent`)
-- `tool_use` blocks carry the call ID, tool name, and input (`path` / `file_path` / `notebook_path`, and optional `command` for Bash)
-- `tool_result` blocks with `is_error: true` are matched against denial patterns
-
-The parser maintains a pending map of call IDs and matches refusal messages against `CLAUDE_DENIAL_PATTERNS`.
-
-## PermissionAuditor Lifecycle
-
-1. **Construction** — receives the `AgentPermissions` profile, working directory, and log file path
-2. **Recording** — `record(event)` is passed as the `AgentEventSink`; ignores non-denial events, classifies denials immediately
-3. **Querying** — `unexpected` getter returns denials classified as `"unexpected"` (profile bugs)
-4. **Flushing** — `flush()` writes the grouped audit log and returns `AuditResult`
-
-The audit log groups entries by class, then folds repeats of the same tool and target (showing `(xN)` counts). The target is the refused command for shell denials (`event.command`) and the resolved path for everything else — so two different pathless shell refusals stay as separate findings instead of collapsing into one. Commands are flattened onto a single line (whitespace collapsed) and truncated to 200 characters; a shell denial with no command is labeled `(no command reported)`. Non-shell denials without a path still show `(no path reported)`. Messages are truncated to 200 characters to avoid verbose Claude-style guidance text.
-
-## Internal Implementation
-
-> Functions below are internal and should not be called directly. They are documented for understanding the internal logic.
->
-> - `src/agent/audit.ts`.`targetOf()` — returns `event.command` when present, otherwise `resolvedPath` (shell tools are the ones that populate `command`)
-> - `src/agent/audit.ts`.`describeTarget()` — formats the target for the log line, including `(no command reported)` / `(no path reported)` placeholders
-> - `src/agent/audit.ts`.`groupByTarget()` — folds repeated denials of the same tool and target (command or path) into single entries with counts
-> - `src/agent/audit.ts`.`flattenCommand()` — collapses whitespace and truncates a command to 200 characters for one log line
-> - `src/agent/audit.ts`.`summarize()` — truncates a CLI message to its first sentence (max 200 chars)
-> - `src/agent/audit.ts`.`emptyCounts()` — creates a zeroed `Record<DenialClass, number>`
-> - `src/agent/cursor-agent.ts`.`extractDeniedPath()` — regex extraction of path from "Write permission denied: /path: ..." messages
+An explicit deny wins over the roots, being the more specific statement even when the path
+sits inside a granted tree. The auditor groups entries by class and by tool-plus-target,
+folding repeats into one line so a retried write cannot bury the one entry worth reading;
+[the CLI](../features/cli-entry-point.md) reports the counts and every `unexpected` entry.
 
 ## Reference Implementations
 
-- `src/agent/events.ts` — canonical event type definitions and the stream consumption driver
-- `src/agent/audit.ts` — the full auditor lifecycle: classification logic, grouping, and log formatting
-- `src/agent/cursor-agent.ts` — demonstrates the most complex event parser (three refusal shapes)
-- `src/agent/copilot-agent.ts` — demonstrates request/response correlation via call IDs
-- `src/agent/claude-agent.ts` — demonstrates pattern-matching on error messages and session tool announcements
-- `src/agent/spawn.ts` — demonstrates concurrent stream draining to avoid pipe-buffer deadlocks
+- `src/agent/audit.ts` - classification, grouping, and the summary's layout
+- `src/agent/cursor-agent.ts` - `createCursorEventParser()`, the messiest of the three
+- `tests/agent/events.test.ts`, `tests/agent/audit.test.ts` - captured output per backend,
+  and each class with the grouped log a run produces
 
 ## Related Concepts
 
-- [Agent Permissions and Restriction](./agent-permissions.md) — the profile that `classifyDenial()` evaluates against
-- [Agent Interface](./agent-interface.md) — the `AgentRunOpts.onEvent` field that activates event parsing
+- [Agent Permissions](./agent-permissions.md)
+- [Agent Interface](./agent-interface.md)
+- [Feature: Doctor](../features/doctor.md) — the probes that assert on this stream

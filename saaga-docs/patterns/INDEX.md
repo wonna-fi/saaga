@@ -1,15 +1,13 @@
-# Patterns Index
+---
+title: "Pattern Index"
+type: index
+---
+
+# Pattern Index
 
 | Name | Description |
 |------|-------------|
-| [Adding Agent Backends](./adding-agent-backends.md) | Step-by-step pattern for implementing a new `Agent` and registering it in `cli/backend.ts` |
-| [Creating Prompt Templates](./creating-prompt-templates.md) | How to write a `prompts/*.md` file with `{var}` placeholders and wire it into a flow |
-| [Adding Flow Primitives](./adding-flow-primitives.md) | How to add a new step type: define the type, add a parser, implement the handler, register in the runner |
-| [Writing Flow YAML Files](./writing-flow-yaml-files.md) | How to compose steps, use variable interpolation, and leverage control flow primitives |
-| [Adding CLI Subcommands](./adding-cli-subcommands.md) | How to add a bundled flow for `saaga run`, or a non-flow top-level command |
-| [Testing with FakeAgent](./testing-with-fake-agent.md) | How to use `FakeAgent` with substring-matched scenarios and side effects for integration tests |
-| [Adding Built-in Scripts](./adding-built-in-scripts.md) | How to create a new script handler, register it in `defaultScriptRegistry`, and reference it from flow YAML |
-| [Using .saagaignore](./using-saagaignore.md) | How to exclude paths from documentation scope using gitignore-syntax patterns |
-| [Extending Workflows](./extending-workflows.md) | How to add steps, swap prompts, adjust iteration caps, or wire in custom scripts by editing flow YAML |
-| [Customizing the Verify/Fix Loop](./customizing-verify-fix-loop.md) | How the `loop` + `read-file` + `if` pattern implements quality verification and how to adjust it |
-| [Adding Unstable Features](./adding-unstable-features.md) | How to register a new opt-in experimental feature in `UNSTABLE_FEATURES` and gate runtime behavior |
+| [Adding Agent Backends](./adding-agent-backends.md) | The sequence of edits that makes another coding-agent CLI drivable by `--backend`: an `Agent` implementation, the permission translation, an event parser, the backend union and factory, doctor's flag and probe lists, and tests. |
+| [Adding Built-in Scripts](./adding-built-in-scripts.md) | The sequence of edits that gives a flow a new deterministic step: the handler module, its registry entry, the flow usage and a test — plus how to parse string arguments and when to fail unresumably. |
+| [Adding Flow Primitives](./adding-flow-primitives.md) | The sequence of edits that teaches the engine a new kind of step: the type, the loader's validation, a handler module, the runner's dispatch, the phase count and a test. |
+| [Extending Workflows](./extending-workflows.md) | The sequence of edits that changes what a flow does or adds a new one: the flow file, the prompts it names, the scope it must set, and an end-to-end test driven by the fake agent. |
