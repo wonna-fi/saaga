@@ -23,7 +23,7 @@ Fields:
 | `title` | yes | The document's human-readable title — the same text as its `#` heading. |
 | `type` | yes | One of `concept`, `pattern`, `convention`, `feature`, `architecture`, `index`. |
 | `sources` | yes, when the document makes claims about code | The source paths or globs whose behaviour this document's claims describe. Repository-relative. |
-| `last_verified` | never write it yourself | ISO date (`YYYY-MM-DD`). Only the verification step sets this, and only on PASS. |
+| `last_verified` | never write it yourself | ISO date (`YYYY-MM-DD`). Only the verification step writes it, and only for a document it found nothing wrong with. |
 | `terms` | no | Extra names this document is the home for — synonyms and sub-concepts a reader might look up. |
 
 Rules:
@@ -43,7 +43,9 @@ Rules:
   `sources` cannot be flagged when that file changes, so the document rots
   silently — which is the exact failure this metadata exists to prevent.
 - Never invent a `last_verified` date and never copy one from another document.
-  A document you wrote or edited but did not verify has no `last_verified`.
+  A document you wrote or edited but did not verify has no `last_verified` — an
+  absent date is how the pipeline marks a document as pending verification, and
+  only the verification step adds or removes it.
 - `terms` lists *additional* names only: the document's INDEX row name is
   already a glossary term, so do not repeat it. List a name here when a reader
   would look it up and land nowhere — `phase`, `slice`, `scope`.

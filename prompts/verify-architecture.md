@@ -4,8 +4,10 @@
 
 1. Documentation plan: `{plan}`
 2. Write the verification report to: `{review_path}`
-3. Write the verification status to: `{status_path}` -- write exactly `PASS` if 0 errors found, or `FAIL` otherwise. Nothing else in this file.
+3. Write the verification status to: `{status_path}` -- write exactly `PASS` when no Critical error, no Major error and no Missing Reference finding remain, or `FAIL` otherwise. Nothing else in this file.
 4. Today's date: `{date}` -- used to stamp `last_verified` in Step 7. Use this value verbatim; do not compute a date yourself.
+5. Deferred-findings report to write: `{deferred_minors_path}` -- the audit trail for findings nothing will act on (Step 8).
+6. This verification round: `{iteration}` of `{loop_max}` -- when the two are equal this is the last round: the fix step still runs, but nothing verifies its work.
 
 If any input is missing, ask the user.
 
@@ -98,7 +100,11 @@ the module or subject that document covers.
 
 This document is written before any other exists, so on an `init` run it starts with no
 links at all and every declared reference is missing. That is expected, and closing it
-is this pass's job.
+is this pass's job — which is why a Missing Reference is the one **Minor** that still
+holds `PASS` back (Step 6). Every other Minor can wait for a later pass; a missing link
+cannot, because the fix step is the only thing in the pipeline that inserts one and it
+runs only on `FAIL`. Passing with them outstanding leaves ARCHITECTURE.md a dead end for
+the life of the corpus.
 
 ### 3d. Consequence Test
 
@@ -139,31 +145,70 @@ Write the full verification report to `{review_path}`. The report must contain:
 
 Write the verification status to `{status_path}`:
 
-- Write exactly `PASS` if 0 errors were found (no critical, no major, no minor).
+- Write exactly `PASS` if the findings table holds no **Critical** and no **Major**
+  error, and no **Missing Reference** finding. Other Minor findings do not fail the
+  document.
 - Write exactly `FAIL` otherwise.
 
 The status file must contain only `PASS` or `FAIL` -- nothing else.
 
-## Step 7: Stamp `last_verified` (PASS only)
+Missing References are the carve-out, and the reason is in Step 3c: they are Minor, and
+they still gate the pass, because the fix step that adds the links runs only on `FAIL`.
 
-**Only if Step 6 wrote `PASS`.** Set `last_verified: {date}` in the YAML frontmatter of
-`{docs_dir}/ARCHITECTURE.md` — updating the field if it is already there, adding it if it
-is not. Change nothing else in the document.
+A `PASS` with other minors recorded is a real pass, not a rounding of one. The finding
+stays in the report from Step 5, the document loses its `last_verified` stamp in Step 7,
+and Step 8 records it. Grade severities honestly either way: a Major written down as a
+Minor to end the loop early buys a couple of saved agent sessions with a wrong document.
 
-This is the only edit verification is ever allowed to make. A date that does not
-correspond to a real passing review is worse than no date at all.
+## Step 7: Stamp `last_verified`
 
-If the status was `FAIL`, do not touch the document — the fix step runs next, and the
-document will be re-verified afterwards.
+The stamp is per document and there is one document here, so your findings table decides
+it on its own — it has no Document column because every row is about
+`{docs_dir}/ARCHITECTURE.md`:
+
+- **The findings table is empty** — set `last_verified: {date}` in the YAML frontmatter
+  of `{docs_dir}/ARCHITECTURE.md`, updating the field if it is already there, adding it
+  if it is not. Change nothing else in the document.
+- **The table holds even one row, of any severity** — **delete** the `last_verified`
+  line from that frontmatter if it has one, and add nothing. Change nothing else.
+
+Do this on every round, whatever Step 6 wrote. Delete or add the single `last_verified:`
+line and leave every other line of the frontmatter byte-identical.
+
+These two edits are the only ones this pass is allowed to make. A date that does not
+correspond to a real passing review is worse than no date at all, and a document with no
+date is how this pipeline says "verification pending" — the fix step runs next, and on
+the last round nothing checks its work.
+
+If the document has no frontmatter block at all, leave it alone rather than adding one
+here.
+
+## Step 8: Record Deferred Findings
+
+Findings this run will not act on go to `{deferred_minors_path}`, the audit trail for
+every stamp Step 7 removed. Write it only when nothing downstream will fix them:
+
+- Step 6 wrote `PASS` and the findings table is not empty.
+- Step 6 wrote `FAIL` and this is the final round: the round number above, `{iteration}`,
+  is equal to the cap, `{loop_max}`. The fix step still runs, but nothing verifies its
+  work.
+
+Write nothing when the findings table is empty, and nothing when Step 6 wrote `FAIL`
+with rounds left: those findings go to the fix step and come back to the next round.
+
+Your findings table has no Document column, so write `{docs_dir}/ARCHITECTURE.md` into
+the report's Document column for every row. The report's format is in The
+Deferred-Findings Report, below.
 
 ## Notes
 
 - Base ALL conclusions on evidence from the source code. Never assume correctness.
-- Do NOT fix the document during review. Only report findings. The single exception is
-  the `last_verified` stamp in Step 7, written only on PASS.
+- Do NOT fix the document during review. Only report findings. The single exceptions are
+  Step 7, which adds or deletes `last_verified` and touches nothing else, and Step 8,
+  which writes only to `{deferred_minors_path}`.
 - Finding nothing is a legitimate outcome. It means the writer did its job.
-- Do NOT modify repository source code, or any file outside `{docs_dir}/` and the report
-  and status paths above.
+- Do NOT modify repository source code, or any file outside `{docs_dir}/`, the report and
+  status paths above, and `{deferred_minors_path}`.
 
 ---
 
@@ -176,3 +221,7 @@ document will be re-verified afterwards.
 ---
 
 {include:partials/verification-protocol.md}
+
+---
+
+{include:partials/deferred-findings.md}

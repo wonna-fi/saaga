@@ -5,9 +5,11 @@
 1. Documentation plan: `{plan}`
 2. Phase/slice number to verify: `{phase_number}`
 3. Write the verification report to: `{review_path}`
-4. Write the verification status to: `{status_path}` -- write exactly `PASS` if 0 errors found, or `FAIL` otherwise. Nothing else in this file.
+4. Write the verification status to: `{status_path}` -- write exactly `PASS` when no Critical and no Major error was found, or `FAIL` otherwise. Nothing else in this file.
 5. Changes source directory: `{changes_dir}` -- the directory holding the raw change reports this slice is supposed to cover. If this value is `none` (or remains an unfilled placeholder), there is no coverage source: skip the coverage check in Step 3d entirely.
 6. Today's date: `{date}` -- used to stamp `last_verified` in Step 7. Use this value verbatim; do not compute a date yourself.
+7. Deferred-findings report to write: `{deferred_minors_path}` -- this slice's audit trail for findings nothing will act on (Step 8).
+8. This verification round: `{iteration}` of `{loop_max}` -- when the two are equal this is the last round, so a `FAIL` here is final: the fix step still runs, but nothing verifies its work.
 
 If any input is missing, ask the user.
 
@@ -150,7 +152,7 @@ For each error found, record:
 
 | Field | Description |
 |---|---|
-| **Document** | File path of the document (for a Coverage Gap where no doc exists yet, write the expected target path, e.g. `{docs_dir}/features/<name>.md`, and mark it `(missing)`) |
+| **Document** | File path of the document (for a Coverage Gap where no doc exists yet, write the expected target path, e.g. `{docs_dir}/features/<name>.md`, and mark it `(missing)`). Record one row per document a finding implicates: Step 7 unstamps exactly the documents this column names, so a contradiction between two documents that names only one of them leaves the other stamped as verified |
 | **Section** | Which section contains the error (for a Coverage Gap, the undocumented source surface) |
 | **Claim** | The specific incorrect claim, or for a Coverage Gap the doc-worthy change that is missing from the documentation. Claim types beyond a plain factual error: **Coverage Gap** (Step 3d), **Budget Overrun** (Step 3e), **Consequence Test** (Step 3e), **Duplication** (Step 3f) |
 | **Evidence** | What the source code actually shows (for a Coverage Gap, the change-report entry plus the source surface that warrants documentation) |
@@ -174,34 +176,81 @@ Write the full verification report to `{review_path}`. The report must contain:
 
 Write the verification status to `{status_path}`:
 
-- Write exactly `PASS` if 0 errors were found (no critical, no major, no minor — and no Coverage Gap errors from Step 3d).
+- Write exactly `PASS` if the findings table holds no **Critical** and no **Major**
+  error. Minor findings do not fail the slice.
 - Write exactly `FAIL` otherwise.
 
 The status file must contain only `PASS` or `FAIL` -- nothing else.
 
-## Step 7: Stamp `last_verified` (PASS only)
+Step 3d grades every Coverage Gap **Critical** or **Major**, so a documentation-worthy
+change with no documentation always fails the slice.
 
-**Only if Step 6 wrote `PASS`.** For every document you reviewed in this slice,
-set `last_verified: {date}` in its YAML frontmatter — updating the field if it
-is already there, adding it if it is not. Change nothing else in the document.
+A `PASS` with minors recorded is a real pass, not a rounding of one. The minors stay in
+the report from Step 5, the documents they were recorded against lose their
+`last_verified` stamp in Step 7, and Step 8 writes them to this slice's deferred-findings
+report. Passing the slice ends the fix loop; it does not forget the finding.
 
-This is the only edit verification is ever allowed to make, and the only place
-`last_verified` is ever written: it records that these documents were checked
-against the source and found correct on this date. A later run uses it to decide
-which documents have gone stale, so a date that does not correspond to a real
-passing review is worse than no date at all.
+Grade severities the same way you would if `PASS` still required an empty table. A Major
+written down as a Minor to end the loop early buys three saved agent sessions with a
+wrong document, which is the exact trade this threshold exists to avoid.
 
-If the status was `FAIL`, do not touch any document — the fix step runs next,
-and the documents will be re-verified afterwards.
+## Step 7: Stamp `last_verified` per Document
 
-A document without frontmatter is a pre-beta document: leave it alone rather
-than adding a frontmatter block to it here.
+The stamp is per document, not per slice: it says *this* document was checked against
+the source today and nothing was found wrong with it. What Step 6 wrote for the slice as
+a whole does not enter into it.
+
+For every document you reviewed in this slice:
+
+- **No row of the findings table names it** — set `last_verified: {date}` in its YAML
+  frontmatter, updating the field if it is already there, adding it if it is not. Change
+  nothing else in the document.
+- **A row names it in the Document column** — **delete** the `last_verified` line from
+  its frontmatter if it has one, and add nothing. Change nothing else. A document with a
+  finding against it is not verified, and a stamp left over from an earlier run would
+  claim that it is.
+
+Do this on every round, whatever Step 6 wrote.
+
+These two edits are the only ones verification is ever allowed to make, and this is the
+only place `last_verified` is ever written or removed. A later run uses it to decide
+which documents have gone stale, so a date that does not correspond to a real passing
+review is worse than no date at all — and a document with no date is how this pipeline
+says "verification pending", including after the last round of a slice that never
+passed, where the fix step's work is no longer checked by anything.
+
+Three documents to skip:
+
+- A finding recorded against a path marked `(missing)` has no document to unstamp.
+- `{docs_dir}/README.md` and `{docs_dir}/GLOSSARY.md` are regenerated from the corpus on
+  every run and never carry a stamp. Leave their frontmatter alone.
+- A document without frontmatter is a pre-beta document: leave it alone rather than
+  adding a frontmatter block to it here.
+
+Delete or add the single `last_verified:` line. Leave every other line of the
+frontmatter byte-identical.
+
+## Step 8: Record Deferred Findings
+
+Findings this run will not act on go to `{deferred_minors_path}`, this slice's audit
+trail for every stamp Step 7 removed. Write it only when nothing downstream will fix
+them:
+
+- Step 6 wrote `PASS` and the findings table is not empty — the minors you passed on.
+- Step 6 wrote `FAIL` and this is the final round: the round number above, `{iteration}`,
+  is equal to the cap, `{loop_max}`. The fix step still runs, but nothing verifies its
+  work, so those findings are left behind too.
+
+Write nothing when the findings table is empty, and nothing when Step 6 wrote `FAIL`
+with rounds left: those findings go to the fix step and come back to the next round.
+
+The report's format is in The Deferred-Findings Report, below.
 
 ## Notes
 
 - Base ALL conclusions on evidence from the source code. Never assume correctness.
 - If a claim cannot be verified (e.g., the source file doesn't exist in the repo), flag it as unverifiable rather than assuming it's wrong.
-- Do NOT fix the documents during review. Only report findings. Fixes are a separate step. The single exception is the `last_verified` stamp in Step 7, which is written only on PASS — that is, only when there was nothing to fix.
+- Do NOT fix the documents during review. Only report findings. Fixes are a separate step. The single exceptions are Step 7, which adds or deletes `last_verified` and touches nothing else, and Step 8, which writes only to `{deferred_minors_path}`.
 - Be thorough. A missed error here becomes permanent misinformation for future AI agents.
 - You don't necessarily find any errors if the documentation is of excellent quality. That's okay! It
   only means that the documenter has done an excellent job and we should be happy for it.
@@ -221,6 +270,10 @@ than adding a frontmatter block to it here.
 ---
 
 {include:partials/verification-protocol.md}
+
+---
+
+{include:partials/deferred-findings.md}
 
 ---
 

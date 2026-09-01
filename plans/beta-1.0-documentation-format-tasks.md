@@ -362,7 +362,8 @@ rotation at all.
   the existing verify/fix loop. A deletion report (what was removed and why) is written to the run
   directory.
 - **Deferred-minors consumption (handover from task 11).** The docs-gc prompt reads the
-  `deferred-minors.md` reports from run directories and sweeps up the *pending* entries: an
+  `deferred-minors.md` reports from run directories (one per slice — glob
+  `.saaga-runs/*/*/deferred-minors.md`) and sweeps up the *pending* entries: an
   entry is pending iff its target doc still exists and lacks `last_verified` (deferred
   findings can be stale, so docs-gc re-verifies each against the current doc before acting;
   its run report lists entries as addressed or already-resolved). No mutation of archived
@@ -485,10 +486,15 @@ the final FAIL).
    unverified). The absent stamp is the pipeline's single "verification pending" marker
    (see the task 7 amendment). For the final-round signal, the loop primitive
    additionally exposes `${loop_max}` alongside `${iteration}`, and every verifier step
-   receives both plus `deferred_minors_path: ${run_dir}/deferred-minors.md` as vars.
+   receives both plus a `deferred_minors_path` var. *(As landed: one report per slice —
+   `${run_dir}/slice-${phase.number}/deferred-minors.md`, and
+   `${run_dir}/architecture/deferred-minors.md` — not one per run. A single run-level file
+   has many agent writers and no append tool, so one of them writing rather than appending
+   erases the rest; per-slice files have exactly one writer each.)*
 3. **Deferred-minors report** at that path as the audit trail. Consumer is task 8's
    docs-gc (recorded in its scope); an entry is pending iff its target doc still exists
-   and lacks `last_verified`.
+   and lacks `last_verified`. Only the round that ends a slice writes one — a PASS with a
+   non-empty findings table, or a FAIL on the final round.
 4. Fix step unchanged: triggered on FAIL only.
 
 **Out of scope.** The 3-round cap; the severity taxonomy; auto-fixing minors on PASS.

@@ -68,6 +68,7 @@ If any fixes changed document titles or added/removed documents, update the corr
 
 - **Only fix what was flagged.** Do not rewrite sections that were not identified as errors.
 - **Do not modify the verification report.** It is a record of what was found.
+- **Never write `last_verified`.** Verification removed it from every document this report names, and that absence is what tells the next run the document still needs checking. Restoring it would claim a review that never happened.
 - **Follow the templates below.** All fixes must maintain the document structure they define, plus any deltas the plan's Template Adaptations section records.
 - **Base all fixes on source code evidence.** Read the actual source files before making changes. Do not guess.
 - **Preserve existing correct content.** Minimize changes to reduce the risk of introducing new errors.

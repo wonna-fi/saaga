@@ -3,7 +3,7 @@ import { describe, expect, test } from "vitest";
 import { agentSteps, listFlows, loadFlow } from "../src/engine/loader.js";
 import { PROMPTS_DIR } from "../src/paths.js";
 import { renderPromptFile } from "../src/templates.js";
-import type { ScriptStep, Step } from "../src/engine/types.js";
+import type { AgentStep, ScriptStep, Step } from "../src/engine/types.js";
 
 const UPDATE_FAMILY = ["update", "quick-update", "verify-quick-updates"];
 
@@ -12,6 +12,36 @@ const ALL_FLOWS = ["init", ...UPDATE_FAMILY];
 
 function asScript(step: Step | undefined): ScriptStep | null {
   return step && step.type === "script" ? step : null;
+}
+
+/**
+ * Every agent step reachable only from inside a `loop` body. `agentSteps`
+ * flattens the whole tree and forgets where each step sat, which is the one
+ * thing that matters for a step referencing `${iteration}` or `${loop_max}`.
+ */
+function agentStepsInsideLoops(steps: Step[], inLoop = false): AgentStep[] {
+  const found: AgentStep[] = [];
+
+  for (const step of steps) {
+    switch (step.type) {
+      case "agent":
+        if (inLoop) found.push(step);
+        break;
+      case "loop":
+        found.push(...agentStepsInsideLoops(step.do, true));
+        break;
+      case "foreach":
+        found.push(...agentStepsInsideLoops(step.do, inLoop));
+        break;
+      case "if":
+        found.push(...agentStepsInsideLoops(step.then, inLoop));
+        break;
+      default:
+        break;
+    }
+  }
+
+  return found;
 }
 
 describe("format-version gate wiring", () => {
@@ -175,6 +205,57 @@ describe("verify receives an ISO date for the last_verified stamp", () => {
   );
 });
 
+describe("verify receives the round and the deferred-findings report", () => {
+  /**
+   * The verifier stamps `last_verified` per document and records what it
+   * deferred, and both depend on knowing whether this is the last round: a
+   * FAIL on the final round is never re-checked, so its findings have to be
+   * written down rather than left to a fix step nothing verifies.
+   */
+  test.each(["init", "update", "verify-quick-updates"])(
+    "%s passes the round, the cap and a report path to every verify step",
+    async (name) => {
+      const flow = await loadFlow(name);
+      const verifiers = agentSteps(flow.steps).filter((s) =>
+        s.prompt.startsWith("verify-"),
+      );
+
+      expect(verifiers.length).toBeGreaterThan(0);
+      for (const step of verifiers) {
+        expect(step.vars?.iteration).toBe("${iteration}");
+        expect(step.vars?.loop_max).toBe("${loop_max}");
+        // One report per slice, so each file has exactly one writer: a single
+        // run-level file would be appended to by every verifier in the run,
+        // and one of them writing instead of appending erases the rest.
+        expect(step.vars?.deferred_minors_path).toMatch(
+          /^\$\{run_dir\}\/.+\/deferred-minors\.md$/,
+        );
+      }
+    },
+  );
+
+  /**
+   * `${iteration}` and `${loop_max}` are bound by the loop primitive and exist
+   * only inside its body. A verifier hoisted out of a loop would abort the run
+   * at var-render time with `Undefined variable`, which is loud but late.
+   */
+  test.each(["init", "update", "verify-quick-updates"])(
+    "every verify step in %s sits inside a loop",
+    async (name) => {
+      const flow = await loadFlow(name);
+      const all = agentSteps(flow.steps).filter((s) =>
+        s.prompt.startsWith("verify-"),
+      );
+      const looped = agentStepsInsideLoops(flow.steps);
+
+      expect(all.length).toBeGreaterThan(0);
+      for (const step of all) {
+        expect(looped).toContain(step);
+      }
+    },
+  );
+});
+
 /**
  * Pins the "behaviour is unchanged" claim: before per-step keys, everything
  * ran on `high` except quick-update, which ran on `medium` (the default).
@@ -263,7 +344,10 @@ describe("every prompt gets the vars it asks for", () => {
     "changes_dir",
     "changes_path",
     "date",
+    "deferred_minors_path",
     "docs_dir",
+    "iteration",
+    "loop_max",
     "manifest_path",
     "metadata_dir",
     "output_path",

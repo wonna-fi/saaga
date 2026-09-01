@@ -14,7 +14,7 @@ Execute this protocol before marking any document as complete.
 
 Adapt the specific verification commands to the technology (e.g., `Grep: "export.*functionName"` for TypeScript, `Grep: "public.*methodName"` for Apex/Java). The plan's **Template Adaptations** section records the checks chosen for this repository.
 
-**Internal Consistency Check** - After completing all documents in a slice, cross-reference behavior descriptions across concept, pattern, and feature docs. Verify claims don't contradict each other and update conflicting documents to be consistent with the actual code behavior.
+**Internal Consistency Check** - After completing all documents in a slice, cross-reference behavior descriptions across concept, pattern, and feature docs. Verify claims don't contradict each other, and record a finding against every document whose claim disagrees with the actual code behavior. Reviewing never edits a document to resolve the contradiction; the fix step does that, from the finding.
 
 Final self-check questions:
 
