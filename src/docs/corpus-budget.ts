@@ -347,10 +347,13 @@ export function parsePlannedDocs(planText: string, docsDir: string): PlanParse {
   // creates every file a phase lists, so a document missing from this roster is
   // one the corpus pays for and the ceiling never saw.
   //
-  // The rule is deliberately strict: the path must be effectively the whole
-  // line, and lines carrying `owns:`/`references:` are skipped. A document
-  // named inside a references list or in prose is being referred to, not
-  // created, and counting those costs three re-plans over files no phase makes.
+  // The rule: the line must *lead* with the path, name exactly one document,
+  // and carry no `owns:`/`references:`. Leading with it is what separates a
+  // deliverable from a mention — `features/login.md — User authentication` is
+  // a list entry announcing a file, while "see features/login.md for the flow"
+  // refers to one. Requiring the path be the entire line was too strict: the
+  // plan format does not forbid a description after it, and a deliverable
+  // missed here is a file `slice-doc` creates for free.
   for (const raw of body.split("\n")) {
     const line = raw.trim().replace(/^[-*+]\s+/, "");
     if (/owns\s*:|references\s*:/i.test(line)) continue;
@@ -358,9 +361,17 @@ export function parsePlannedDocs(planText: string, docsDir: string): PlanParse {
     const tokens = [...line.matchAll(MD_TOKEN)].map((m) => m[0]);
     if (tokens.length !== 1) continue;
 
+    // Compared against the undecorated head so a backticked or bolded path
+    // still reads as leading the line.
+    const head = line.replace(/^[`*_]+/, "");
+    if (!head.startsWith(tokens[0])) continue;
+
+    // What follows must be a boundary, not more of the same word.
+    const rest = head.slice(tokens[0].length);
+    if (rest !== "" && !/^[\s`*_).,;:—–-]/.test(rest)) continue;
+
     const path = normalizeDocPath(stripDecoration(tokens[0]), docsDir);
     if (!path || isGenerated(path)) continue;
-    if (stripDecoration(line).replace(/[.,;:]$/, "") !== stripDecoration(tokens[0])) continue;
 
     upsert(path);
   }

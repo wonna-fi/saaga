@@ -276,6 +276,31 @@ phases:
     expect(parse.docs.find((d) => d.path === "features/orphan.md")!.budget).toBeNull();
   });
 
+  // The plan format does not forbid a description after the path, and a
+  // deliverable missed here is a file slice-doc creates for free.
+  test("a deliverable with a description after the path still counts", () => {
+    const parse = parsePlannedDocs(
+      "- features/login.md — User authentication\n" +
+        "- `patterns/retry.md`: how retries are wired\n",
+      "saaga-docs",
+    );
+
+    expect(parse.docs.map((d) => d.path)).toEqual(["features/login.md", "patterns/retry.md"]);
+  });
+
+  // Leading with the path is what separates announcing a file from citing one.
+  test("a path cited mid-sentence is a mention, not a deliverable", () => {
+    const parse = parsePlannedDocs(
+      "- concepts/a.md — Core, 100 lines\n" +
+        "- concepts/a.md — owns: a; references: none\n" +
+        "- Notes: see features/login.md for the flow this builds on.\n" +
+        "The rule already lives in conventions/naming.md today.\n",
+      "saaga-docs",
+    );
+
+    expect(parse.docs.map((d) => d.path)).toEqual(["concepts/a.md"]);
+  });
+
   test("an ambiguous basename is reported rather than guessed", () => {
     const parse = parsePlannedDocs(
       "- a.md — Core, 150 lines\n" +
