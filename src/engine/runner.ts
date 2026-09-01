@@ -510,6 +510,13 @@ async function runAgentStep(
     }
   }
 
+  // Captured before the agent runs so the check after it can tell a fresh
+  // answer from last attempt's leftovers. Null when nothing is there yet,
+  // which is the ordinary single-shot case.
+  const before = step.expect_file
+    ? await modifiedAt(interpolate(step.expect_file, scope))
+    : null;
+
   const additionalDirs =
     typeof scope.run_dir === "string" ? [scope.run_dir] : undefined;
   const auditor = deps.auditor;
@@ -536,6 +543,32 @@ async function runAgentStep(
   if (step.expect_file) {
     const expectedPath = interpolate(step.expect_file, scope);
     await assertFileExists(expectedPath, step.prompt);
+
+    // `expect_file` means the step *produced* the file, not merely that the
+    // path names one. Inside a retry loop the output path already holds the
+    // previous attempt's file, so existence alone would let an agent that
+    // wrote nothing pass its rejected output off as a fresh answer — burning
+    // the remaining attempts on a verdict already reached.
+    //
+    // Modification time, not content: an agent that re-planned and happened to
+    // reach the same answer did its work and should be judged on that answer,
+    // while one that never wrote leaves the timestamp untouched.
+    if (before !== null && (await modifiedAt(expectedPath)) === before) {
+      throw new ExpectFileUnchangedError(expectedPath, step.prompt);
+    }
+  }
+}
+
+/**
+ * Modification time in nanoseconds, or null when the path is absent. Bigint
+ * precision because a fast agent can rewrite a file within the same
+ * millisecond the pre-check read it.
+ */
+async function modifiedAt(path: string): Promise<bigint | null> {
+  try {
+    return (await stat(path, { bigint: true })).mtimeNs;
+  } catch {
+    return null;
   }
 }
 
@@ -613,6 +646,27 @@ export class ExpectFileMissingError extends Error {
       `Agent step '${promptName}' did not produce expect_file: ${path}`,
     );
     this.name = "ExpectFileMissingError";
+    this.path = path;
+    this.promptName = promptName;
+  }
+}
+
+/**
+ * The step's `expect_file` was already on disk and came back byte-identical,
+ * so the step produced nothing. Only reachable when a step runs more than once
+ * against one output path — a retry loop — where the leftover would otherwise
+ * be mistaken for a fresh answer.
+ */
+export class ExpectFileUnchangedError extends Error {
+  readonly path: string;
+  readonly promptName: string;
+
+  constructor(path: string, promptName: string) {
+    super(
+      `Agent step '${promptName}' left expect_file unchanged: ${path} still holds ` +
+        `the previous attempt's content`,
+    );
+    this.name = "ExpectFileUnchangedError";
     this.path = path;
     this.promptName = promptName;
   }

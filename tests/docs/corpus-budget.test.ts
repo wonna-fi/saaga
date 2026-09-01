@@ -249,6 +249,33 @@ phases:
     expect(parse.ambiguous).toEqual([]);
   });
 
+  // Tier travels with the budget it qualifies; carrying the number alone would
+  // make the mixed path forms a way around the tier floor.
+  test("collapsing a basename carries its tier, not just its number", () => {
+    const parse = parsePlannedDocs(
+      "- scope.md — Core, 1 line\n- concepts/scope.md — owns: x; references: none\n",
+      "saaga-docs",
+    );
+
+    expect(parse.docs).toHaveLength(1);
+    expect(parse.docs[0].tier).toBe("core");
+    expect(docCost(parse.docs[0])).toBe(100);
+  });
+
+  // slice-doc creates every file a phase lists, so a deliverable with no
+  // decision lines is a document the corpus pays for and the ceiling never saw.
+  test("a deliverable with no decision lines is still on the roster", () => {
+    const parse = parsePlannedDocs(
+      "- concepts/a.md — Core, 100 lines\n" +
+        "- concepts/a.md — owns: a; references: none\n" +
+        "- `saaga-docs/features/orphan.md`\n",
+      "saaga-docs",
+    );
+
+    expect(parse.docs.map((d) => d.path)).toEqual(["concepts/a.md", "features/orphan.md"]);
+    expect(parse.docs.find((d) => d.path === "features/orphan.md")!.budget).toBeNull();
+  });
+
   test("an ambiguous basename is reported rather than guessed", () => {
     const parse = parsePlannedDocs(
       "- a.md — Core, 150 lines\n" +

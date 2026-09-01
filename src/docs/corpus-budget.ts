@@ -341,11 +341,16 @@ export function parsePlannedDocs(planText: string, docsDir: string): PlanParse {
     }
   }
 
-  // Conventions get neither a budget nor an ownership line — the conventions
-  // phase lists them as bare deliverables. Only a line that is *just* such a
-  // path counts: a convention named inside an `owns:`/`references:` line or in
-  // prose is being referred to, not created, and counting those would cost
-  // three re-plans and a failure over documents the plan never makes.
+  // Deliverable lines: a document listed as a bare path with no decision lines
+  // of its own. Conventions are always written this way (the conventions phase
+  // gives them neither line), but any deliverable can be — and `slice-doc`
+  // creates every file a phase lists, so a document missing from this roster is
+  // one the corpus pays for and the ceiling never saw.
+  //
+  // The rule is deliberately strict: the path must be effectively the whole
+  // line, and lines carrying `owns:`/`references:` are skipped. A document
+  // named inside a references list or in prose is being referred to, not
+  // created, and counting those costs three re-plans over files no phase makes.
   for (const raw of body.split("\n")) {
     const line = raw.trim().replace(/^[-*+]\s+/, "");
     if (/owns\s*:|references\s*:/i.test(line)) continue;
@@ -354,11 +359,9 @@ export function parsePlannedDocs(planText: string, docsDir: string): PlanParse {
     if (tokens.length !== 1) continue;
 
     const path = normalizeDocPath(stripDecoration(tokens[0]), docsDir);
-    if (!path || !isConventionPath(path) || isGenerated(path)) continue;
-
-    // The path must be effectively the whole line, so a sentence merely
-    // mentioning one document does not create it.
+    if (!path || isGenerated(path)) continue;
     if (stripDecoration(line).replace(/[.,;:]$/, "") !== stripDecoration(tokens[0])) continue;
+
     upsert(path);
   }
 
@@ -389,7 +392,15 @@ function collapseBasenames(byPath: Map<string, PlannedDoc>): {
     const from = byPath.get(bare);
     const into = byPath.get(candidates[0]);
     if (!from || !into) continue;
-    into.budget = into.budget ?? from.budget;
+    // Tier travels with the budget it qualifies. Carrying the number across
+    // without it would charge `scope.md — Core, 1 line` as 1, letting the mixed
+    // path forms this function exists to reconcile become a way around the
+    // tier floor.
+    if (into.budget === null && from.budget !== null) {
+      into.budget = from.budget;
+      into.tier = from.tier;
+    }
+    into.tier = into.tier ?? from.tier;
     into.hasOwns = into.hasOwns || from.hasOwns;
     byPath.delete(bare);
   }
