@@ -15,7 +15,15 @@ phases:
 ---
 `;
 
-/** A plan authoring `count` documents of `linesEach` lines apiece. */
+/**
+ * ARCHITECTURE.md is on disk whatever the plan says, so a complete plan
+ * records its decisions and these fixtures do too — otherwise every expected
+ * total carries a hidden seeded document.
+ */
+const ARCH =
+  "- ARCHITECTURE.md — 250 lines\n- ARCHITECTURE.md — owns: shape; references: none\n";
+
+/** A plan authoring `count` documents of `linesEach` lines apiece, plus ARCHITECTURE. */
 function planWith(count: number, linesEach: number): string {
   const body = Array.from(
     { length: count },
@@ -23,7 +31,7 @@ function planWith(count: number, linesEach: number): string {
       `- concepts/d${i}.md — Core, ${linesEach} lines\n` +
       `- concepts/d${i}.md — owns: thing ${i}; references: none\n`,
   ).join("");
-  return `${PHASES}\n## Phase 1\n\n${body}`;
+  return `${PHASES}\n## Phase 1\n\n${ARCH}${body}`;
 }
 
 /**
@@ -58,7 +66,7 @@ describe("check-plan-budget", () => {
     for (const mode of ["report", "enforce"]) {
       const result = await checkPlanBudgetScript(args(env, mode), { cwd: env.app });
       expect(result.status, mode).toBe("PASS");
-      expect(result.docs, mode).toBe(5);
+      expect(result.docs, mode).toBe(6); // 5 domain documents + ARCHITECTURE.md
       expect(result.doc_ceiling, mode).toBe(19);
     }
   });
@@ -70,7 +78,7 @@ describe("check-plan-budget", () => {
     const result = await checkPlanBudgetScript(args(env, "report"), { cwd: env.app });
 
     expect(result.status).toBe("OVER");
-    expect(result.docs).toBe(40);
+    expect(result.docs).toBe(41);
     expect(result.reasons).toContain("over-doc-count");
   });
 
@@ -79,7 +87,7 @@ describe("check-plan-budget", () => {
 
     await expect(
       checkPlanBudgetScript(args(env, "enforce"), { cwd: env.app }),
-    ).rejects.toThrow(/40 documents against a ceiling of 19/);
+    ).rejects.toThrow(/41 documents against a ceiling of 19/);
 
     await expect(
       checkPlanBudgetScript(args(env, "enforce"), { cwd: env.app }),
@@ -115,19 +123,21 @@ describe("check-plan-budget", () => {
   test("conventions count toward the ceiling at the fixed cap", async () => {
     const env = await tmpEnv(
       `${PHASES}\n## Phase 1\n\n` +
+        ARCH +
         "- concepts/a.md — Core, 100 lines\n" +
         "- concepts/a.md — owns: a; references: none\n" +
         "## Phase 2\n\n- saaga-docs/conventions/naming.md\n",
     );
 
     const result = await checkPlanBudgetScript(args(env, "report"), { cwd: env.app });
-    expect(result.docs).toBe(2);
-    expect(result.lines).toBe(120);
+    expect(result.docs).toBe(3); // concept + convention + ARCHITECTURE
+    expect(result.lines).toBe(370);
   });
 
   test("an unbudgeted document is charged, not skipped", async () => {
     const env = await tmpEnv(
       `${PHASES}\n## Phase 1\n\n` +
+        ARCH +
         "- concepts/a.md — Core, 100 lines\n" +
         "- concepts/a.md — owns: a; references: none\n" +
         "- concepts/b.md — owns: b; references: none\n",
@@ -139,8 +149,8 @@ describe("check-plan-budget", () => {
       warn: (m) => warnings.push(m),
     });
 
-    expect(result.docs).toBe(2);
-    expect(result.lines).toBe(300);
+    expect(result.docs).toBe(3);
+    expect(result.lines).toBe(550);
     expect(warnings.join("\n")).toContain("concepts/b.md");
   });
 

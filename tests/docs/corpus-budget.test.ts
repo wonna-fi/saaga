@@ -217,6 +217,19 @@ phases:
     expect(parse.docs.find((d) => d.path === "ARCHITECTURE.md")!.budget).toBe(250);
   });
 
+  // Otherwise the tier floor is escapable from the other side: a domain
+  // document with no tier has no floor to be held to.
+  test("a tier-less budget is honoured only for ARCHITECTURE", () => {
+    const parse = parsePlannedDocs(
+      "- concepts/auth.md — 1 line\n- concepts/auth.md — owns: auth; references: none\n",
+      "saaga-docs",
+    );
+
+    const doc = parse.docs.find((d) => d.path === "concepts/auth.md")!;
+    expect(doc.budget).toBeNull();
+    expect(docCost(doc)).toBe(UNBUDGETED_CHARGE);
+  });
+
   test("generated documents are excluded", () => {
     const parse = parsePlannedDocs(
       "- saaga-docs/concepts/INDEX.md — Core, 100 lines\n" +
@@ -372,18 +385,28 @@ describe("the verdict", () => {
   const source = { files: 20, lines: 4000 };
   const parsed = (text: string) => parsePlannedDocs(text, "saaga-docs");
 
+  /**
+   * ARCHITECTURE.md is on disk whatever the plan says, so a complete plan
+   * records its decisions and the fixtures do too — otherwise every expected
+   * total carries a hidden seeded document.
+   */
+  const ARCH = "- ARCHITECTURE.md — 250 lines\n- ARCHITECTURE.md — owns: shape; references: none\n";
+
   /** `tier` matters: a budget below its band is charged the band's floor. */
   function budgetedDocs(n: number, linesEach: number, tier = "Core"): string {
-    return Array.from({ length: n }, (_, i) =>
-      `- concepts/d${i}.md — ${tier}, ${linesEach} lines\n- concepts/d${i}.md — owns: x; references: none\n`,
-    ).join("");
+    return (
+      ARCH +
+      Array.from({ length: n }, (_, i) =>
+        `- concepts/d${i}.md — ${tier}, ${linesEach} lines\n- concepts/d${i}.md — owns: x; references: none\n`,
+      ).join("")
+    );
   }
 
   test("a plan inside both ceilings passes", () => {
     const report = checkPlanBudget(parsed(budgetedDocs(5, 100)), ceilings, source, 1);
     expect(report.status).toBe("PASS");
-    expect(report.docs).toBe(5);
-    expect(report.lines).toBe(500);
+    expect(report.docs).toBe(6); // 5 domain documents + ARCHITECTURE.md
+    expect(report.lines).toBe(750);
   });
 
   test("too many documents fails even when the lines fit", () => {
@@ -400,15 +423,15 @@ describe("the verdict", () => {
   test("a budget below its declared tier is charged the tier's floor", () => {
     const report = checkPlanBudget(parsed(budgetedDocs(5, 1)), ceilings, source, 1);
 
-    expect(report.lines).toBe(500);
+    expect(report.lines).toBe(750); // 5 x the Core floor of 100, + ARCHITECTURE
     expect(report.reasons).toContain("below-tier");
     expect(report.belowTier).toHaveLength(5);
   });
 
   test("a budget inside its band is charged as written", () => {
-    const report = checkPlanBudget(parsed(budgetedDocs(5, 150)), ceilings, source, 1);
+    const report = checkPlanBudget(parsed(budgetedDocs(5, 140)), ceilings, source, 1);
 
-    expect(report.lines).toBe(750);
+    expect(report.lines).toBe(950);
     expect(report.reasons).not.toContain("below-tier");
   });
 
@@ -423,7 +446,8 @@ describe("the verdict", () => {
   test("an unbudgeted document is charged the Core band, not nothing", () => {
     const report = checkPlanBudget(
       parsed(
-        "- concepts/a.md — owns: x; references: none\n" +
+        ARCH +
+          "- concepts/a.md — owns: x; references: none\n" +
           "- concepts/b.md — Core, 120 lines\n" +
           "- concepts/b.md — owns: y; references: none\n",
       ),
@@ -432,7 +456,7 @@ describe("the verdict", () => {
       1,
     );
     expect(report.unbudgeted).toEqual(["concepts/a.md"]);
-    expect(report.lines).toBe(UNBUDGETED_CHARGE + 120);
+    expect(report.lines).toBe(UNBUDGETED_CHARGE + 120 + 250);
     expect(report.reasons).toContain("unbudgeted");
   });
 
@@ -444,6 +468,40 @@ describe("the verdict", () => {
     const report = checkPlanBudget(parsed(text), ceilings, source, 1);
     expect(report.status).toBe("OVER");
     expect(report.ceilings).toEqual(ceilings);
+  });
+
+  // document-architecture runs before the plan and always writes the file, so
+  // a plan that omits its decisions would otherwise get ~250 lines free.
+  test("ARCHITECTURE.md is charged even when the plan never mentions it", () => {
+    const plan =
+      "- concepts/a.md — Core, 100 lines\n- concepts/a.md — owns: a; references: none\n";
+    const report = checkPlanBudget(parsed(plan), ceilings, source, 1);
+
+    expect(report.docs).toBe(2);
+    expect(report.lines).toBe(100 + UNBUDGETED_CHARGE);
+    expect(report.unbudgeted).toContain("ARCHITECTURE.md");
+  });
+
+  test("a declared ARCHITECTURE.md is not counted twice", () => {
+    const report = checkPlanBudget(parsed(budgetedDocs(1, 100)), ceilings, source, 1);
+
+    expect(report.docs).toBe(2);
+    expect(report.lines).toBe(350);
+  });
+
+  // Reported so a planner can fix it, but never fatal: failing here would put
+  // a path-normalisation miss between the user and their corpus.
+  test("a document with no ownership line is reported, not failed", () => {
+    const report = checkPlanBudget(
+      parsed(ARCH + "- concepts/a.md — Core, 100 lines\n"),
+      ceilings,
+      source,
+      1,
+    );
+
+    expect(report.status).toBe("PASS");
+    expect(report.reasons).toContain("missing-ownership");
+    expect(report.missingOwnership).toEqual(["concepts/a.md"]);
   });
 
   test("a repository with no measurable source passes", () => {

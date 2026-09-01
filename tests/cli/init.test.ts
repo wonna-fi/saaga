@@ -1005,7 +1005,8 @@ describe("saaga run init: the corpus budget", () => {
       "utf8",
     );
     expect(report).toContain("Status: **PASS**");
-    expect(report).toContain("| Documents | 4 |");
+    // 4 planned documents, plus the ARCHITECTURE.md the flow always writes.
+    expect(report).toContain("| Documents | 5 |");
   });
 
   test("a persistently over-budget plan fails at the enforce step", async () => {

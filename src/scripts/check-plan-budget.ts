@@ -216,6 +216,20 @@ async function writeReport(
     );
   }
 
+  if (report.missingOwnership.length > 0) {
+    lines.push(
+      "## Documents with no ownership declaration",
+      "",
+      "Not a budget problem, and it does not fail this check — but verification " +
+        "skips the checks a document declares nothing for, so each of these enters " +
+        "the corpus unconstrained. Give every document its " +
+        "`<path> — owns: …; references: …` line.",
+      "",
+      ...report.missingOwnership.map((p) => `- ${p}`),
+      "",
+    );
+  }
+
   if (report.belowTier.length > 0) {
     lines.push(
       "## Budgets below their declared tier",
