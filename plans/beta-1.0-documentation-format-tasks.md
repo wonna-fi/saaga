@@ -368,6 +368,11 @@ rotation at all.
   findings can be stale, so docs-gc re-verifies each against the current doc before acting;
   its run report lists entries as addressed or already-resolved). No mutation of archived
   run directories, no aging window.
+- **Corpus-budget drift report (added 2026-09-01).** The update-family flows are bounded per-diff
+  only; nothing re-measures the corpus against task 10's ceilings after init. docs-gc runs the
+  task 10 measurement (reuse `src/docs/corpus-budget.ts` — never reimplement the formula) over
+  the corpus and writes actual-vs-ceiling into its run report, so inter-collection drift is
+  visible instead of hand-measured; an OVER status marks the trim targets for the gc pass itself.
 - CLI wiring in `src/cli.ts` (`saaga docs-gc`), behind the unstable-features gate initially.
 - Guardrail: docs-gc may merge and trim but must not delete a document unless its full content is
   demonstrably owned elsewhere; the prompt states this and the deletion report proves it.
@@ -380,6 +385,8 @@ rotation at all.
 - [ ] Real run on `saaga-docs/`: the `prompt-templates.md` / `templates-and-prompt-rendering.md`
       twins are merged, net corpus line count decreases, and all touched slices pass verify.
 - [ ] Deletion report present and human-readable in the run directory.
+- [ ] The run report carries the corpus-budget measurement (doc count and line total vs the
+      derived ceilings), unit-tested against an over- and an under-ceiling fixture corpus.
 - [ ] README documents the command and its cadence relative to `update` / `quick-update`.
 
 ---
