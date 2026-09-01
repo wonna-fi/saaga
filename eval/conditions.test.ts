@@ -11,13 +11,37 @@ const repoRoot = fileURLToPath(new URL("..", import.meta.url));
 describe("stripDocsRouting", () => {
   test("removes the routing section from the real AGENTS.md, keeping the rest", async () => {
     const original = await readFile(join(repoRoot, "AGENTS.md"), "utf8");
-    expect(original).toContain("## Documentation");
+    expect(original).toContain("<!-- saaga:begin -->");
+    expect(original).toContain("### Domain Documentation (saaga)");
 
     const stripped = stripDocsRouting(original);
-    expect(stripped).not.toContain("## Documentation");
+    expect(stripped).not.toContain("saaga:begin");
+    expect(stripped).not.toContain("Domain Documentation");
     expect(stripped).not.toContain("saaga-docs/concepts/INDEX.md");
     expect(stripped).toContain("## Development Rules");
     expect(stripped).toContain("Definition of Done");
+  });
+
+  test("removes a saaga-managed marker block wherever it sits", () => {
+    const md = [
+      "# Title",
+      "",
+      "kept above",
+      "",
+      "<!-- saaga:begin -->",
+      "### Domain Documentation (saaga)",
+      "",
+      "routing table",
+      "<!-- saaga:end -->",
+      "",
+      "kept below",
+      "",
+    ].join("\n");
+    const stripped = stripDocsRouting(md);
+    expect(stripped).not.toContain("saaga:begin");
+    expect(stripped).not.toContain("routing table");
+    expect(stripped).toContain("kept above");
+    expect(stripped).toContain("kept below");
   });
 
   test("drops a section that runs to the end of the file", () => {
@@ -68,13 +92,14 @@ describe("createSandbox", () => {
     await expect(readdir(join(sandboxDir, "saaga-docs"))).rejects.toThrow();
 
     const agentsMd = await readFile(join(sandboxDir, "AGENTS.md"), "utf8");
-    expect(agentsMd).not.toContain("## Documentation");
+    expect(agentsMd).not.toContain("saaga:begin");
+    expect(agentsMd).not.toContain("Domain Documentation");
     expect(agentsMd).toContain("## Development Rules");
 
     // CLAUDE.md must stay a symlink to the stripped AGENTS.md.
     expect(await readlink(join(sandboxDir, "CLAUDE.md"))).toBe("AGENTS.md");
     const claudeMd = await readFile(join(sandboxDir, "CLAUDE.md"), "utf8");
-    expect(claudeMd).not.toContain("## Documentation");
+    expect(claudeMd).not.toContain("Domain Documentation");
 
     // Exactly one commit and a clean tree: git must not reveal what changed.
     const log = await execa("git", ["log", "--oneline"], { cwd: sandboxDir });
@@ -92,7 +117,7 @@ describe("createSandbox", () => {
     expect(docs).toContain("concepts");
 
     const agentsMd = await readFile(join(sandboxDir, "AGENTS.md"), "utf8");
-    expect(agentsMd).toContain("## Documentation");
+    expect(agentsMd).toContain("### Domain Documentation (saaga)");
   });
 
   test("answer-key material is stripped from every condition", async () => {
@@ -111,7 +136,7 @@ describe("createSandbox", () => {
     const docs = await readdir(join(sandboxDir, "saaga-docs"));
     expect(docs).toContain("concepts");
     const agentsMd = await readFile(join(sandboxDir, "AGENTS.md"), "utf8");
-    expect(agentsMd).toContain("## Documentation");
+    expect(agentsMd).toContain("### Domain Documentation (saaga)");
     expect(await readlink(join(sandboxDir, "CLAUDE.md"))).toBe("AGENTS.md");
 
     // Every answer-bearing surface is gone: source, tests, README, config.

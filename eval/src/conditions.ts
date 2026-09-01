@@ -12,34 +12,55 @@ import type { ConditionId } from "./types.js";
  * (see plans/eval-seed-material.md, "Condition isolation").
  */
 
-/** Section heading whose block routes agents to the docs corpus. */
+/** Markers install-rules writes around its managed routing block. */
+const SAAGA_BEGIN = "<!-- saaga:begin -->";
+const SAAGA_END = "<!-- saaga:end -->";
+
+/** Legacy heading for routing sections maintained outside saaga markers. */
 const DOCS_ROUTING_HEADING = "## Documentation";
 
 /**
  * Remove the docs-routing section from an AGENTS.md-style document.
  *
- * This repo's AGENTS.md has no saaga-managed block markers — the routing
- * section is hand-maintained — so the strip works by heading: everything
- * from `## Documentation` up to (exclusive) the next `## ` heading is
- * dropped. Returns the input unchanged when the heading is absent.
+ * Since the beta corpus, this repo's AGENTS.md carries the routing as a
+ * saaga-managed block, so marker-delimited blocks are stripped first —
+ * they are the stable contract and survive heading renames inside the
+ * block. The heading heuristic (everything from `## Documentation` up to
+ * exclusive the next `## ` heading) remains as a fallback for documents
+ * without managed markers. Returns the input unchanged when neither is
+ * present.
  */
 export function stripDocsRouting(markdown: string): string {
-  const lines = markdown.split("\n");
-  const start = lines.findIndex((line) => line.trim() === DOCS_ROUTING_HEADING);
-  if (start === -1) return markdown;
+  let lines = markdown.split("\n");
+  let changed = false;
 
-  let end = lines.length;
-  for (let i = start + 1; i < lines.length; i++) {
-    if (/^## /.test(lines[i])) {
-      end = i;
-      break;
-    }
+  for (;;) {
+    const begin = lines.findIndex((line) => line.trim() === SAAGA_BEGIN);
+    if (begin === -1) break;
+    const endRel = lines.slice(begin + 1).findIndex((line) => line.trim() === SAAGA_END);
+    const stop = endRel === -1 ? lines.length : begin + 1 + endRel + 1;
+    lines = [...lines.slice(0, begin), ...lines.slice(stop)];
+    changed = true;
   }
 
-  const kept = [...lines.slice(0, start), ...lines.slice(end)];
-  // Collapse the leftover blank run where the section used to be.
+  const start = lines.findIndex((line) => line.trim() === DOCS_ROUTING_HEADING);
+  if (start !== -1) {
+    let end = lines.length;
+    for (let i = start + 1; i < lines.length; i++) {
+      if (/^## /.test(lines[i])) {
+        end = i;
+        break;
+      }
+    }
+    lines = [...lines.slice(0, start), ...lines.slice(end)];
+    changed = true;
+  }
+
+  if (!changed) return markdown;
+
+  // Collapse the leftover blank run where a section used to be.
   const out: string[] = [];
-  for (const line of kept) {
+  for (const line of lines) {
     if (line.trim() === "" && out.length > 0 && out[out.length - 1].trim() === "") continue;
     out.push(line);
   }

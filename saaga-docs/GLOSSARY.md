@@ -1,0 +1,108 @@
+---
+title: Glossary
+type: index
+---
+
+# Glossary
+
+Every term the INDEX files name, with the one-line definition its index gives
+it. Saaga regenerates this file on every documentation run and copies each
+definition verbatim — to change one, change the INDEX row it comes from.
+
+- [.saaga/config.yaml](./concepts/project-configuration.md) — Everything a repository can say about how Saaga treats it: `.saaga/config.yaml`, `.saagarules`, and the unstable-feature registry.
+- [.saagaignore](./concepts/baseline-and-change-detection.md) — The manifest of every file a corpus was documented from, the ignore rules that decide what is in scope, and the four categories a later run files each difference under.
+- [.saagarules](./concepts/project-configuration.md) — Everything a repository can say about how Saaga treats it: `.saaga/config.yaml`, `.saagarules`, and the unstable-feature registry.
+- [Adding Agent Backends](./patterns/adding-agent-backends.md) — The sequence of edits that makes another coding-agent CLI drivable by `--backend`: an `Agent` implementation, the permission translation, an event parser, the backend union and factory, doctor's flag and probe lists, and tests.
+- [Adding Built-in Scripts](./patterns/adding-built-in-scripts.md) — The sequence of edits that gives a flow a new deterministic step: the handler module, its registry entry, the flow usage and a test — plus how to parse string arguments and when to fail unresumably.
+- [Adding Flow Primitives](./patterns/adding-flow-primitives.md) — The sequence of edits that teaches the engine a new kind of step: the type, the loader's validation, a handler module, the runner's dispatch, the phase count and a test.
+- [Agent Events](./concepts/agent-events.md) — The normalized facts parsed out of a backend's JSON output while it runs — refused tool calls, the session's toolset, its usage totals — and the classes a refusal is filed under.
+- [Agent Interface](./concepts/agent-interface.md) — The one-method boundary every coding-agent CLI is driven through: `run(prompt, opts)` spawning a subprocess and reporting an exit code.
+- [Agent Permissions](./concepts/agent-permissions.md) — The backend-neutral profile that says what a run lets the agent read, write, and run — and how each backend expresses it in its own CLI's permission syntax.
+- [AgentEvent](./concepts/agent-events.md) — The normalized facts parsed out of a backend's JSON output while it runs — refused tool calls, the session's toolset, its usage totals — and the classes a refusal is filed under.
+- [AgentPermissions](./concepts/agent-permissions.md) — The backend-neutral profile that says what a run lets the agent read, write, and run — and how each backend expresses it in its own CLI's permission syntax.
+- [AgentRunOpts](./concepts/agent-interface.md) — The one-method boundary every coding-agent CLI is driven through: `run(prompt, opts)` spawning a subprocess and reporting an exit code.
+- [AgentRunResult](./concepts/agent-interface.md) — The one-method boundary every coding-agent CLI is driven through: `run(prompt, opts)` spawning a subprocess and reporting an exit code.
+- [ALLOWED_SHELL_COMMANDS](./concepts/agent-permissions.md) — The backend-neutral profile that says what a run lets the agent read, write, and run — and how each backend expresses it in its own CLI's permission syntax.
+- [backend](./concepts/backend-resolution.md) — How a run decides which agent CLI it drives and which model stands behind each model key its flow asks for.
+- [Backend Resolution](./concepts/backend-resolution.md) — How a run decides which agent CLI it drives and which model stands behind each model key its flow asks for.
+- [BASELINE](./concepts/baseline-and-change-detection.md) — The manifest of every file a corpus was documented from, the ignore rules that decide what is in scope, and the four categories a later run files each difference under.
+- [Baseline and Change Detection](./concepts/baseline-and-change-detection.md) — The manifest of every file a corpus was documented from, the ignore rules that decide what is in scope, and the four categories a later run files each difference under.
+- [broken link](./concepts/corpus-documents.md) — What a document in the corpus is: its frontmatter, its category, its place in the link graph, and the structural rules it must satisfy.
+- [built-in script](./concepts/script-registry.md) — The deterministic half of a flow: the id-to-handler map a `script:` step is dispatched through, and the contract between a step's arguments and a handler's return value.
+- [ceiling](./concepts/corpus-budget.md) — The two ceilings a documentation plan is held to — how many documents and how many lines — derived from the repository's own source rather than from the plan.
+- [charged lines](./concepts/corpus-budget.md) — The two ceilings a documentation plan is held to — how many documents and how many lines — derived from the repository's own source rather than from the plan.
+- [CLI Entry Point](./features/cli-entry-point.md) — The `saaga` command surface — `run`, `install-rules` and `doctor`, their flags and exit codes, and the lifecycle of a flow run from cost approval to the last line printed.
+- [corpus](./concepts/corpus-documents.md) — What a document in the corpus is: its frontmatter, its category, its place in the link graph, and the structural rules it must satisfy.
+- [Corpus Budget](./concepts/corpus-budget.md) — The two ceilings a documentation plan is held to — how many documents and how many lines — derived from the repository's own source rather than from the plan.
+- [Corpus Documents](./concepts/corpus-documents.md) — What a document in the corpus is: its frontmatter, its category, its place in the link graph, and the structural rules it must satisfy.
+- [Corpus Gates](./features/corpus-gates.md) — The deterministic checks a documentation flow is bracketed by: the format-version gate that refuses an incompatible corpus, the budget gate that holds a plan to its ceilings, and the structural validation that fails a run whose output is broken.
+- [cost notice](./features/cli-entry-point.md) — The `saaga` command surface — `run`, `install-rules` and `doctor`, their flags and exit codes, and the lifecycle of a flow run from cost approval to the last line printed.
+- [denial](./concepts/agent-events.md) — The normalized facts parsed out of a backend's JSON output while it runs — refused tool calls, the session's toolset, its usage totals — and the classes a refusal is filed under.
+- [denial class](./concepts/agent-events.md) — The normalized facts parsed out of a backend's JSON output while it runs — refused tool calls, the session's toolset, its usage totals — and the classes a refusal is filed under.
+- [diff budget](./features/update-workflow.md) — The flow that re-documents only what changed since the baseline, planning one phase per change group and short-circuiting when nothing did.
+- [Doctor](./features/doctor.md) — The diagnostic that establishes whether a backend's CLI is installed, still accepts the flags Saaga passes it, and can do a flow's work — at a fast tier that makes no model calls and a full tier that probes a real agent in a throwaway repository.
+- [document type](./concepts/corpus-documents.md) — What a document in the corpus is: its frontmatter, its category, its place in the link graph, and the structural rules it must satisfy.
+- [Error Messages](./conventions/error-messages.md) — How a validation failure is phrased — single-quoted key, then the expected type — and when a subsystem throws a named `Error` subclass instead of a bare one.
+- [Eval Harness](./features/eval-harness.md) — The repo-only experiment measuring whether the documentation corpus helps a coding agent: pre-registered tasks run in isolated sandboxes under different documentation conditions, scored and reported per condition.
+- [Extending Workflows](./patterns/extending-workflows.md) — The sequence of edits that changes what a flow does or adds a new one: the flow file, the prompts it names, the scope it must set, and an end-to-end test driven by the fake agent.
+- [fake agent](./concepts/agent-interface.md) — The one-method boundary every coding-agent CLI is driven through: `run(prompt, opts)` spawning a subprocess and reporting an exit code.
+- [File Layout](./conventions/file-layout.md) — Where a module, its test, a built-in script, a flow file and a prompt template each live, and the filename-to-identifier correspondences that go with them.
+- [file manifest](./concepts/baseline-and-change-detection.md) — The manifest of every file a corpus was documented from, the ignore rules that decide what is in scope, and the four categories a later run files each difference under.
+- [flow](./concepts/flow-definitions.md) — A documentation workflow written as data: a YAML file of steps, the six primitives a step may be, and the validation that decides whether it loads.
+- [Flow Definitions](./concepts/flow-definitions.md) — A documentation workflow written as data: a YAML file of steps, the six primitives a step may be, and the validation that decides whether it loads.
+- [Flow Execution](./features/flow-execution.md) — How the runner executes a flow: step dispatch, the agent- and script-step lifecycles, phase numbering, prompt archiving, and the step journal a resumed run reads.
+- [flow file](./concepts/flow-definitions.md) — A documentation workflow written as data: a YAML file of steps, the six primitives a step may be, and the validation that decides whether it loads.
+- [format version](./concepts/corpus-documents.md) — What a document in the corpus is: its frontmatter, its category, its place in the link graph, and the structural rules it must satisfy.
+- [frontmatter](./concepts/corpus-documents.md) — What a document in the corpus is: its frontmatter, its category, its place in the link graph, and the structural rules it must satisfy.
+- [gate](./features/corpus-gates.md) — The deterministic checks a documentation flow is bracketed by: the format-version gate that refuses an incompatible corpus, the budget gate that holds a plan to its ceilings, and the structural validation that fails a run whose output is broken.
+- [in scope](./concepts/baseline-and-change-detection.md) — The manifest of every file a corpus was documented from, the ignore rules that decide what is in scope, and the four categories a later run files each difference under.
+- [include directive](./concepts/prompt-templates.md) — The Markdown files an agent step is rendered from: placeholders the flow fills in, shared partials pulled in by include directives, and the project rules appended last.
+- [INDEX row](./features/navigation-generation.md) — How the corpus's `README.md` and `GLOSSARY.md` are derived from the category INDEX files, with every definition copied verbatim from the row that owns it.
+- [Init Workflow](./features/init-workflow.md) — The flow that documents a repository from scratch: architecture, a budgeted plan, then one write/verify/fix pass per slice, ending in a baseline and a validated corpus.
+- [Install Rules](./features/install-rules.md) — Writing the always-on "read the docs first" rule into a repository's own agent-rule files, between markers that leave the user's own content untouched.
+- [interpolation](./concepts/scope-and-expressions.md) — The bag of named values a running flow reads and writes, and the small `${…}` language — paths, interpolation, one-comparison predicates — that reads it.
+- [line budget](./concepts/corpus-budget.md) — The two ceilings a documentation plan is held to — how many documents and how many lines — derived from the repository's own source rather than from the plan.
+- [managed block](./features/install-rules.md) — Writing the always-on "read the docs first" rule into a repository's own agent-rule files, between markers that leave the user's own content untouched.
+- [model key](./concepts/backend-resolution.md) — How a run decides which agent CLI it drives and which model stands behind each model key its flow asks for.
+- [MODEL_KEY_PATTERN](./concepts/backend-resolution.md) — How a run decides which agent CLI it drives and which model stands behind each model key its flow asks for.
+- [Module Imports](./conventions/module-imports.md) — The specifier and grouping rules every import block follows: `node:`-prefixed builtins, a `.js` extension on every relative specifier despite the TypeScript source, and builtins-then-externals-then-relative order.
+- [Navigation Generation](./features/navigation-generation.md) — How the corpus's `README.md` and `GLOSSARY.md` are derived from the category INDEX files, with every definition copied verbatim from the row that owns it.
+- [orphan](./concepts/corpus-documents.md) — What a document in the corpus is: its frontmatter, its category, its place in the link graph, and the structural rules it must satisfy.
+- [partial](./concepts/prompt-templates.md) — The Markdown files an agent step is rendered from: placeholders the flow fills in, shared partials pulled in by include directives, and the project rules appended last.
+- [permission auditor](./concepts/agent-events.md) — The normalized facts parsed out of a backend's JSON output while it runs — refused tool calls, the session's toolset, its usage totals — and the classes a refusal is filed under.
+- [permission profile](./concepts/agent-permissions.md) — The backend-neutral profile that says what a run lets the agent read, write, and run — and how each backend expresses it in its own CLI's permission syntax.
+- phase — see also:
+  - [Flow Execution](./features/flow-execution.md) — How the runner executes a flow: step dispatch, the agent- and script-step lifecycles, phase numbering, prompt archiving, and the step journal a resumed run reads.
+  - [Init Workflow](./features/init-workflow.md) — The flow that documents a repository from scratch: architecture, a budgeted plan, then one write/verify/fix pass per slice, ending in a baseline and a validated corpus.
+- [placeholder](./concepts/prompt-templates.md) — The Markdown files an agent step is rendered from: placeholders the flow fills in, shared partials pulled in by include directives, and the project rules appended last.
+- [plan file](./features/init-workflow.md) — The flow that documents a repository from scratch: architecture, a budgeted plan, then one write/verify/fix pass per slice, ending in a baseline and a validated corpus.
+- [predicate](./concepts/scope-and-expressions.md) — The bag of named values a running flow reads and writes, and the small `${…}` language — paths, interpolation, one-comparison predicates — that reads it.
+- [primitive](./concepts/flow-definitions.md) — A documentation workflow written as data: a YAML file of steps, the six primitives a step may be, and the validation that decides whether it loads.
+- [probe](./features/doctor.md) — The diagnostic that establishes whether a backend's CLI is installed, still accepts the flags Saaga passes it, and can do a flow's work — at a fast tier that makes no model calls and a full tier that probes a real agent in a throwaway repository.
+- [Project Configuration](./concepts/project-configuration.md) — Everything a repository can say about how Saaga treats it: `.saaga/config.yaml`, `.saagarules`, and the unstable-feature registry.
+- [prompt archive](./features/flow-execution.md) — How the runner executes a flow: step dispatch, the agent- and script-step lifecycles, phase numbering, prompt archiving, and the step journal a resumed run reads.
+- [Prompt Templates](./concepts/prompt-templates.md) — The Markdown files an agent step is rendered from: placeholders the flow fills in, shared partials pulled in by include directives, and the project rules appended last.
+- [quick-update artifact](./features/quick-update-workflows.md) — The cheap daily pass that records a change and leaves an artifact behind, and the batched pass that later verifies every artifact and deletes it.
+- [Quick-Update Workflows](./features/quick-update-workflows.md) — The cheap daily pass that records a change and leaves an artifact behind, and the batched pass that later verifies every artifact and deletes it.
+- [restricted shell](./concepts/agent-permissions.md) — The backend-neutral profile that says what a run lets the agent read, write, and run — and how each backend expresses it in its own CLI's permission syntax.
+- [resume hint](./features/cli-entry-point.md) — The `saaga` command surface — `run`, `install-rules` and `doctor`, their flags and exit codes, and the lifecycle of a flow run from cost approval to the last line printed.
+- [Run Context](./concepts/run-context.md) — One invocation of a flow, given a run id, a `.saaga-runs/<run-id>/` directory, and a manifest a later invocation can resume from.
+- [run directory](./concepts/run-context.md) — One invocation of a flow, given a run id, a `.saaga-runs/<run-id>/` directory, and a manifest a later invocation can resume from.
+- [run id](./concepts/run-context.md) — One invocation of a flow, given a run id, a `.saaga-runs/<run-id>/` directory, and a manifest a later invocation can resume from.
+- [run manifest](./concepts/run-context.md) — One invocation of a flow, given a run id, a `.saaga-runs/<run-id>/` directory, and a manifest a later invocation can resume from.
+- [run.log](./features/cli-entry-point.md) — The `saaga` command surface — `run`, `install-rules` and `doctor`, their flags and exit codes, and the lifecycle of a flow run from cost approval to the last line printed.
+- [runner](./features/flow-execution.md) — How the runner executes a flow: step dispatch, the agent- and script-step lifecycles, phase numbering, prompt archiving, and the step journal a resumed run reads.
+- [scope](./concepts/scope-and-expressions.md) — The bag of named values a running flow reads and writes, and the small `${…}` language — paths, interpolation, one-comparison predicates — that reads it.
+- [Scope and Expressions](./concepts/scope-and-expressions.md) — The bag of named values a running flow reads and writes, and the small `${…}` language — paths, interpolation, one-comparison predicates — that reads it.
+- [script handler](./concepts/script-registry.md) — The deterministic half of a flow: the id-to-handler map a `script:` step is dispatched through, and the contract between a step's arguments and a handler's return value.
+- [script id](./concepts/script-registry.md) — The deterministic half of a flow: the id-to-handler map a `script:` step is dispatched through, and the contract between a step's arguments and a handler's return value.
+- [Script Registry](./concepts/script-registry.md) — The deterministic half of a flow: the id-to-handler map a `script:` step is dispatched through, and the contract between a step's arguments and a handler's return value.
+- [slice](./features/init-workflow.md) — The flow that documents a repository from scratch: architecture, a budgeted plan, then one write/verify/fix pass per slice, ending in a baseline and a validated corpus.
+- [step](./concepts/flow-definitions.md) — A documentation workflow written as data: a YAML file of steps, the six primitives a step may be, and the validation that decides whether it loads.
+- [step address](./features/flow-execution.md) — How the runner executes a flow: step dispatch, the agent- and script-step lifecycles, phase numbering, prompt archiving, and the step journal a resumed run reads.
+- [step journal](./features/flow-execution.md) — How the runner executes a flow: step dispatch, the agent- and script-step lifecycles, phase numbering, prompt archiving, and the step journal a resumed run reads.
+- [tier](./concepts/corpus-budget.md) — The two ceilings a documentation plan is held to — how many documents and how many lines — derived from the repository's own source rather than from the plan.
+- [unstable feature](./concepts/project-configuration.md) — Everything a repository can say about how Saaga treats it: `.saaga/config.yaml`, `.saagarules`, and the unstable-feature registry.
+- [update plan](./features/update-workflow.md) — The flow that re-documents only what changed since the baseline, planning one phase per change group and short-circuiting when nothing did.
+- [Update Workflow](./features/update-workflow.md) — The flow that re-documents only what changed since the baseline, planning one phase per change group and short-circuiting when nothing did.
+- [verify/fix loop](./features/init-workflow.md) — The flow that documents a repository from scratch: architecture, a budgeted plan, then one write/verify/fix pass per slice, ending in a baseline and a validated corpus.

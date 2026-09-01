@@ -1,126 +1,116 @@
+---
+title: "Feature: Update Workflow"
+type: feature
+sources:
+  - flows/update.flow.yaml
+  - prompts/plan-update.md
+  - src/scripts/detect-changes.ts
+  - src/scripts/parse-plan.ts
+terms:
+  - update plan
+  - diff budget
+---
+
 # Feature: Update Workflow
 
 ## Overview
 
-The `update` command incrementally updates existing documentation by detecting changes since the last BASELINE, creating a targeted update plan, documenting affected slices with verification, and regenerating the baseline. It only runs when actual changes are detected.
+`saaga run update` re-documents only what changed: it diffs the repository against the
+recorded baseline, plans one phase per change group, and rewrites those slices with the
+same verification the initial run used.
 
 ## Key Concepts
 
 Before working with this feature, understand these concepts:
-- [Flow Definitions](../concepts/flow-definitions.md)
-- [Prompt Templates](../concepts/prompt-templates.md)
 - [Baseline and Change Detection](../concepts/baseline-and-change-detection.md)
-- [Script Registry](../concepts/script-registry.md)
-- [Scope and Expressions](../concepts/scope-and-expressions.md)
+- [Flow Definitions](../concepts/flow-definitions.md)
 
 ## Functional Specification
 
-### User Flow
+### Mechanism
 
-1. User runs `saaga run update [dir]` (dir defaults to the current working directory)
-2. CLI resolves the agent backend and creates a run context
-3. Script `detect-changes` compares the work tree against `<docs_dir>/BASELINE`
-4. If no changes detected (`${changes.count} == 0`): workflow ends immediately (no-op)
-5. If changes exist:
-   - Agent creates an update plan at `<run_dir>/plans/<app>-update-<date>.plan.md`
-   - Engine asserts the plan file was created (`expect_file`)
-   - Script `parse-plan` extracts phases from the plan
-   - For each phase: agent documents the slice, then enters verify/fix loop (up to 3 iterations)
-   - Script `generate-baseline` regenerates `<docs_dir>/BASELINE`
+`flows/update.flow.yaml` in order:
+
+1. `check-format-version` in `mode: update` — an update refuses a corpus whose stamp does
+   not match this build. See [Corpus Gates](./corpus-gates.md).
+2. `detect-changes` writes a markdown changes report into the run directory and binds its
+   result to `changes`. The flow reads two of its fields: `count` and `changes_path`.
+3. **The no-changes short circuit.** Everything after this point sits inside an `if` on
+   `'${changes.count} != 0'`, carrying `label: updating documentation` and
+   `skip_label: no changes detected`. When nothing changed the flow prints one `[SKIP]`
+   line and ends — no plan, and no baseline, navigation or validation either, because
+   there is nothing whose state they would need to catch up with.
+4. `plan-update` writes the plan to
+   `${run_dir}/plans/${app}-update-${date}.plan.md`, held to it by `expect_file`. It is
+   given `changes_path` rather than the change set itself.
+5. `parse-plan` binds the plan's `phases` array to scope.
+6. A `foreach` over `${phases}` runs, per phase, a `slice-doc` agent step and then the
+   verify/fix loop — the same three-step skeleton, with the same `max: 3` bound and the
+   same `${run_dir}/slice-${phase.number}/` artifacts, that
+   [Init Workflow](./init-workflow.md) describes.
+7. `generate-baseline`, `generate-navigation`, `validate-docs`.
+
+### How an update plan differs from an init plan
+
+Both are parsed by the same `parse-plan` step and consumed by the same `slice-doc` prompt,
+so the frontmatter contract is identical. What differs is how `plan-update` arrives at it:
+
+- It **triages first**. If no documented surface is affected by the detected changes, it
+  writes `phases: []` with a `## Decision` section citing each changed file and why it is
+  not doc-worthy.
+- It works to a **diff budget** rather than a corpus budget. Under roughly five changed
+  source files, corrections are unlimited but at most one or two documents may get
+  *longer* and no new document is created unless the change introduces a genuinely new
+  concept; at five or more, normal planning applies. There is no
+  [corpus-budget](../concepts/corpus-budget.md) gate in this flow, because an update is
+  bounded by the diff rather than by the repository's size.
+- It groups **one phase per change**, ordered by directory structure, rather than by
+  domain-area dependency order.
 
 ### Validation Rules
 
-- `dir` must exist and be a directory (defaults to current working directory if omitted)
-- A `<docs_dir>/BASELINE` file must exist (otherwise `detect-changes` throws; run `init` first)
-- A backend must be resolvable via `--backend` flag or `.saaga/config.yaml`
+- The plan's frontmatter must carry a `phases` array. `require_phases` is not set, so
+  `phases: []` is valid and the `foreach` simply has no items — the triage decision above
+  is a legitimate outcome, not a failure.
+- Unlike `init`, the `foreach` has no `when` filter: every phase the plan lists is
+  documented, including a phase numbered 0.
+- Verify steps write exactly `PASS` or `FAIL`; anything else is treated as `FAIL`.
 
 ### Edge Cases
 
 | Scenario | Behavior |
 |----------|----------|
-| Directory does not exist | Throws `Error: Directory not found: <dir>` |
-| Path is not a directory | Throws `Error: Not a directory: <dir>` |
-| No `<docs_dir>/BASELINE` file exists | `detect-changes` throws `Error: BASELINE file not found... Run 'init' first` |
-| No changes since BASELINE | `${changes.count}` is 0, `if` condition is false, workflow ends without agent invocations |
-| Agent step exits non-zero | Throws `AgentStepFailedError`, CLI returns the exit code |
-| Plan file not produced | Throws `ExpectFileMissingError` |
-| Verify/fix loop exhausts iterations | Execution continues to next phase (no error) |
+| Nothing changed since the baseline | One `[SKIP]` line; the baseline is left exactly as it was |
+| Changes detected but none doc-worthy | The plan carries `phases: []`; no slice runs, but the baseline *is* regenerated so the same changes are not re-triaged next time |
+| The corpus has no `BASELINE` | `detect-changes` has nothing to diff against — the corpus must be initialised first |
+| The corpus stamp is missing or stale | The format-version gate fails before any agent call is made |
 
 ## Technical Implementation
 
-### Flow File
+### Data Model
 
-`flows/update.flow.yaml` — defines the conditional step sequence.
-
-### Step Sequence
-
-| # | Type | Details |
-|---|------|---------|
-| 1 | `script` | Name: `detect-changes`, args: `app_dir`, `output_dir`, `docs_dir`, sets `${changes}` in scope |
-| 2 | `if` | Condition: `${changes.count} != 0` — gates all subsequent steps |
-| 2.1 | `agent` | Prompt: `plan-update`, vars: `{app}`, `{docs_dir}`, `{changes_path}`, `{output_path}` (uses `${date}` in plan filename), `expect_file` asserts plan was written |
-| 2.2 | `script` | Name: `parse-plan`, reads update plan, sets `${phases}` |
-| 2.3 | `foreach` | Over `${phases}`: for each phase runs `slice-doc` agent, then verify/fix loop (max 3 iterations of `verify-domain-documentation` → `read-file` status → conditional `fix-documentation`) |
-| 2.4 | `script` | Name: `generate-baseline`, args: `app_dir`, `docs_dir`, regenerates `<docs_dir>/BASELINE` |
-
-### Initial Scope
-
-| Variable | Value |
-|----------|-------|
-| `${app}` | Application directory basename |
-| `${app_path}` | Absolute path to the application directory |
-| `${docs_dir}` | Documentation directory name (from `config.docsDir` or default `"saaga-docs"`) |
-| `${run_id}` | Unique run identifier (format: `<app>-update-<YYYYMMDD>-<HHMMSS>-<hex>`) |
-| `${run_dir}` | Absolute path to the run artifacts directory |
-| `${date}` | Date portion of the run timestamp (YYYYMMDD format) |
-
-### Scope After detect-changes
-
-The `detect-changes` script sets `${changes}` with these fields:
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `${changes.count}` | number | Total number of detected changes |
-| `${changes.changes_path}` | string | Absolute path to the markdown changes report |
-| `${changes.changed}` | number | Count of files with modified content |
-| `${changes.new}` | number | Count of new-to-scope files |
-| `${changes.truly_deleted}` | number | Count of removed files |
-| `${changes.newly_ignored}` | number | Count of files now excluded from scope |
+| Model/Type | Key Fields | Purpose |
+|--------|------------|---------|
+| `DetectChangesResult` | `count`, `changes_path` | The two fields this flow branches on and hands to the planner; the classification counts alongside them are [change detection](../concepts/baseline-and-change-detection.md)'s |
+| The update plan | frontmatter `phases`, body `## Decision` when empty | One phase per change group, or an explicit no-op with its rationale |
 
 ### Services/Functions
 
 | Module | Function/Method | Purpose |
-|--------|-----------------|---------|
-| `src/cli.ts` | `runCli()` | CLI entry point; `saaga run update` loads and executes the update flow |
-| `src/engine/runner.ts` | `runFlow()` | Executes the loaded flow definition |
-| `src/engine/loader.ts` | `loadFlow()` | Loads `flows/update.flow.yaml` |
-| `src/scripts/detect-changes.ts` | `detectChanges()` | Compares work tree vs. BASELINE, writes changes report |
-| `src/scripts/parse-plan.ts` | `parsePlan()` | Extracts phases from the plan's YAML frontmatter |
-| `src/scripts/generate-baseline.ts` | `generateBaseline()` | Regenerates `<docs_dir>/BASELINE` after updates |
-| `src/run-context.ts` | `createRunContext()` | Creates run ID and run directory |
-| `src/templates.ts` | `renderPromptFile()` | Renders prompt templates with variables |
-
-### Prompt Templates Used
-
-| Template | Purpose |
-|----------|---------|
-| `prompts/plan-update.md` | Create an incremental update plan based on detected changes |
-| `prompts/slice-doc.md` | Document a single phase from the update plan |
-| `prompts/verify-domain-documentation.md` | Verify documentation quality |
-| `prompts/fix-documentation.md` | Fix verification errors |
+|---------|--------|---------|
+| `parse-plan` | `parsePlan()` | Shared with `init`; reads the frontmatter `phases` array |
 
 ## Integration Points
 
-- **Depends on**: Agent backend, prompt templates, built-in scripts (`detect-changes`, `parse-plan`, `generate-baseline`), existing `<docs_dir>/BASELINE`
-- **Used by**: Users maintaining documentation after code changes
-- **External systems**: External agent CLIs (cursor-agent, copilot, claude)
+- **Depends on**: [change detection](../concepts/baseline-and-change-detection.md) for the
+  change set and the refreshed baseline, [flow execution](./flow-execution.md) for
+  dispatch, and [corpus gates](./corpus-gates.md) for the format and validation checks.
+- **Used by**: [the CLI](./cli-entry-point.md) as `saaga run update`.
+- **External systems**: the configured agent CLI, on the `high` model key throughout.
 
 ## Extension Guide
 
-To modify the update workflow:
-
-1. **Change the early-exit condition**: Modify the `if: '${changes.count} != 0'` predicate — for example, only proceed when there are more than N changes
-2. **Add pre-processing**: Insert steps before the `if` block to transform or filter the changes report
-3. **Skip baseline regeneration**: Remove the final `generate-baseline` script step (not recommended for production use)
-4. **Add ARCHITECTURE.md refresh**: Insert an agent step with `document-architecture` prompt inside the `if` block when structural changes are detected
-5. **Adjust verify/fix iterations**: Change the `max:` value in the nested `loop` step
+The triage rules and the diff budget live in `prompts/plan-update.md`, not in the flow
+file — tightening what counts as doc-worthy is a prompt edit. Changing the step sequence
+or the loop bound is a flow edit; see
+[Extending Workflows](../patterns/extending-workflows.md).

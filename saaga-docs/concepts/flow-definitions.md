@@ -1,111 +1,152 @@
+---
+title: Flow Definitions
+type: concept
+sources:
+  - src/engine/loader.ts
+  - src/engine/types.ts
+  - src/paths.ts
+  - flows/init.flow.yaml
+terms:
+  - flow
+  - flow file
+  - step
+  - primitive
+---
+
 # Flow Definitions
 
 ## Business Definition
 
-Flow definitions are the YAML-based workflow files that define the step sequences for each Saaga command. Each flow file describes what the command does end-to-end — which agent prompts to invoke, which scripts to run, and how to control iteration and branching. The four bundled flows (`init`, `update`, `quick-update`, `verify-quick-updates`) are executed via `saaga run <flow>`. The `doctor` and `install-rules` subcommands do not use flows.
+A **flow** is a documentation workflow written as data: a YAML file naming a sequence of
+steps that alternate between asking an agent to write something and running deterministic
+code over the result. The flow file is the whole of the workflow — there is no per-workflow
+TypeScript — so changing what `saaga run init` does means editing
+`flows/init.flow.yaml` and the prompts it names.
+
+A **step** is one object carrying exactly one **primitive** key. Six primitives exist:
+`agent` and `script` are the two leaves that do work, `foreach`, `loop` and `if` are
+control flow, and `read-file` is the plumbing that gets a file's contents into scope.
 
 ## Configuration
 
 | Source | Description |
 |--------|-------------|
-| `flows/*.flow.yaml` | One file per workflow; the file name (minus `.flow.yaml`) is the flow's identity |
-| `FLOWS_DIR` constant in `src/paths.ts` | Absolute path to the `flows/` directory at runtime |
+| `<package root>/flows/<name>.flow.yaml` | Every bundled flow; the directory is the only place flows are searched for |
+
+A flow is addressed by the filename stem, which is what `saaga run <name>` takes and what
+the `name:` field inside the file is expected to repeat — see
+[file layout](../conventions/file-layout.md). `description:` is the text `saaga run` with
+no flow prints beside each name, so a bundled flow is expected to carry one.
 
 **How to access:**
-- `loadFlow(name)` - loads and parses `flows/<name>.flow.yaml` into a typed `FlowDefinition`
-- `loadFlowFromFile(path)` - loads a flow from an arbitrary file path
-- `listFlows()` - lists bundled flows (name + optional description) for `saaga run` with no flow argument
-- `flowExists(name)` - checks whether a named flow file exists under `FLOWS_DIR`
-- `FLOWS_DIR` (constant) - the resolved directory containing all flow files
+- `loadFlow(name)` - parses `<name>.flow.yaml` from the flows directory
+- `loadFlowFromFile(path)` - parses a flow at an arbitrary path
+- `listFlows()` - every `*.flow.yaml` in the directory, as name and description, sorted by name
+- `flowExists(name)` (predicate) - whether the file is there, without parsing it
+- `FLOWS_DIR` (constant, `src/paths.ts`) - the directory itself, resolved relative to the
+  installed package rather than the user's project
 
 ## Data Storage
 
-| Object/Model/Type | Field/Property | Purpose |
+| Type | Fields | Purpose |
 |--------|-------|---------|
-| `FlowDefinition` | `name` | Identifier for the flow (matches the YAML `name:` field) |
-| `FlowDefinition` | `description` | Optional human-readable summary (YAML `description:`); shown in `saaga run` flow listing |
-| `FlowDefinition` | `steps` | Ordered array of `Step` objects composing the workflow |
-| `FlowInfo` | `name`, `description?` | Lightweight listing entry returned by `listFlows()` |
+| `FlowDefinition` | `name`, `description?`, `steps` | The parsed flow file |
+| `AgentStep` | `prompt`, `vars?`, `expect_file?`, `model?`, `label?` | Run a prompt template against the agent |
+| `ScriptStep` | `name`, `args`, `set?`, `label?` | Run a built-in script; every key that is not `name`/`set`/`label` becomes an entry in `args` |
+| `ForeachStep` | `var`, `in`, `do`, `when?`, `label?` | Bind each item of an array to `var` and run `do` |
+| `LoopStep` | `max`, `until`, `do`, `label?` | Repeat `do` until the predicate holds or `max` is reached |
+| `IfStep` | `condition`, `then`, `label?`, `skip_label?` | Run `then` when the predicate holds |
+| `ReadFileStep` | `path`, `set`, `trim?`, `label?` | Bind a file's contents to a scope variable |
 
-## The Four Flow Files
+`label` is the human-readable name of the step in terminal output; `skip_label` is the
+reason shown when an `if` is not taken. Both are interpolated, as is every field marked as
+an expression — see [scope and expressions](./scope-and-expressions.md) for the syntax.
+`agent.prompt` names a [prompt template](./prompt-templates.md), `agent.model` a model key
+resolved through [backend resolution](./backend-resolution.md), and `script.name` an entry
+in the [script registry](./script-registry.md).
 
-| Flow | File | Purpose |
-|------|------|---------|
-| init | `flows/init.flow.yaml` | Full documentation generation: architecture → plan → phases → baseline |
-| update | `flows/update.flow.yaml` | Incremental update: detect changes → plan → phases → baseline |
-| quick-update | `flows/quick-update.flow.yaml` | Fast single-session documentation update: detect changes → agent-driven triage/update → archive → baseline |
-| verify-quick-updates | `flows/verify-quick-updates.flow.yaml` | Batch verification: collect unverified quick-update artifacts → plan → foreach phase (slice + verify/fix) → remove artifacts |
+The `if` primitive is the one step that is not a single key: it is written as `if:` and
+`then:` siblings, optionally with `label:` and `skip_label:`, because a nested body under a
+single `if:` key reads worse in YAML. There is no `else`; a flow that needs one chains a
+second `if` with the negated predicate.
 
-### init.flow.yaml
+`foreach` over a parsed plan and a bounded `loop` are the two structures every bundled flow
+is built from:
 
-The most complex flow. Every agent and script step has a `label:` field for the phase-progress display (control-flow steps like `foreach` and `loop`, and plumbing steps like `read-file`, do not have labels). Step sequence:
+```yaml
+- foreach:
+    var: phase
+    in: ${phases}
+    when: '${phase.number} != 0'
+    do:
+      - agent:
+          prompt: slice-doc
+          label: documenting "${phase.title}"
+          vars:
+            phase_number: ${phase.number}
 
-1. `script` — `ensure-gitignore` ensures `.saaga-runs/` is in the project's `.gitignore`; label: `ensuring .saaga-runs is gitignored`
-2. `agent` — generate architecture docs (`document-architecture`); label: `documenting architecture`; passes `docs_dir`
-3. `agent` — create a documentation plan (`plan-init`); label: `planning documentation`; passes `docs_dir`, with `expect_file` assertion
-4. `script` — `parse-plan` extracts phases from the plan's YAML frontmatter; label: `parsing plan`
-5. `agent` — document phase 0 (`slice-doc`); label: `documenting overview`
-6. `script` — `install-rules` installs rule stubs; label: `installing rules`; uses `${app_path}`, `${app}`, `${rule_targets}`, and `${docs_dir}` from scope
-7. `foreach` — iterate non-zero phases: document each with `slice-doc` (label: `documenting "${phase.title}"`), then enter a `loop` (max 3) of verify (label: `verifying "${phase.title}"`) → read-status → conditionally fix (label: `fixing "${phase.title}"`); `verify-domain-documentation` passes `docs_dir`
-8. `script` — `generate-baseline` creates the content manifest; label: `generating baseline`; passes `docs_dir`
+- loop:
+    max: 3
+    until: '${status} == "PASS"'
+    do:
+      - agent: { prompt: verify-domain-documentation, model: high }
+      - read-file: { path: ${status_path}, set: status, trim: true }
+      - if: '${status} != "PASS"'
+        then:
+          - agent: { prompt: fix-documentation }
+```
 
-### update.flow.yaml
-
-Conditional workflow for incremental updates. All agent and script steps have `label:` fields; the top-level `if` step has `label: updating documentation` and `skip_label: no changes detected` for the `[SKIP]` phase line when no changes are found:
-
-1. `script` — `detect-changes` compares work tree vs. BASELINE; label: `detecting changes`; passes `docs_dir`
-2. `if` — only proceeds when `${changes.count} != 0`; label: `updating documentation`; skip_label: `no changes detected`
-3. Inside the `if`: plan (label: `planning update`; passes `docs_dir`) → parse-plan (label: `parsing plan`) → foreach phase (slice + verify/fix loop with `docs_dir`) → regenerate baseline (label: `generating baseline`; passes `docs_dir`)
-
-### quick-update.flow.yaml
-
-Fast single-session update using a cheaper/faster model by default. All agent and script steps have `label:` fields. Step sequence:
-
-1. `script` — `detect-changes` compares work tree vs. BASELINE; label: `detecting changes`; passes `docs_dir`; stores result as `changes`
-2. `if` — only proceeds when `${changes.count} != 0`; label: `quick updating documentation`; skip_label: `no changes detected`
-3. Inside the `if`:
-   - `agent` — `quick-update` prompt: label: `updating documentation`; passes `docs_dir`; triage changes, update docs, write status (`UPDATED`/`SKIPPED`) and summary artifact to `${app_path}/${docs_dir}/metadata/quick_updates/${run_id}/summary.md`
-   - `read-file` — reads the status file into scope as `status`
-   - `if` — when `${status} == "UPDATED"`: runs `archive-quick-update` (label: `archiving update`) with `dest_dir` using `${docs_dir}` in the metadata path
-   - `if` — when `${status} != "UPDATED"`: runs `cleanup-quick-update-dir` (label: `cleaning up metadata`) to remove the pre-created metadata directory when the agent did not produce an update
-   - `script` — `generate-baseline` regenerates the content manifest; label: `generating baseline`; passes `docs_dir`
-
-### verify-quick-updates.flow.yaml
-
-Batch verification flow that consolidates and hardens accumulated quick-update artifacts. All agent and script steps have `label:` fields. Step sequence:
-
-1. `script` — `collect-quick-updates` snapshots all unverified metadata folders; label: `collecting quick updates`; stores result (including `manifest_path` and `count`) as `quick_updates`
-2. `if` — only proceeds when `${quick_updates.count} != 0`; label: `verifying quick updates`; skip_label: `no quick updates to verify`
-3. Inside the `if`:
-   - `agent` — `plan-verify-quick-updates` prompt: label: `planning verification`; passes `docs_dir` and `metadata_dir` (`${app_path}/${docs_dir}/metadata/quick_updates`); reads all artifact summaries, consolidates into a verification plan
-   - `script` — `parse-plan` extracts phases from the plan; label: `parsing plan`
-   - `foreach` — iterate phases: document each with `slice-doc` (label: `documenting "${phase.title}"`), then enter a `loop` (max 3) of verify (label: `verifying "${phase.title}"`) → read-status → conditionally fix (label: `fixing "${phase.title}"`); `verify-domain-documentation` passes `docs_dir` and `changes_dir` (`${app_path}/${docs_dir}/metadata/quick_updates`)
-   - `script` — `remove-quick-updates` deletes exactly the metadata folders listed in the manifest; label: `cleaning up artifacts` (artifacts created after the snapshot are preserved)
-
-## Key Services/Functions (PUBLIC/EXPORTED only)
+## Key Services/Functions
 
 | Module | Function/Method | Purpose |
-|--------|-----------------|---------|
-| `src/engine/loader.ts` | `loadFlow()` | Load a flow by name from `FLOWS_DIR` |
-| `src/engine/loader.ts` | `loadFlowFromFile()` | Load a flow from an arbitrary file path |
-| `src/engine/loader.ts` | `parseFlowDefinition()` | Parse a raw YAML object into a typed `FlowDefinition` |
-| `src/engine/loader.ts` | `listFlows()` | List bundled flows (name + optional description) for `saaga run` |
-| `src/engine/loader.ts` | `flowExists()` | Check whether a named flow file exists under `FLOWS_DIR` |
-| `src/engine/loader.ts` | `FlowInfo` (interface) | Lightweight listing entry returned by `listFlows()` |
-| `src/engine/runner.ts` | `runFlow()` | Execute a `FlowDefinition` with initial scope and dependencies |
-| `src/paths.ts` | `FLOWS_DIR` | Resolved absolute path to `flows/` directory |
+|---------|--------|---------|
+| `engine/loader` | `loadFlow()` | Load a bundled flow by name |
+| `engine/loader` | `loadFlowFromFile()` | Load and parse a flow file by path |
+| `engine/loader` | `parseFlowDefinition()` | Validate raw YAML into a `FlowDefinition` |
+| `engine/loader` | `listFlows()` | Name and description of every bundled flow |
+| `engine/loader` | `flowExists()` | Whether a named flow file exists |
+| `engine/loader` | `agentSteps()` | Every agent step in a step list, descending into `do`/`then` bodies, in document order |
+| `engine/loader` | `FlowInfo` | `name` and optional `description`, as returned by `listFlows()` |
+| `engine/types` | `FlowDefinition`, `Step`, `Scope` | The parsed shapes; `Step` is the union of the six primitives |
+
+`agentSteps()` is how the CLI learns which model keys a flow will ask for before the run
+starts. It is deliberately not the same traversal as the phase counter's, which stops at a
+loop or foreach container rather than descending into it.
+
+### Validation
+
+`parseFlowDefinition()` is the whole of flow validation: a file that survives it is a
+`FlowDefinition`, and a file that does not throws an `Error` naming the offending key —
+see [error messages](../conventions/error-messages.md) for the phrasing. The rules are:
+
+- The document is an object with a string `name`, an optional string `description`, and an
+  array `steps`.
+- Every step is a non-array object with exactly one primitive key, or the `if`/`then` pair.
+  An unrecognised key is rejected as an unknown step type rather than ignored.
+- Each primitive's body is an object, and each field has the type in the table above:
+  `loop.max` must be a positive integer, `foreach.in` and every predicate a string,
+  `read-file.trim` a boolean.
+- An `agent` step accepts only `prompt`, `vars`, `expect_file`, `label` and `model`. A
+  mistyped key is a hard error, because a silently ignored `model` would run the whole
+  flow on the wrong model with no signal. `model` must additionally match the model-key
+  pattern.
+- `script` args and `agent.vars` values are coerced to strings, with `null` becoming `""`.
+
+What validation deliberately does *not* check is whether the things a step names exist: an
+unknown `script.name` and a missing `agent.prompt` template both fail when the step runs,
+not when the flow loads. A flow whose steps are all valid can still fail on its first step.
 
 ## Reference Implementations
 
-- `flows/init.flow.yaml` — demonstrates all step types: agent, script, foreach (with `when`), loop, read-file, if
-- `flows/update.flow.yaml` — demonstrates conditional branching with `if` at the top level and nested `foreach`/`loop`
-- `flows/quick-update.flow.yaml` — demonstrates agent writing a status file that controls conditional archiving
-- `flows/verify-quick-updates.flow.yaml` — demonstrates collecting external artifacts, planning from them, and cleaning up afterwards
+- `src/engine/loader.ts` - the parser and every validation rule
+- `flows/init.flow.yaml` - the worked example: all six primitives, nested two deep
+- `tests/engine/loader.test.ts` - the validation contract, key by key
+- `tests/flows.test.ts` - the bundled flows checked as data, without running them
 
 ## Related Concepts
 
-- [Flow DSL](./flow-dsl.md)
 - [Scope and Expressions](./scope-and-expressions.md)
-- [Templates and Prompt Rendering](./templates-and-prompt-rendering.md)
 - [Prompt Templates](./prompt-templates.md)
-- [Output and Progress Display](./output-and-progress.md)
+- [Script Registry](./script-registry.md)
+- [Feature: Flow Execution](../features/flow-execution.md)
+- [File Layout](../conventions/file-layout.md)

@@ -1,77 +1,99 @@
+---
+title: Script Registry
+type: concept
+last_verified: 2026-09-01
+sources:
+  - src/scripts/registry.ts
+  - src/engine/primitives/script.ts
+  - src/scripts/*.ts
+terms:
+  - built-in script
+  - script handler
+  - script id
+---
+
 # Script Registry
 
 ## Business Definition
 
-The Script Registry is the mechanism by which Saaga maps script names (used in flow YAML `script:` steps) to TypeScript handler functions. It allows the flow engine to execute built-in data operations — such as parsing a documentation plan, generating a content baseline, or detecting file changes — without shelling out to external processes. The registry is a simple string-keyed map, making it easy to extend with new scripts or override entries for testing.
+A **built-in script** is the deterministic half of a flow: a TypeScript function that a
+`script:` step names by id and the runner calls in-process, rather than a prompt an agent
+answers. Anything decidable in code — hashing the work tree, checking a plan against a
+ceiling, rendering a generated page — is a script, so it costs no agent tokens and cannot
+come out differently on two runs over the same input.
+
+The **registry** is the id-to-handler map a step's `name` is looked up in. A **script id**
+lives in exactly two places: as a key of the registry and as the filename stem of the
+module exporting its handler — see [file layout](../conventions/file-layout.md).
 
 ## Configuration
 
-| Source | Description |
-|--------|-------------|
-| `src/scripts/registry.ts` | Defines the `defaultScriptRegistry` with all built-in scripts |
-| `RunFlowDeps.scripts` | Optional override registry passed through `runFlow()` deps (used by tests) |
+| Source | Description | Precedence |
+|--------|-------------|------------|
+| `defaultScriptRegistry` (`src/scripts/registry.ts`) | The built-ins every flow can call | Used when the caller supplies nothing |
+| `RunFlowDeps.scripts` | A registry the caller passes to `runFlow()` | Wins outright when present |
+
+The override *replaces* the default rather than merging with it, so a caller passing a
+partial map — as the engine tests do — has no built-ins at all. The product CLI never
+passes one.
 
 **How to access:**
-- `defaultScriptRegistry` — the production registry, imported by the script step handler
-- Custom registries can be passed via `RunFlowDeps.scripts` to override or extend the defaults during testing
+- `defaultScriptRegistry` (constant) - the built-in id-to-handler map
+- `ScriptRegistry` (type) - `Record<string, ScriptHandler>`
 
 ## Data Storage
 
 | Type | Field/Property | Purpose |
-|------|----------------|---------|
+|--------|-------|---------|
+| `ScriptHandler` | `(args, ctx) => Promise<unknown>` | The shape every handler implements |
 | `ScriptContext` | `cwd` | Working directory: the application being documented |
-| `ScriptHandler` | `(args, ctx) => Promise<unknown>` | Async function signature all handlers must implement |
-| `ScriptRegistry` | `Record<string, ScriptHandler>` | Maps script name strings to handler functions |
-| `ScriptStep` | `name` | The registry key used to look up the handler |
-| `ScriptStep` | `args` | Key-value arguments passed to the handler (interpolated from scope) |
-| `ScriptStep` | `set` | Optional scope variable name to store the handler's return value |
+| `ScriptContext` | `warn?` | Emits a warning into the run output; absent when the caller has no logger in reach, which is why every use is optional-chained |
 
-## Key Services/Functions (PUBLIC/EXPORTED only)
+The contract with a `script:` step has three parts. Every key of the step other than
+`name`, `set` and `label` arrives in `args` as a **string**, already interpolated against
+scope, so a handler that wants a number or a boolean coerces it itself. The handler's
+resolved value is assigned to the variable named by `set`, and nowhere otherwise — a step
+with no `set` discards it. That value must be JSON-serialisable, because
+[flow execution](../features/flow-execution.md) replays it out of the step journal when a
+run resumes.
 
-| Module | Function/Export | Purpose |
-|--------|-----------------|---------|
-| `src/scripts/registry.ts` | `ScriptContext` (interface) | Context object passed to every script handler |
-| `src/scripts/registry.ts` | `ScriptHandler` (type) | Function signature: `(args, ctx) => Promise<unknown>` |
-| `src/scripts/registry.ts` | `ScriptRegistry` (type) | `Record<string, ScriptHandler>` — the registry type |
-| `src/scripts/registry.ts` | `defaultScriptRegistry` (const) | Production registry with all built-in scripts |
-| `src/engine/primitives/script.ts` | `runScriptStep()` | Looks up the handler, interpolates args from scope, invokes the handler, and optionally stores the result |
+## Key Services/Functions
 
-## Registered Built-in Scripts
+| Module | Function/Method | Purpose |
+|---------|--------|---------|
+| `scripts/registry` | `defaultScriptRegistry` | The built-in registry |
+| `scripts/registry` | `ScriptHandler`, `ScriptRegistry`, `ScriptContext` | The handler contract |
+| `engine/primitives/script` | `runScriptStep()` | Resolve the handler, interpolate args, assign `set` |
 
-| Registry Key | Handler Module | Purpose |
-|--------------|---------------|---------|
-| `"parse-plan"` | `src/scripts/parse-plan.ts` | Extracts phases from a plan file's YAML frontmatter |
-| `"generate-baseline"` | `src/scripts/generate-baseline.ts` | Writes `<docs_dir>/BASELINE` content manifest |
-| `"detect-changes"` | `src/scripts/detect-changes.ts` | Compares work tree against BASELINE, classifies differences |
-| `"archive-quick-update"` | `src/scripts/archive-quick-update.ts` | Copies the detect-changes report into the quick-update metadata folder for later verification |
-| `"cleanup-quick-update-dir"` | `src/scripts/cleanup-quick-update-dir.ts` | Removes a single pre-created quick-update metadata folder when the agent wrote SKIPPED rather than UPDATED; validates path safety to prevent path-traversal attacks |
-| `"collect-quick-updates"` | `src/scripts/collect-quick-updates.ts` | Snapshots unverified quick-update metadata folders and writes a JSON manifest |
-| `"remove-quick-updates"` | `src/scripts/remove-quick-updates.ts` | Deletes exactly the quick-update metadata folders listed in a manifest |
-| `"install-rules"` | `src/scripts/install-rules.ts` | Installs documentation rule stubs into the target application directory |
-| `"ensure-gitignore"` | `src/scripts/ensure-gitignore.ts` | Ensures a pattern (e.g., `.saaga-runs/`) is present in the project's `.gitignore` |
+### The built-ins
 
-## Internal Implementation
+| Id | Purpose |
+|----|---------|
+| `parse-plan` | Read the `phases` array out of a plan's YAML frontmatter, for a `foreach` to walk |
+| `check-plan-budget` | Decide a plan against the [corpus budget](./corpus-budget.md) |
+| `check-format-version` | Refuse a flow whose templates do not match the corpus on disk |
+| `stamp-format-version` | Write the format stamp onto a freshly generated corpus |
+| `ensure-gitignore` | Add a pattern to the project's `.gitignore` |
+| `generate-baseline` | Write [`BASELINE`](./baseline-and-change-detection.md) |
+| `detect-changes` | Classify the work tree against `BASELINE` |
+| `generate-navigation` | Rebuild the [generated pages](../features/navigation-generation.md) |
+| `validate-docs` | Run the structural checks over the corpus |
+| `install-rules` | Write always-on agent rules into the repository; see [install rules](../features/install-rules.md) |
+| `archive-quick-update`, `collect-quick-updates`, `remove-quick-updates`, `cleanup-quick-update-dir` | The quick-update artifact lifecycle; see [quick-update workflows](../features/quick-update-workflows.md) |
 
-The script step handler in `src/engine/primitives/script.ts` performs three operations:
-
-1. **Registry lookup** — resolves `step.name` against the registry (falls back to `defaultScriptRegistry` if no override is provided). Throws `Error: Unknown script: <name>` if no handler is found.
-2. **Argument interpolation** — iterates `step.args` and resolves each value through `interpolate()` using the current flow scope.
-3. **Result storage** — if `step.set` is defined, the handler's return value is stored into the scope under that variable name, making it available to subsequent steps via `${varName}`.
+Five of these are gates rather than producers — what each one fails a run for is owned by
+[corpus gates](../features/corpus-gates.md).
 
 ## Reference Implementations
 
-- `src/scripts/parse-plan.ts` — accepts `{ file }` args, returns `Phase[]` array stored in scope
-- `src/scripts/detect-changes.ts` — accepts `{ app_dir, output_dir, docs_dir }` args, returns `DetectChangesResult` with per-classification counts
-- `src/scripts/generate-baseline.ts` — accepts `{ app_dir, docs_dir }` args, returns `void` (side effect: writes BASELINE file)
-- `src/scripts/archive-quick-update.ts` — accepts `{ changes_path, dest_dir, summary_path? }` args, returns `void` (side effect: if `summary_path` is provided, verifies the summary exists before copying; throws if it doesn't)
-- `src/scripts/cleanup-quick-update-dir.ts` — accepts `{ metadata_root, run_id }` args, returns `void` (side effect: validates the resolved folder is strictly inside `metadata_root` to prevent path-traversal attacks, then removes the folder recursively)
-- `src/scripts/collect-quick-updates.ts` — accepts `{ metadata_dir, output_dir }` args, returns `CollectQuickUpdatesResult` with `count`, `manifest_path`, and `ids`
-- `src/scripts/remove-quick-updates.ts` — accepts `{ manifest }` args, returns `void` (side effect: deletes metadata folders listed in manifest)
-- `src/scripts/install-rules.ts` — accepts `{ app_dir, app, rule_targets, docs_dir }` args, returns `void` (side effect: upserts rule stubs into rule files for the requested targets)
-- `src/scripts/ensure-gitignore.ts` — accepts `{ app_dir, pattern }` args, returns `void` (side effect: appends the pattern to `.gitignore` if absent, or creates the file if it does not exist)
+- `src/scripts/registry.ts` - the map and the two contract types
+- `src/scripts/ensure-gitignore.ts` - the smallest complete handler: two args, no result
+- `src/scripts/detect-changes.ts` - a handler whose returned object a later `if` reads
+- `src/engine/primitives/script.ts` - the caller, and the whole of the arg/`set` contract
 
 ## Related Concepts
 
-- [Flow DSL](./flow-dsl.md) — defines the `ScriptStep` type that triggers script execution
-- [Scope and Expressions](./scope-and-expressions.md) — the interpolation system used to resolve script arguments and store results
-- [Baseline and Change Detection](./baseline-and-change-detection.md) — the domain of the `generate-baseline` and `detect-changes` built-in scripts
+- [Flow Definitions](./flow-definitions.md)
+- [Feature: Flow Execution](../features/flow-execution.md)
+- [Adding Built-in Scripts](../patterns/adding-built-in-scripts.md)
+- [Corpus Documents](./corpus-documents.md)

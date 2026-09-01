@@ -1,4 +1,4 @@
-defaultBackend: cursor
+defaultBackend: claude
 ruleTargets: [agentsmd]
 autoApprove: true
 unstableFeatures: [none]

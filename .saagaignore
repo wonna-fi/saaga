@@ -1,11 +1,22 @@
 # Meta / VCS / packaging
 .gitignore
+.gitattributes
 .npmignore
-LICENSE
 pnpm-lock.yaml
 # Dev environment (not part of the product domain)
 .devcontainer/
 # IDE / agent tooling (not part of the product domain)
 .cursor/
+.claude/
+.vscode/
+# Saaga's own project config for documenting itself (meta, not domain)
+.saaga/
 # Sample install hooks — illustrative, not domain logic
 examples/
+# Plans
+plans/
+# Eval reports
+eval/reports/
+# Preserved corpora from the model-comparison experiment (not domain sources)
+saaga-docs-opus-5/
+saaga-docs-opus-4-6/

@@ -1,31 +1,3 @@
-## Documentation
-
-### Domain Documentation
-
-This application has structured domain documentation organized into four types:
-
-- **Concepts** (`saaga-docs/concepts/INDEX.md`) — Domain concepts: what something is and where it lives (agent interface, flow DSL types, expression evaluation, scope, templates)
-- **Patterns** (`saaga-docs/patterns/INDEX.md`) — Implementation patterns: how to do common operations (adding agent backends, adding flow primitives, adding built-in scripts, creating prompt templates)
-- **Conventions** (`saaga-docs/conventions/INDEX.md`) — Lexical and structural rules: what things must be named or shaped like (naming, file layout, error messages). Optional — this corpus has none yet
-- **Features** (`saaga-docs/features/INDEX.md`) — Feature specifications: end-to-end feature documentation (init workflow, update workflow, slice workflow, verify/fix loop)
-
-#### When to Use Each Type
-
-| If you need to understand... | Read a... | Example |
-|------------------------------|-----------|---------|
-| What "scope" means and how data flows between steps | Concept | `saaga-docs/concepts/scope-and-expressions.md` |
-| How to add a new agent backend | Pattern | `saaga-docs/patterns/adding-agent-backends.md` |
-| What a new script file must be called | Convention | `saaga-docs/conventions/naming.md` |
-| How the `init` command works end-to-end | Feature | `saaga-docs/features/init-workflow.md` |
-
-#### Behavioral Rules
-
-- **Docs first**: When working on `rewrite`, ALWAYS read the domain documentation BEFORE exploring source code. The domain documentation is the authoritative source for understanding the system. Source code is the second resort, used only when the docs do not cover the question.
-
-- **No documentation updates during implementation**: Do NOT update domain documentation (concepts, patterns, conventions, features) when making code changes. Documentation updates are handled separately by Saaga to ensure quality and consistency. Focus your work on the code changes only.
-
-- **Consult before implementing**: Before implementing new features or changes, check the existing concepts and patterns to understand and reuse existing services/modules. Avoid reinventing functionality that already exists.
-
 ## Development Rules
 
 ### Definition of Done Checklist
@@ -37,3 +9,31 @@ A task is ready when the following criteria are met:
 3. The complete test suite passes
 4. There are no linter errors
 5. The README is updated
+
+<!-- saaga:begin -->
+### Domain Documentation (saaga)
+
+This codebase has structured domain documentation under `saaga-docs/`, organized into four types:
+
+| Type | Index | Answers |
+|------|-------|---------|
+| Concepts | `saaga-docs/concepts/INDEX.md` | What something is and where it lives |
+| Patterns | `saaga-docs/patterns/INDEX.md` | How to do common operations — anything that takes reading a code flow to follow |
+| Conventions | `saaga-docs/conventions/INDEX.md` | What things must be named or shaped like — the rules you could check with grep |
+| Features | `saaga-docs/features/INDEX.md` | How a feature works end-to-end, user-facing or internal machinery |
+
+Classify your question, open the matching `INDEX.md`, and read the relevant document(s):
+
+- "What is X / where does X live?" -> read a concept
+- "How do I do X?" -> read a pattern
+- "What do I call X / where does the file go?" -> read a convention
+- "How does feature X work end-to-end?" -> read a feature
+
+Not every codebase has conventions; the category is present only when there are rules worth stating.
+
+Rules:
+
+- **Docs first**: ALWAYS read the domain documentation BEFORE exploring source code. It is the authoritative source for understanding the system; source code is the second resort.
+- **No documentation updates during implementation**: do NOT update the domain documentation when making code changes. It is maintained separately by Saaga.
+- **Consult before implementing**: before implementing new features or changes, check the existing concepts and patterns to reuse existing services/modules instead of reinventing them.
+<!-- saaga:end -->

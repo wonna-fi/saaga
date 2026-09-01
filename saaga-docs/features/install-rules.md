@@ -1,94 +1,102 @@
+---
+title: "Feature: Install Rules"
+type: feature
+sources:
+  - src/scripts/install-rules.ts
+  - src/cli.ts
+  - rules/rule-stub.md
+  - rules/cursor-rule.mdc
+  - rules/copilot-rule.md
+terms:
+  - managed block
+last_verified: 2026-09-01
+---
+
 # Feature: Install Rules
 
 ## Overview
 
-The `install-rules` command installs always-on documentation rules into an application directory. It writes a documentation guidance block into agent rule files (e.g., `AGENTS.md`, `CLAUDE.md`, Copilot instructions, or Cursor `.mdc` rules), telling agents to read `<docs_dir>/` before exploring source code.
-
-The operation is deterministic and idempotent: existing managed blocks are replaced in-place; owned files (Cursor `.mdc` and Copilot `.instructions.md`) are overwritten; missing parent directories are created. No agent backend is required.
-
-This feature is also invoked as a step in the `init` workflow immediately after phase-0 documentation.
+Writes the always-on rule that tells a coding agent to read the corpus before the source
+into a repository's own agent-rule files, so any agent working there is pointed at the
+documentation whether or not Saaga is running.
 
 ## Key Concepts
 
-- [Script Registry](../concepts/script-registry.md) — `install-rules` is a registered built-in script
-- [Package Paths](../concepts/package-paths.md) — `RULES_DIR` provides the template root
+Before working with this feature, understand these concepts:
+- [Project Configuration](../concepts/project-configuration.md)
+- [Prompt Templates](../concepts/prompt-templates.md)
 
 ## Functional Specification
 
-### Rule Targets
+### Mechanism
 
-| Target | File Written |
-|--------|-------------|
-| `agentsmd` | `AGENTS.md` (managed block upsert) |
-| `cursor` | `.cursor/rules/domain-docs.mdc` (full file, overwritten) |
-| `claude` | `CLAUDE.md` (managed block upsert) |
-| `copilot` | `.github/instructions/domain-docs.instructions.md` (full file, overwritten) |
+1. `parseRuleTargets` splits the comma-separated list, drops `none`, removes duplicates
+   while preserving order, and rejects anything else unknown. An empty result —
+   `--rule-targets none` — writes nothing.
+2. `rules/rule-stub.md` is rendered once with `app` and `docs_dir` and right-trimmed. That
+   one body goes into every selected target.
+3. Each target's parent directory is created and the body written the way its file needs:
 
-### Managed Block Protocol
+| Target | File | Written as |
+|--------|------|-----------|
+| `agentsmd` | `AGENTS.md` | Managed block |
+| `claude` | `CLAUDE.md` | Managed block |
+| `cursor` | `.cursor/rules/domain-docs.mdc` | Whole file, from `rules/cursor-rule.mdc` |
+| `copilot` | `.github/instructions/domain-docs.instructions.md` | Whole file, from `rules/copilot-rule.md` |
 
-For `agentsmd` and `claude` targets, the rule stub content is wrapped in HTML comment markers and upserted into the target file:
+The split is ownership: `AGENTS.md` and `CLAUDE.md` usually hold the user's own content,
+so only the marked region is touched, while the Cursor and Copilot files are
+frontmatter-bearing formats — `alwaysApply: true` and `applyTo: "**"` — Saaga owns and
+overwrites. Copilot's path-specific `.instructions.md` is used rather than
+`.github/copilot-instructions.md` because it is the variant that takes frontmatter.
 
-- **File missing**: created with just the managed block.
-- **File exists, block present**: the block between `<!-- saaga:begin -->` and `<!-- saaga:end -->` is replaced in-place; surrounding content is preserved.
-- **File exists, no block**: the block is appended (with appropriate separator).
-
-The `cursor` and `copilot` targets use standalone files rendered from their respective owned templates and are always fully overwritten.
-
-### User Flow (CLI subcommand)
-
-1. User runs `saaga install-rules [dir] [--rule-targets <targets>]` (dir defaults to the current working directory)
-2. `<targets>` is a comma-separated list; `none` is a valid value that yields an empty list.
-3. CLI validates targets — throws on unknown values before any file I/O occurs.
-4. For each rule target: creates parent directories as needed, then writes or upserts the rule stub.
+**Managed-block semantics.** The region is delimited by `<!-- saaga:begin -->` and
+`<!-- saaga:end -->`. A missing file is created holding just the block; a file with both
+markers has the text between them replaced and everything outside preserved byte for byte;
+a file without markers gets the block appended after a blank line. Either way, idempotent.
 
 ### Validation Rules
 
-- `--rule-targets` values must be from: `agentsmd`, `cursor`, `claude`, `copilot`, `none`
-- `app_dir` must be a non-empty string (required argument)
-- `app` must be a non-empty string (required argument)
-- `rule_targets` must be provided (empty string throws)
+- `app_dir`, `app`, `rule_targets` and `docs_dir` are all required, and unknown targets
+  are rejected by name with the allowed set listed.
+- Input carrying no token at all is an error rather than a silent no-op. The CLI calls the
+  same parser while resolving the flag, so a bad value fails before the run starts.
 
 ### Edge Cases
 
 | Scenario | Behavior |
 |----------|----------|
-| `--rule-targets none` | No rule files written (no-op) |
-| Target file directory does not exist | Created recursively via `mkdir` |
-| Managed block markers are split (begin without end) | Treated as no block found; stub is appended |
-| Unknown target value | Throws `Error: install-rules: invalid rule target '<value>' (allowed: agentsmd, cursor, claude, copilot, none)` |
+| `none` listed among real targets | The `none` is dropped and the rest are installed |
+| A user edited text inside the markers | Overwritten; only text outside them survives |
 
 ## Technical Implementation
 
-### Templates Used
+### Data Model
 
-| Template | Purpose |
-|----------|---------|
-| `rules/rule-stub.md` | Rendered with `{app}` and `{docs_dir}` → inserted as managed block in rule files |
-| `rules/cursor-rule.mdc` | Rendered with `{app}`, `{rule_body}` → written as the full Cursor `.mdc` rule file |
-| `rules/copilot-rule.md` | Rendered with `{app}`, `{rule_body}` → written as the full Copilot `.instructions.md` file |
+| Model/Type | Key Fields | Purpose |
+|--------|------------|---------|
+| `InstallRulesArgs` | `app_dir`, `app`, `rule_targets`, `docs_dir` | The script step's arguments, all strings |
 
-### Key Services/Functions (PUBLIC/EXPORTED only)
+### Services/Functions
 
-| Module | Function/Export | Purpose |
-|--------|-----------------|---------|
-| `src/scripts/install-rules.ts` | `installRules()` | Main entry point; orchestrates rule file installation |
-| `src/scripts/install-rules.ts` | `parseRuleTargets()` | Parse and validate a comma-separated rule target string |
-| `src/scripts/install-rules.ts` | `RULE_TARGETS` | Tuple of valid rule target strings |
-| `src/scripts/install-rules.ts` | `MANAGED_BLOCK_BEGIN` | HTML comment marker: `"<!-- saaga:begin -->"` |
-| `src/scripts/install-rules.ts` | `MANAGED_BLOCK_END` | HTML comment marker: `"<!-- saaga:end -->"` |
-| `src/scripts/install-rules.ts` | `RuleTarget` (type) | Union of valid rule target strings |
-| `src/scripts/install-rules.ts` | `InstallRulesArgs` (interface) | Arguments accepted by `installRules()`: `app_dir`, `app`, `rule_targets`, `docs_dir` |
+| Module | Function/Method | Purpose |
+|---------|--------|---------|
+| `install-rules` | `installRules()` | The handler: renders the body and writes every selected target |
+| `install-rules` | `parseRuleTargets()` | Parses and validates a comma-separated target list |
 
 ## Integration Points
 
-- **Depends on**: `rules/` template files, `renderPromptFile()` for rendering templates
-- **Invoked by**: `saaga install-rules` CLI subcommand; `install-rules` script step in `flows/init.flow.yaml`
-- **Registered in**: `defaultScriptRegistry` in `src/scripts/registry.ts`
-- **Does not require**: An agent backend or run context
+- **Depends on**: [prompt templates](../concepts/prompt-templates.md) for rendering the
+  rule body and the owned-file wrappers, and the
+  [script registry](../concepts/script-registry.md) for dispatch.
+- **Used by**: [the init workflow](./init-workflow.md) as a step, and
+  [the CLI](./cli-entry-point.md) as `saaga install-rules`, which needs no agent backend.
+  The selection comes from `--rule-targets`, then `ruleTargets` in
+  [the config](../concepts/project-configuration.md), then `agentsmd`.
 
 ## Extension Guide
 
-- **Add a new rule target**: Add the target name to `RULE_TARGETS`, add an entry to `RULE_SPEC`, and add an owned template to `rules/` if the file format requires frontmatter.
-- **Change the rule stub content**: Edit `rules/rule-stub.md`.
-- **Change the Cursor rule**: Edit `rules/cursor-rule.mdc`.
-- **Change the Copilot rule**: Edit `rules/copilot-rule.md`.
+A new target is two edits in `src/scripts/install-rules.ts`: its name in `RULE_TARGETS`
+and its entry in `RULE_SPEC`. Give it an `ownedTemplate` under `rules/` only when Saaga
+owns the whole file; anything a user also writes in takes the managed block, which is what
+an absent `ownedTemplate` means.

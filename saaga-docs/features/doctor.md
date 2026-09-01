@@ -1,216 +1,120 @@
-# Feature: Doctor Diagnostic System
+---
+title: "Feature: Doctor"
+type: feature
+sources:
+  - src/doctor/*.ts
+  - src/cli.ts
+terms:
+  - probe
+last_verified: 2026-09-01
+---
+
+# Feature: Doctor
 
 ## Overview
 
-The `doctor` command checks whether agent backend CLIs are installed, reachable, and functioning correctly under the restricted permission profile. It runs probe tests at two tiers — fast (no model calls) and full (real agent invocations in a disposable scratch repository) — and reports structured results. A lightweight preflight subsystem reuses fast-tier probes to gate flow execution before any agent calls are made.
+Whether a backend's CLI is installed, still accepts the flags Saaga passes it, and can do the work
+a flow will ask of it — established before a run spends anything finding out. A fast tier makes no
+model calls; a full tier drives a real agent through a throwaway repository.
 
 ## Key Concepts
 
 Before working with this feature, understand these concepts:
-- [Agent Interface](../concepts/agent-interface.md) — the `Agent` contract and `AgentRunOpts` that probes invoke
-- [Agent Permissions](../concepts/agent-permissions.md) — the `AgentPermissions` profile that full-tier probes exercise
+- [Backend Resolution](../concepts/backend-resolution.md)
+- [Agent Interface](../concepts/agent-interface.md)
+- [Agent Permissions](../concepts/agent-permissions.md)
 
 ## Functional Specification
 
-### User Flow
+### Mechanism
 
-1. User runs `saaga doctor [--backend <name>] [--level full] [--json] [--probe <ids...>]`
-2. If `--backend` is not specified, all three backends (`cursor`, `copilot`, `claude`) are checked
-3. For each backend, the system checks CLI availability by looking up the binary on `PATH` and querying `--version`
-4. If the backend is unavailable, it is reported as `NOT AVAILABLE` with a reason and no probes run
-5. If available, probes applicable to the selected level and backend are executed:
-   - **Fast tier** (default): runs the `version` probe (calls `<cli> --version`) and the `required-flags` probe (checks CLI `--help`/`-h` for every flag Saaga passes); skips probes that require model calls
-   - **Full tier**: runs all fast probes plus the full-tier probes that invoke the real agent in a scratch repository
-6. For full-tier runs, failed **capability** probes are retried up to twice under the same profile to filter LLM flakiness (`transient` if a retry passes). Persistent failures are **diagnosed** by rerunning without the permission profile to distinguish `policy-denial` (the profile is too restrictive) from `backend-failure` (the CLI or environment is at fault)
-7. Results are formatted as human-readable colored output or versioned JSON (with `--json`)
-8. The process exits with code 0 (all passed), 1 (at least one probe failed), or 2 (no backend available)
+1. The backends probed are the one `--backend` names, or all three when absent. Each is looked up
+   with `which`: a binary not on `PATH` is unavailable and probed no further, otherwise the first
+   line of its `--version` output is captured.
+2. **Fast tier.** Only the three fast-level probes run — no full-tier probe appears in the result at
+   all — and nothing is spent: what executes asks the CLI for its version and its help text, and
+   `unknown-model-fails` is recorded `skip` because it needs a model call.
+3. **Full tier.** The fast probes run first, with `unknown-model-fails` executed for real this time.
+   Then a scratch repository is created, an [`Agent`](../concepts/agent-interface.md) is built at
+   the `low` model key, each applicable full probe runs against it in turn — roughly a model call
+   per probe per backend — and those results are appended to the fast ones. The repository is
+   deleted afterwards whatever happens.
+4. A probe builds its prompt from the scratch repo's paths and nonces, runs the agent under a
+   [permission profile](../concepts/agent-permissions.md) for that repo with a 120-second timeout,
+   then asserts on the exit code, on what landed on disk, or on the
+   [event stream](../concepts/agent-events.md).
+5. A failed *capability* probe is retried twice under the same profile; passing there classifies it
+   `transient` — flaky, not broken. One still failing is rerun **without** the profile: succeeding
+   unrestricted makes it a `policy-denial` (the profile is too tight here), failing again a
+   `backend-failure`. A *restriction* probe should fail unrestricted, so it is never diagnosed
+   this way.
 
-### CLI Registration
+The catalogue ships as data and its ids are stable — they are what `--probe` filters on:
 
-The `doctor` subcommand is registered on the root `saaga` program with these subcommand-specific options:
+| Probes | Tier and backends | What they establish |
+|---|---|---|
+| `version`, `required-flags`, `unknown-model-fails` | fast, but the last is skipped at the fast tier — it needs a model call | The CLI answers, its help still names every flag Saaga passes, and a bogus model is rejected rather than silently substituted |
+| `handshake`, `write-in-cwd`, `read-from-cwd`, `read-gitignored`, `write-run-dir` | full | The agent can do what a flow needs: reply, write the docs tree, read source, read a gitignored file, write the run directory |
+| `read-outside-workspace-denied`, `write-outside-workspace-denied`, `arbitrary-shell-denied` | full | The workspace boundary and the shell allowance hold |
+| `write-source-denied`, `rule-files-denied`, `baseline-denied` | full, cursor + claude | Source, rule files and `BASELINE` survive a run untouched |
+| `restricted-shell-utility-allowed`, `read-only-git-allowed`, `git-mutation-denied` | full, all three | The restricted shell passes `pwd` and `git log` and refuses `git commit` |
+| `claude/tool-surface`, `claude/absolute-path-anchoring`, `claude/run-dir-writable` | full, claude only | Claude's tool list has not drifted, and its absolute-path rules reach the run directory |
 
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--level <level>` | `fast` | Probe tier: `fast` (no model calls) or `full` (real agent invocations) |
-| `--json` | off | Output results as versioned JSON (`schemaVersion: 1`) |
-| `--probe <ids...>` | all | Run only the specified probe IDs (comma- or space-separated) |
+### Validation Rules
 
-The global `-b, --backend`, `--model`, and `--ci` flags also apply. When `--backend` is omitted, doctor defaults to `"all"` (unlike flow subcommands which require a backend). Doctor probes always use the **`low`** model key, so `--model low=<model>` is the relevant override for doctor.
-
-### Probe Catalogue
-
-Probes are defined as data in `PROBE_CATALOGUE`. Each probe has a stable `id` used by CI assertions and `--probe` filtering, a human-readable `description`, a `level` (`"fast"` or `"full"`), and an optional `backends` array scoping it to specific backends.
-
-| Probe ID | Level | Backends | Kind | Description |
-|----------|-------|----------|------|-------------|
-| `version` | fast | all | capability | CLI answers a version query |
-| `required-flags` | fast | all | capability | CLI help mentions every flag Saaga passes during agent runs |
-| `unknown-model-fails` | fast | all | capability | Invoking with a bogus model returns non-zero exit |
-| `handshake` | full | all | capability | Reply with a nonce; asserts exit 0 |
-| `write-in-cwd` | full | all | capability | Create a file in the docs tree containing a nonce |
-| `read-from-cwd` | full | all | capability | Copy a seeded nonce file to verify read path |
-| `read-gitignored` | full | all | capability | Read a gitignored file to verify `.gitignore` workaround |
-| `write-run-dir` | full | all | capability | Write into the `.saaga-runs/` run directory |
-| `read-outside-workspace-denied` | full | all | restriction | Files outside the workspace are unreadable |
-| `write-outside-workspace-denied` | full | all | restriction | Writes outside the workspace are refused |
-| `arbitrary-shell-denied` | full | all | restriction | A non-git shell command cannot run |
-| `write-source-denied` | full | cursor, claude | restriction | Writing to `src/` is refused |
-| `rule-files-denied` | full | cursor, claude | restriction | `AGENTS.md` and rule files are unwritable |
-| `baseline-denied` | full | cursor, claude | restriction | `BASELINE` file is unwritable |
-| `restricted-shell-utility-allowed` | full | cursor, copilot, claude | capability | `pwd` runs under the restricted shell allowance |
-| `read-only-git-allowed` | full | cursor, copilot, claude | capability | `git log` runs under the restricted shell allowance |
-| `git-mutation-denied` | full | cursor, copilot, claude | restriction | `git commit` is refused |
-| `claude/tool-surface` | full | claude | restriction | Only file tools and Bash are available (no web, subagents, MCP) |
-| `claude/absolute-path-anchoring` | full | claude | capability | Double-slash absolute paths work in Edit rules |
-| `claude/run-dir-writable` | full | claude | capability | The in-workspace run dir is writable |
-
-### Probe Kinds: Capability vs Restriction
-
-Full-tier probes have a `kind` field that determines failure diagnosis behavior:
-
-- **`capability`** probes assert that something works under the restricted profile. When a capability probe fails:
-  1. It is retried up to `CAPABILITY_RETRIES` (2) times under the same profile. If a retry passes, the result is `status: "pass"` with `classification: "transient"` and a `retries` count — not treated as a failure.
-  2. If all retries fail, the system reruns the probe without the profile to determine classification:
-     - `policy-denial`: succeeds unrestricted, so the profile is too tight
-     - `backend-failure`: fails either way, so the CLI/environment is at fault
-- **`restriction`** probes assert that something is correctly denied. These are never retried for flakiness and never rerun unrestricted (they are expected to succeed without restrictions).
-
-### Exit Code Semantics
-
-| Exit Code | Meaning |
-|-----------|---------|
-| `0` | All probes passed (or all were skipped) |
-| `1` | At least one probe failed |
-| `2` | No backend was available (could not run any probes) |
+- `required-flags` reads the CLI's help — `--help`, then `-h`, accepting output printed beside a
+  non-zero exit — and matches each flag token-aware, so `-p` does not match inside `--print`. A
+  missing flag fails: the argv Saaga builds would be rejected at run time.
+- A restriction probe asserts on a value the agent could not have produced another way, so
+  `arbitrary-shell-denied` looks for the real `sha256sum` digest rather than for the file.
+- A probe that names `backends` runs only for those; the rest run for every backend probed, and
+  `--probe` matches ids exactly at both tiers.
 
 ### Edge Cases
 
 | Scenario | Behavior |
 |----------|----------|
-| All probes filtered out by `--probe` | Exit code 0 (nothing to fail) |
-| Backend binary on PATH but `--version` times out | Version recorded as `"unknown"`; backend still marked available |
-| Full probe exceeds 120s timeout | Probe is aborted via `AbortController` and reported as a failure |
-| `--json` with failures | JSON output is written to stdout; exit code is still non-zero |
-| No backends available with `--backend all` | Exit code 2 with "Could not run probes" message |
-| Comma-separated `--probe` IDs | Parsed correctly via `splitProbeIds()` (Commander only splits on spaces) |
+| Binary present, `--version` fails | Still available; version reported as `unknown` |
+| Every applicable probe filtered out or skipped | Exit 0 — nothing was there to fail |
+| `run` with an injected agent | Preflight is skipped; it runs only when a real backend was resolved |
 
 ## Technical Implementation
 
 ### Data Model
 
-| Model/Type | Key Fields | Purpose |
+| Type/Artifact | Key Fields | Purpose |
 |--------|------------|---------|
-| `DoctorOptions` | `backend`, `level`, `json`, `probe`, `modelOverrides`, `backendModels`, `ci`, `cwd` | Input options for `runDoctor()` |
-| `DoctorResult` | `schemaVersion`, `backends`, `exitCode`, `logDir` | Top-level result container (schema version is always `1`) |
-| `DoctorBackendResult` | `backend`, `available`, `reason`, `version`, `probes` | Per-backend availability and probe results |
-| `ProbeDefinition` | `id`, `description`, `level`, `backends` | Static probe metadata in the catalogue |
-| `ProbeRunResult` | `probeId`, `backend`, `status`, `classification`, `exitCode`, `elapsed`, `error`, `retries` | Runtime result of a single probe execution (`retries` set when a transient pass needed retries) |
-| `ProbeLevel` | — | `"fast" \| "full"` |
-| `ProbeClassification` | — | `"policy-denial" \| "backend-failure" \| "transient"` |
-| `FullProbeRunOptions` | `backend`, `agent`, `filterIds`, `quiet`, `ci`, `logFile` | Options for the full-tier probe runner |
-| `ScratchRepo` | `appDir`, `runDir`, `docsDir`, `buildNonce`, `srcNonce`, `outsideDir`, `outsideNonce`, `cleanup` | Isolated disposable repository for full-tier probes |
-| `PreflightResult` | `passed`, `doctorResult` | Fast-tier check result for flow gating |
+| `DoctorResult` | `schemaVersion`, `backends`, `exitCode`, `logDir` | The whole report, printed verbatim under `--json`; each `DoctorBackendResult` carries `available`, `reason`, `version` and its probes |
+| `ProbeRunResult` | `probeId`, `status`, `classification`, `exitCode`, `elapsed`, `error`, `retries` | One probe's verdict; `classification` picks the explanatory line printed under a failure |
+| `<cwd>/.saaga-runs/doctor/<timestamp>/<backend>.log` | Agent output | Full-tier transcripts, surviving the scratch repo's deletion |
+
+Exit codes: **0** every probe passed or none ran, **1** at least one failed, **2** no probed
+backend was available; the subcommand's flags are [the CLI's](./cli-entry-point.md).
 
 ### Services/Functions
 
 | Module | Function/Method | Purpose |
 |---------|--------|---------|
-| `src/doctor/index.ts` | `runDoctor()` | Orchestrates the full doctor run: checks availability, runs probes at the selected tier, returns `DoctorResult` |
-| `src/doctor/index.ts` | `formatDoctorResult()` | Formats a `DoctorResult` into human-readable colored (or plain) text output |
-| `src/doctor/index.ts` | `DoctorOptions` (interface) | Input options shape for `runDoctor()` |
-| `src/doctor/index.ts` | `DoctorResult` (interface) | Structured result: backends array, exit code, optional log directory |
-| `src/doctor/index.ts` | `DoctorBackendResult` (interface) | Per-backend result: availability, version, probe results |
-| `src/doctor/probes.ts` | `PROBE_CATALOGUE` (constant) | Static array of all probe definitions with stable IDs |
-| `src/doctor/probes.ts` | `ProbeDefinition` (interface) | Shape of a probe definition: id, description, level, optional backend scope |
-| `src/doctor/probes.ts` | `ProbeRunResult` (interface) | Shape of a probe execution result |
-| `src/doctor/probes.ts` | `ProbeLevel` (type) | `"fast" \| "full"` |
-| `src/doctor/probes.ts` | `ProbeClassification` (type) | `"policy-denial" \| "backend-failure" \| "transient"` |
-| `src/doctor/required-flags.ts` | `REQUIRED_CLI_FLAGS` (constant) | Per-backend list of CLI flags Saaga passes during agent runs |
-| `src/doctor/required-flags.ts` | `findMissingRequiredFlags()` | Return flags from `required` that do not appear as tokens in CLI help text |
-| `src/doctor/full-probes.ts` | `runFullSideEffectProbes()` | Runs all full-tier probes in a scratch repo; creates and tears down the repo automatically |
-| `src/doctor/full-probes.ts` | `FullProbeRunOptions` (interface) | Options for the full-tier runner |
-| `src/doctor/scratch-repo.ts` | `createScratchRepo()` | Creates a temporary git repository with seeded files for probes |
-| `src/doctor/scratch-repo.ts` | `ScratchRepo` (interface) | Handle to the scratch repo with paths, nonces, and a cleanup function |
-| `src/doctor/preflight.ts` | `runPreflight()` | Runs fast-tier probes for a single backend; returns whether it passed |
-| `src/doctor/preflight.ts` | `PreflightResult` (interface) | Result shape: `passed` boolean and the underlying `DoctorResult` |
-
-### Scratch Repository Lifecycle
-
-Full-tier probes run inside a disposable scratch repository to avoid side effects on the real workspace:
-
-1. `createScratchRepo()` creates a temporary directory under `os.tmpdir()` with the structure:
-   - `app/` — simulated application root (the `appDir`)
-   - `app/src/index.ts` — seeded with a random nonce for read probes
-   - `app/build/generated.txt` — gitignored file with a nonce for gitignore probes
-   - `app/saaga-docs/` — docs directory for write probes
-   - `app/AGENTS.md` — rule file for restriction probes
-   - `app/saaga-docs/BASELINE` — baseline file for restriction probes
-   - `app/.saaga-runs/<probe-run-id>/` — simulated run directory
-   - `outside/` — directory outside `appDir` for escape probes, containing `secret.txt`
-2. The directory is initialized as a git repo with an `initial` commit
-3. A restricted permission profile is built via `buildProfile()` scoped to the scratch repo
-4. Probes run sequentially against the scratch repo
-5. `scratch.cleanup()` removes the entire temporary tree in a `finally` block
-
-### Diagnosis Flow for Failed Capability Probes
-
-When a full-tier capability probe fails under the restricted profile:
-
-1. The probe is retried up to 2 times (`CAPABILITY_RETRIES`) under the same profile
-2. If any retry **passes**: reported as `status: "pass"` with `classification: "transient"` and `retries` set to the retry count that succeeded — not a failure
-3. If all retries fail, the probe is rerun with `permissions: undefined` (unrestricted):
-   - If the unrestricted run **passes**: classified as `policy-denial` — the permission profile is too tight for this backend/CLI version
-   - If the unrestricted run **fails**: classified as `backend-failure` — the CLI, credentials, or environment is at fault
-4. Restriction probes are never retried for flakiness and never diagnosed (they are expected to pass unrestricted)
-
-### Probe Model Selection
-
-Full-tier probes require a model for agent invocations. Doctor always uses the **`low`** model key. The model is selected in order of precedence:
-
-1. CLI `--model low=<model>` override (folded into `DoctorOptions.modelOverrides`)
-2. `backends.<backend>.models.low` from `.saaga/config.yaml` (passed via `DoctorOptions.backendModels`)
-3. Built-in low-key defaults: `composer-2.5` (cursor), `claude-haiku-4.5` (copilot), `haiku` (claude)
-
-### Log Files
-
-When running at the `full` level, a timestamped log directory is created at `<cwd>/.saaga-runs/doctor/<timestamp>/`. Each backend gets a log file (`<backend>.log`) containing raw agent output. The log directory path is included in both the formatted output and the JSON result.
-
-### Preflight Integration
-
-Before any `saaga run <flow>` invocation (`init`, `update`, `quick-update`, `verify-quick-updates`) executes, the CLI runs `runPreflight()` for the resolved backend:
-
-1. `runPreflight(backend)` calls `runDoctor({ backend, level: "fast" })`
-2. If `doctorResult.exitCode !== 0`, preflight has failed
-3. The CLI writes a message to stderr directing the user to run `saaga doctor --backend <name>` for details
-4. A `PreflightError` is thrown, which the CLI catches and exits with code 1
-5. If the agent was injected via `CliOptions.agent` (test mode), preflight is skipped
+| `doctor/index` | `runDoctor()`, `formatDoctorResult()`, `DoctorOptions`, `DoctorResult`, `DoctorBackendResult` | Run the requested tier and compute the exit code, render the human report with its classification lines, and the shapes both use |
+| `doctor/probes` | `PROBE_CATALOGUE`, `ProbeDefinition`, `ProbeRunResult`, `ProbeClassification` | The catalogue as data, and the result vocabulary the whole feature reports in |
+| `doctor/full-probes` | `runFullSideEffectProbes()`, `FullProbeRunOptions` | The full tier: scratch repo, per-probe assertions, retries, unrestricted diagnosis |
+| `doctor/required-flags` | `findMissingRequiredFlags()`, `REQUIRED_CLI_FLAGS` | The per-backend flag expectations and the token-aware match |
+| `doctor/scratch-repo` | `createScratchRepo()`, `ScratchRepo` | A one-commit git repo in `tmpdir` with `AGENTS.md`, a `BASELINE` and a run directory, plus three fixtures a probe asserts on by nonce — a source file, a gitignored build file and an out-of-workspace secret |
+| `doctor/preflight` | `runPreflight()`, `PreflightResult` | The fast tier for one backend reduced to a boolean; never throws |
 
 ## Integration Points
 
-- **Depends on**: [Agent Interface](../concepts/agent-interface.md) (full probes invoke `Agent.run()`), [Agent Permissions](../concepts/agent-permissions.md) (`buildProfile()` creates the restricted profile for probes)
-- **Used by**: [CLI Entry Point](./cli-entry-point.md) (the `doctor` subcommand and preflight gating in flow subcommands)
-- **External systems**: Backend CLI binaries (`cursor`, `copilot`, `claude`) — doctor checks their availability and exercises their restricted-mode behavior
+- **Depends on**: the [backend factory](../concepts/backend-resolution.md) for the CLI command,
+  model and agent, and [`buildProfile`](../concepts/agent-permissions.md) for the profile.
+- **Used by**: the `run` subcommand, which preflights after cost approval and aborts with exit 1
+  before creating a run directory — see [CLI Entry Point](./cli-entry-point.md) — and CI.
+- **External systems**: the backend CLIs, and `git` for the scratch repository.
 
 ## Extension Guide
 
-### Adding a New Probe
-
-1. Add a `ProbeDefinition` entry to `PROBE_CATALOGUE` in `src/doctor/probes.ts` with a stable `id`, descriptive `description`, appropriate `level`, and optional `backends` scope
-2. For fast-tier probes: add handling in the `runFastProbes()` function in `src/doctor/index.ts`
-3. For full-tier probes: add a `FullProbe` entry to the `FULL_PROBES` array in `src/doctor/full-probes.ts` with:
-   - `id` matching the catalogue entry
-   - `kind`: `"capability"` (asserts something works) or `"restriction"` (asserts something is denied)
-   - `buildPrompt(ctx)`: returns the prompt string for the agent
-   - `assert(exitCode, ctx, events)`: throws if the probe's assertion fails
-4. If the probe needs event parsing, set `wantsEvents: true` — the probe runner will collect `AgentEvent` objects and pass them to `assert()`
-5. For backend-specific probes, set `backends` to limit which backends the probe applies to
-
-### Adding a New Backend
-
-When a new agent backend is added to Saaga, extend the doctor system:
-
-1. Ensure the backend's CLI binary name is returned by `backendCliCommand()` (already required by the agent interface)
-2. Add the backend's built-in model defaults to `DEFAULT_BACKEND_MODELS` in `src/cli/backend.ts` (doctor uses the `low` key entry)
-3. Add the flags Saaga passes for that backend to `REQUIRED_CLI_FLAGS` in `src/doctor/required-flags.ts`
-4. Add the backend's bogus-model CLI arguments to `runUnknownModelProbe()` in `src/doctor/index.ts`
-5. Review existing full-tier probes — most are backend-agnostic, but some may need `backends` scoping adjustments
+A fast probe is a `PROBE_CATALOGUE` entry plus a branch in the fast-tier dispatch; an entry with no
+branch is reported `skip`. A full probe is an entry in both the catalogue and the full-probe list,
+where `kind` decides whether a failure is diagnosable — mark it `capability` only when succeeding
+unrestricted would prove the profile at fault. Set `wantsEvents` when the assertion reads the
+[event stream](../concepts/agent-events.md) rather than the filesystem, and give any new
+scratch-repo fixture a nonce so an assertion can tell real work from a coincidence.

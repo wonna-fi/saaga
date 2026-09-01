@@ -1,116 +1,120 @@
+---
+title: Extending Workflows
+type: pattern
+sources:
+  - flows/init.flow.yaml
+  - flows/quick-update.flow.yaml
+  - src/engine/loader.ts
+  - src/agent/fake-agent.ts
+  - tests/cli/init.test.ts
+---
+
 # Extending Workflows
 
 ## When to Use
 
-Use this pattern when you need to modify an existing Saaga workflow — adding new steps, swapping prompts, adjusting iteration limits, or wiring in custom scripts by editing flow YAML files.
+When you are changing what a bundled flow *does* — adding a step, changing a loop bound,
+introducing a new artifact — or adding a whole new flow. Editing only what an existing step
+instructs an agent to do is a prompt change and needs none of this: the flow file names
+[the template](../concepts/prompt-templates.md), whose content is free to change under it.
 
 ## Pattern
 
-```yaml
-# Example: Adding a "lint documentation" step after the slice-doc agent step
-# in the foreach body of flows/init.flow.yaml or flows/update.flow.yaml
+A flow is a file, the prompts it names, and a test that drives both, all working against
+one [scope](../concepts/scope-and-expressions.md) the CLI seeds before the first step.
 
-name: init
+```yaml
+# flows/audit.flow.yaml — `name:` matches the filename stem, because
+# `saaga run audit` resolves flows/<name>.flow.yaml. No registration step:
+# the CLI lists whatever is in the directory.
+name: audit
+description: Re-check every document's claims against its sources.
 steps:
-  # ... earlier steps ...
+  # Anything not seeded, a step must put in scope itself with `set`.
+  - script:
+      name: detect-changes
+      label: detecting changes
+      app_dir: ${app_path}
+      output_dir: ${run_dir}
+      docs_dir: ${docs_dir}
+      set: changes                     # binds {count, changes_path, ...}
 
-  - foreach:
-      var: phase
-      in: ${phases}
-      when: '${phase.number} != 0'
-      do:
-        - agent:
-            prompt: slice-doc
-            vars:
-              plan: ${plan}
-              phase_number: ${phase_number}
-
-  # 1. Add a new script step that runs after documentation is written
-        - script:
-            name: lint-docs
-            app_dir: ${app_path}
-            set: lint_result
-
-        # 2. Add a new agent step with a custom prompt template
-        - agent:
-            prompt: my-custom-prompt
-            vars:
-              plan: ${plan}
-              lint_output: ${lint_result.report_path}
-
-        - loop:
-            max: 3
-            until: '${status} == "PASS"'
-            do:
-              # ... existing verify/fix loop steps ...
+  - if: '${changes.count} != 0'
+    label: auditing documentation
+    skip_label: nothing to audit       # the line a skipped run prints
+    then:
+      - loop:
+          max: 3                       # the bound is flow data, not TypeScript
+          until: '${status} == "PASS"'    # evaluated after each round
+          do:
+            # prompts/audit-docs.md must exist; a {placeholder} with no matching
+            # var is left intact in the rendered prompt rather than failing it.
+            - agent:
+                prompt: audit-docs
+                model: high
+                label: auditing
+                vars:
+                  docs_dir: ${docs_dir}
+                  changes_path: ${changes.changes_path}
+                  status_path: ${run_dir}/audit-status-${iteration}.txt
+            - read-file:
+                path: ${run_dir}/audit-status-${iteration}.txt
+                set: status
+                trim: true
+            - if: '${status} != "PASS"'
+              then:
+                - agent: { prompt: fix-documentation, model: high, vars: { ... } }
 ```
 
-### Adding a New Agent Step
-
-```yaml
-# Reference a prompt template at prompts/<name>.md
-- agent:
-    prompt: my-new-prompt        # loads prompts/my-new-prompt.md
-    vars:
-      app: ${app}                # {app} placeholder in the template
-      custom_var: ${some.value}  # {custom_var} placeholder
-    expect_file: ${run_dir}/output.md  # optional: assert this file was created
+```typescript
+// tests/cli/audit.test.ts — the fake agent matches a scenario by substring of
+// the rendered prompt and can write the files a later step reads.
+const fake = new FakeAgent({
+  "Audit the Documentation": {
+    exitCode: 0,
+    effect: async (_opts, prompt) => {
+      const path = prompt.match(/status to `([^`]+)`/)![1];
+      await writeFile(path, "PASS", "utf8");
+    },
+  },
+});
+expect(await runCli(["run", "audit", app], { agent: fake })).toBe(0);
+expect(fake.calls).toHaveLength(1);
 ```
-
-### Adding a New Script Step
-
-```yaml
-# Reference a built-in script registered in defaultScriptRegistry
-- script:
-    name: my-script      # must exist in the script registry
-    arg_one: ${value}    # all keys except name/set become script args
-    arg_two: literal     # literal string arg
-    set: result_var      # optional: store return value in scope as ${result_var}
-```
-
-### Swapping a Prompt
-
-```yaml
-# Change which prompt template an existing agent step uses.
-# Before:
-- agent:
-    prompt: plan-init
-    vars:
-      app: ${app}
-      output_path: ${run_dir}/plans/${app}-init.plan.md
-
-# After: use a custom planning prompt
-- agent:
-    prompt: my-custom-plan
-    vars:
-      app: ${app}
-      output_path: ${run_dir}/plans/${app}-init.plan.md
-```
-
-Create the new template file at `prompts/my-custom-plan.md` with `{app}` and `{output_path}` placeholders.
 
 ## Key Points
 
-- Flow files are plain YAML — no compilation step is needed; changes take effect immediately
-- The `prompt` field in an `agent` step must match a file at `prompts/<name>.md`
-- The `name` field in a `script` step must match a key in `defaultScriptRegistry` (or a custom registry passed via `RunFlowDeps.scripts`)
-- Variables set by `script.set` or `read-file.set` are available to all subsequent steps in the same scope
-- `expect_file` on agent steps causes an `ExpectFileMissingError` if the agent did not produce the file
+- If reaching a loop's cap must fail the run, add a deterministic step after the loop —
+  [flow execution](../features/flow-execution.md) covers what `max` does on its own, and
+  [the `init` workflow](../features/init-workflow.md) shows the pattern in place.
+- Every value a later step reads must have been `set` by an earlier one. There is no
+  forward reference and no arithmetic, so a path shared *between* iterations has to be
+  fixed rather than computed.
+- A prompt can be told to write somewhere that does not exist yet; which `vars` paths get
+  their parent created first is [flow execution](../features/flow-execution.md)'s to say.
+- Flow files, prompts and tests all have fixed locations — see
+  [File Layout](../conventions/file-layout.md). Prefer an existing built-in to a new one;
+  [Adding Built-in Scripts](./adding-built-in-scripts.md) covers when there is none.
 
 ## Reference Implementations
 
 | File | Function/Method | Notes |
-|------|-----------------|-------|
-| `flows/init.flow.yaml` | (flow definition) | Demonstrates all step types in a complete workflow |
-| `flows/update.flow.yaml` | (flow definition) | Shows conditional execution with top-level `if` |
-| `src/engine/runner.ts` | `runFlow()` | Executes the step sequence with scope threading |
-| `src/engine/loader.ts` | `loadFlow()` | Parses and validates the YAML flow structure |
+| --- | --- | --- |
+| `flows/init.flow.yaml` | — | Every primitive in one file: the budget loop, the architecture verify/fix loop, the per-phase `foreach` |
+| `flows/quick-update.flow.yaml` | — | The smallest complete flow: one agent step, a status read, two `if` branches |
+| `src/engine/loader.ts` | `listFlows()`, `flowExists()` | What makes a new file in `flows/` runnable without registering it |
+| `src/agent/fake-agent.ts` | `FakeAgent` | Scenario matching by prompt substring, plus `calls` for asserting the sequence |
 
 ## Anti-Patterns
 
 **Do NOT:**
 
-- Add step types not supported by the loader — only `agent`, `script`, `foreach`, `loop`, `if`, and `read-file` are valid. Unknown keys cause a parse error.
-- Use `${var}` syntax inside prompt template files — prompt templates use `{var}` (single braces). The `${var}` syntax is only for flow YAML expressions.
-- Hard-code absolute paths in flow YAML — always compose paths from scope variables like `${run_dir}`, `${app_path}`, etc.
-- Forget to register new scripts in `defaultScriptRegistry` before referencing them — unregistered script names cause a runtime error.
+- Encode in TypeScript a decision the flow file can express. The loop bound, the exit
+  predicate and the skip condition are flow data precisely so that changing them is a diff
+  to one YAML file.
+- Add a step whose output nothing reads. If no later step names it in `vars`, an expression
+  or `expect_file`, it is a cost with no effect.
+- Reuse a scope variable for a second meaning: `init` gives its architecture loop
+  `arch_status` rather than the per-phase `status` for exactly this reason.
+- Summarise a prompt's instructions in the flow file's comments. The prompt is the
+  contract; a comment restating it is a second copy that will drift.
