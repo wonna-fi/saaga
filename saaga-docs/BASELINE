@@ -1,4 +1,4 @@
-# Generated: 2026-09-01T18:03:19.963Z
+# Generated: 2026-09-01T20:46:58.764Z
 dc5db626c0687243063280d4a5282a5260abf4f3 .github/scripts/publish-saaga-changes.sh
 d7e08a188b70e03d7663a8cc06b48d27a812ca95 .github/workflows/ci.yml
 de4bc82ba2995f5752fe1c2f2420dfa8ae9d63ea .github/workflows/doctor-fast.yml
@@ -6,20 +6,19 @@ aa88e5e7f928ed78425e9046a0c7d8410daa795e .github/workflows/doctor-full.yml
 1476003c222e85d7d00beae43a86c89c3f3b33ad .github/workflows/quick-update-nightly.yml
 4685c08a3c7e914bbc9149ee22aac7b17db504a1 .github/workflows/verify-quick-updates-weekly.yml
 207ce2b0b21e99567a5b41e1c60c8426b10f29a2 .npmrc
-a97694a7b0ab76d5fed492ae1f808ccaf691b235 .saaga/config.yaml
 506c2a29595b600152d613fc379425b18f2d0d63 AGENTS.md
 47dc3e3d863cfb5727b87d785d09abf9743c0a72 CLAUDE.md
 4b9ebbe84cb9d3dd0395daf593be478f547519d7 DEVELOPING.md
 b9f6155a4ff2e22f76bfef39388941f7986b569c LICENSE
 55da14399f4f0e8475b4d412b58ee45786672709 README.md
-7e189f415a681f4c975230b88ac94a4914388156 eslint.config.js
+cee3d032fbbf9ad8f2fc31c885152ebce0b1277c eslint.config.js
 7fea6d994a640c3355563d3c8c650861ba165c7f eval/README.md
 46f45cdbe1c3c619a85851918fcd9aac5005cf0a eval/artifact.test.ts
 63a5652061bc73765a0890d987a079cd489d91e5 eval/artifact.ts
 a67f89d0e79af03d8b5ecd0f66774469cde1fd94 eval/artifact/template.html
 8dc735768c18b24c7d350ef0d2df9b5934cbe69b eval/code-tasks.test.ts
-a52e8a601e5d7331bf78fd39c341b5992db80377 eval/conditions.test.ts
-7db62542c82198143292c282168d5c79e7127233 eval/harness.test.ts
+cc4159f1aa261a26ff2fb487d7d87bfccad4a896 eval/conditions.test.ts
+08ca5b0b8ee25944f6f3c9d9c043a14518935d5d eval/harness.test.ts
 588c1ad93c3127f3543ca18dae774016bf6f0b33 eval/metrics-forensics.test.ts
 5e5b94b9a89241079beef840f3c2d21f8bb14a48 eval/registry.test.ts
 4e7a777908f69d61cb3634bfa75c415921def97d eval/report.test.ts
@@ -28,7 +27,7 @@ a52e8a601e5d7331bf78fd39c341b5992db80377 eval/conditions.test.ts
 978e0447437fdf768b7b648ebb0fed996769ee56 eval/src/argv.ts
 98a8594785a5cbf7519047f481bc5a21c2205c2e eval/src/artifact-gen.ts
 8fa5f8682979d90ae2ad56b5a75be83861194d40 eval/src/checks.ts
-d3db7b60f7bf050a8e2652ffc98320bfcfdf7cfa eval/src/conditions.ts
+71a334478875107f70b31ca8aa43f25e77e2fc36 eval/src/conditions.ts
 dcaedd589bb5cb2fa75cd6d676ba2fd8811651e0 eval/src/fixtures.ts
 4f3ccbe6fbbf5642406782a08b71683af163247a eval/src/metrics.ts
 c343b62b5a1465312603ad33ba5cfbffae4cae3f eval/src/registry.ts
