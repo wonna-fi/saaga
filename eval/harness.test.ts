@@ -74,7 +74,7 @@ describe("eval pipeline with the fake agent", () => {
       const log = await execa("git", ["log", "--oneline"], { cwd });
       seen.push({
         hasDocs: existsSync(join(cwd, "saaga-docs")),
-        routing: agentsMd.includes("## Documentation"),
+        routing: agentsMd.includes("### Domain Documentation (saaga)"),
         commits: log.stdout.trim().split("\n").length,
         answerTold: prompt.includes(ANSWER_INSTRUCTION),
       });
