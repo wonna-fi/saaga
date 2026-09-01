@@ -220,6 +220,21 @@ describe("frontmatter instructions reach the prompts that write documents", () =
     expect(out).toContain("**Never write `last_verified`.**");
   });
 
+  /**
+   * The fixer edits documents the report never named — a Coverage Gap closed
+   * in an existing doc rather than the `(missing)` path, and every INDEX.md it
+   * touches in Step 4. Verification left those stamps standing, so without
+   * this the invariant "a stamp means nothing has edited the document since it
+   * was verified" is false for exactly the documents the fixer changed.
+   */
+  test("fix unstamps the documents it edits that the report did not name", async () => {
+    const out = await render("fix-documentation");
+    expect(out).toContain(
+      "**Delete `last_verified` from any other document you edit.**",
+    );
+    expect(out).toContain("updating an INDEX.md in Step 4");
+  });
+
   test("the frontmatter rules say an absent stamp means pending", async () => {
     const out = await render("slice-doc");
     expect(out).toContain(
@@ -409,8 +424,24 @@ describe("the deferred-findings report", () => {
       // The pending predicate is written into the artifact itself so task 8's
       // consumer does not have to re-derive it.
       expect(out).toContain(
-        "pending means the document still exists\nand its frontmatter still has no `last_verified`",
+        "pending means the document still\nexists and its frontmatter still has no `last_verified`",
       );
+    },
+  );
+
+  /**
+   * A final-round FAIL *is* handed to the fix step — what it never gets is a
+   * verification of the result. The header has to say that, or the audit trail
+   * misdescribes half its own rows.
+   */
+  test.for(["verify-domain-documentation", "verify-architecture"])(
+    "%s describes the entries as unverified, not unfixed",
+    async (name) => {
+      const out = await render(name);
+      expect(out).toContain(
+        "recorded but never verified as resolved",
+      );
+      expect(out).toContain("final-round findings whose fix nothing re-checked");
     },
   );
 
@@ -432,7 +463,21 @@ describe("the deferred-findings report", () => {
   test("the report excludes documents that can never carry a stamp", async () => {
     const out = await render("verify-domain-documentation");
     expect(out).toContain(
-      "Leave out any row whose Document is `README.md`, `GLOSSARY.md`, or a path marked\n`(missing)`",
+      "Leave out any row whose Document is `README.md` or `GLOSSARY.md`",
+    );
+  });
+
+  /**
+   * A Coverage Gap names a `(missing)` path, and the fix step that runs after
+   * a final-round FAIL may create that document — unstamped, and with no other
+   * record of why. The consumer's "document exists" test discards the row on
+   * its own if the fixer never created it.
+   */
+  test("the report keeps a coverage gap's missing target", async () => {
+    const out = await render("verify-domain-documentation");
+    expect(out).toContain("Keep a row whose Document is marked `(missing)`");
+    expect(out).toContain(
+      "a reader checks that the document exists before acting on it",
     );
   });
 

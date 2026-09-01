@@ -185,8 +185,8 @@ here.
 
 ## Step 8: Record Deferred Findings
 
-Findings this run will not act on go to `{deferred_minors_path}`, the audit trail for
-every stamp Step 7 removed. Write it only when nothing downstream will fix them:
+Findings this run leaves unverified go to `{deferred_minors_path}`, the audit trail for
+every stamp Step 7 removed. Write it only when nothing downstream will check them again:
 
 - Step 6 wrote `PASS` and the findings table is not empty.
 - Step 6 wrote `FAIL` and this is the final round: the round number above, `{iteration}`,
