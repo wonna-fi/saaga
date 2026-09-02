@@ -120,7 +120,7 @@ invocation and reset between calls, preventing state leakage in tests.
 1. Add the feature name to the `UNSTABLE_FEATURES` tuple in
    `src/unstable-features.ts`.
 2. Gate runtime behavior behind `isUnstableFeatureEnabled("your-feature")`.
-3. Update the "Available unstable features" table in `README.md`.
+3. List the feature in the "Unstable features" section of `README.md`.
 4. Add tests that enable the feature and verify the gated behavior.
 
 ## Flows and prompts
@@ -164,7 +164,8 @@ the budget bands, the consequence test, the amortization rule — lives in
 and the verifier read identical text. The dynamic half — which budget each
 document gets, and how much this run is allowed to grow the corpus — is a
 per-run decision, so it lives in the planning prompts and is recorded in
-the plan. See [Level of detail](./README.md#level-of-detail).
+the plan. The corpus-level ceilings are described in the
+[Corpus Budget](./saaga-docs/concepts/corpus-budget.md) concept.
 
 **Single home per fact** splits the same way: which class of fact each
 document type owns lives in
@@ -177,8 +178,7 @@ number the verifier grades comes from the plan. It has a verify/fix pass of
 its own in `init`, using
 [`verify-architecture.md`](./prompts/verify-architecture.md) — the shared
 verifier is scoped to a plan phase and to the four category directories, and
-ARCHITECTURE.md is in neither. See
-[Single home per fact](./README.md#single-home-per-fact).
+ARCHITECTURE.md is in neither.
 
 **The verify/fix threshold** splits the same way. `loop` binds `${iteration}`
 and `${loop_max}` in its body, and the flows hand both to every verifier along
@@ -190,8 +190,9 @@ format
 ([`partials/deferred-findings.md`](./prompts/partials/deferred-findings.md),
 shared by both verifiers). A verify step moved out of a loop would leave both
 variables undefined and abort the run on the first render, so
-`tests/flows.test.ts` asserts that every verifier sits inside one. See
-[Verification threshold](./README.md#verification-threshold).
+`tests/flows.test.ts` asserts that every verifier sits inside one. The
+user-facing summary is under [Verification](./README.md#verification) in
+the README.
 
 The split matters: **prompts carry methodology, generated plans carry
 decisions.** A plan records what this run does — which documents to write,
@@ -206,7 +207,11 @@ through a generated plan.
 
 ## Scheduled maintenance
 
-Two GitHub Actions keep `saaga-docs/` current by running Saaga from the
+Two GitHub Actions run `saaga doctor` against every backend to catch CLI
+drift: the fast suite daily (`.github/workflows/doctor-fast.yml`) and the
+full suite weekly (`.github/workflows/doctor-full.yml`).
+
+Two more keep `saaga-docs/` current by running Saaga from the
 repository source on `main`. Both rely on `.saaga/config.yaml` as the
 single source of truth for backend, model, and approval settings; only
 `--ci` is passed on the command line.

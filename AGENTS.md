@@ -8,7 +8,6 @@ A task is ready when the following criteria are met:
 2. The implementation has tests
 3. The complete test suite passes
 4. There are no linter errors
-5. The README is updated
 
 <!-- saaga:begin -->
 ### Domain Documentation (saaga)
