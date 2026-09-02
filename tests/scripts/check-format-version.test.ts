@@ -79,6 +79,12 @@ describe("check-format-version: state 2 — existing corpus, update mode", () =>
     );
   });
 
+  test("the version-0 message says it is not migrated in place", async () => {
+    await expect(run(await version0App(), "update")).rejects.toThrow(
+      /version-0 corpus is not migrated in place/,
+    );
+  });
+
   test("a future version fails too", async () => {
     const app = await version0App();
     await writeFile(
@@ -88,6 +94,9 @@ describe("check-format-version: state 2 — existing corpus, update mode", () =>
     );
 
     await expect(run(app, "update")).rejects.toThrow(/format version 99/);
+    await expect(run(app, "update")).rejects.not.toThrow(
+      /version-0 corpus is not migrated/,
+    );
   });
 });
 
