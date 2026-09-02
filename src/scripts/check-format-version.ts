@@ -75,7 +75,8 @@ export async function checkFormatVersion(
         `${found.version === 0 ? ` (a corpus without a ${docsDir}/${FORMAT_FILE} file predates the stamp)` : ""}. ` +
         `Running update-family flows against it would fail every touched document on structure alone. ` +
         `To upgrade: delete ${docsDir}/ and run 'saaga run init' to regenerate the corpus. ` +
-        `(A 'saaga migrate' command will handle this in place once the format is frozen.)`,
+        `${found.version === 0 ? `A version-0 corpus is not migrated in place: the format changed what gets documented and at what depth, so regenerating gives a better base than any upgrade could. ` : ""}` +
+        `(In-place migration is planned for later format versions, once the format is frozen.)`,
     );
   }
 }

@@ -266,8 +266,15 @@ no tokens:
 | `init` over any existing corpus | Stops immediately: delete `saaga-docs/` first, so re-initialising is never a silent overwrite. |
 
 To upgrade a corpus, delete `saaga-docs/` and run `saaga run init` to
-regenerate it. (A `saaga migrate` command will upgrade in place once the
-format is frozen.)
+regenerate it.
+
+A version-0 corpus — one written by a pre-beta Saaga — is not migrated in
+place, and no migration for it is planned. The format change is not just
+frontmatter and a `FORMAT` file: it changed what gets documented and at what
+depth, so an upgraded version-0 corpus would keep the over-documentation and
+duplicated facts the new format exists to remove. Regenerating gives a smaller
+and more accurate base than any upgrade could. In-place migration is planned
+for later format versions, once the format is frozen.
 
 ### Generated files
 
