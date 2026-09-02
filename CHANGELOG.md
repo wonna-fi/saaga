@@ -3,7 +3,7 @@
 Saaga is in alpha. This file records the changes that require action when
 upgrading; everything else is in the git history.
 
-## Unreleased
+## 1.0.0-alpha.7 (2026-09-02)
 
 ### Per-step model keys
 
