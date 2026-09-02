@@ -431,7 +431,8 @@ lowercase, start with a letter, and otherwise contain only `a-z`, `0-9`, `-` and
 Resolution order: **`--model <key>=<model>` -> `backends.<name>.models.<key>` in `.saaga/config.yaml` -> built-in default (`low`/`medium`/`high` only) -> error**.
 
 Upgrading from a release that used `modelLow` / `modelMedium` / `modelHigh`?
-See [CHANGELOG.md](./CHANGELOG.md).
+Those config fields and flags were removed; move them under
+`backends.<name>.models:` as `low` / `medium` / `high`.
 
 ### Excluding files (.saagaignore)
 
