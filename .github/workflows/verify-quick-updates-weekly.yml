@@ -42,13 +42,13 @@ jobs:
 
       - name: Install cursor-agent CLI
         run: |
-          chmod +x examples/install-agents/install-cursor-agent.sh
-          ./examples/install-agents/install-cursor-agent.sh
+          chmod +x examples/install-agents/install-claude.sh
+          ./examples/install-agents/install-claude.sh
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Run quick-update then verify
         env:
-          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           npx tsx src/cli.ts run quick-update . --ci
           npx tsx src/cli.ts run verify-quick-updates . --ci
