@@ -97,14 +97,14 @@ describe("quick-update-nightly.yml", () => {
     expect(runs).not.toContain("--yes");
   });
 
-  test("provides CURSOR_API_KEY to the saaga step", async () => {
+  test("provides ANTHROPIC_API_KEY to the saaga step", async () => {
     const wf = await loadWorkflow("quick-update-nightly.yml");
     const job = Object.values(wf.jobs)[0];
     const saagaStep = job.steps.find((s) =>
       s.run?.includes("quick-update"),
     );
-    expect(saagaStep?.env?.CURSOR_API_KEY).toBe(
-      "${{ secrets.CURSOR_API_KEY }}",
+    expect(saagaStep?.env?.ANTHROPIC_API_KEY).toBe(
+      "${{ secrets.ANTHROPIC_API_KEY }}",
     );
   });
 
@@ -195,14 +195,14 @@ describe("verify-quick-updates-weekly.yml", () => {
     expect(runs).not.toContain("@wonna/saaga@latest");
   });
 
-  test("provides CURSOR_API_KEY", async () => {
+  test("provides ANTHROPIC_API_KEY", async () => {
     const wf = await loadWorkflow("verify-quick-updates-weekly.yml");
     const job = Object.values(wf.jobs)[0];
     const saagaStep = job.steps.find((s) =>
       s.run?.includes("quick-update"),
     );
-    expect(saagaStep?.env?.CURSOR_API_KEY).toBe(
-      "${{ secrets.CURSOR_API_KEY }}",
+    expect(saagaStep?.env?.ANTHROPIC_API_KEY).toBe(
+      "${{ secrets.ANTHROPIC_API_KEY }}",
     );
   });
 
