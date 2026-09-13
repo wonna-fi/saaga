@@ -1,16 +1,16 @@
-# Generated: 2026-09-01T20:46:58.764Z
+# Generated: 2026-09-13T03:54:42.412Z
 dc5db626c0687243063280d4a5282a5260abf4f3 .github/scripts/publish-saaga-changes.sh
 d7e08a188b70e03d7663a8cc06b48d27a812ca95 .github/workflows/ci.yml
 de4bc82ba2995f5752fe1c2f2420dfa8ae9d63ea .github/workflows/doctor-fast.yml
 aa88e5e7f928ed78425e9046a0c7d8410daa795e .github/workflows/doctor-full.yml
-1476003c222e85d7d00beae43a86c89c3f3b33ad .github/workflows/quick-update-nightly.yml
-4685c08a3c7e914bbc9149ee22aac7b17db504a1 .github/workflows/verify-quick-updates-weekly.yml
+c3f88c4d424e0accdfc55a24e50610ace84b73a5 .github/workflows/quick-update-nightly.yml
+8f6cd3955ffa90a4edf612b4d00b8b4ed92ea615 .github/workflows/verify-quick-updates-weekly.yml
 207ce2b0b21e99567a5b41e1c60c8426b10f29a2 .npmrc
-506c2a29595b600152d613fc379425b18f2d0d63 AGENTS.md
+409f8f1f01ffb94d63b6960735a914c93278df44 AGENTS.md
 47dc3e3d863cfb5727b87d785d09abf9743c0a72 CLAUDE.md
-4b9ebbe84cb9d3dd0395daf593be478f547519d7 DEVELOPING.md
+070aded800500ed5270ac1b3b257c98dd183fa24 DEVELOPING.md
 b9f6155a4ff2e22f76bfef39388941f7986b569c LICENSE
-55da14399f4f0e8475b4d412b58ee45786672709 README.md
+8a8d8a63d064b6b481a6066023c1fe617408f2bc README.md
 cee3d032fbbf9ad8f2fc31c885152ebce0b1277c eslint.config.js
 7fea6d994a640c3355563d3c8c650861ba165c7f eval/README.md
 46f45cdbe1c3c619a85851918fcd9aac5005cf0a eval/artifact.test.ts
@@ -68,7 +68,7 @@ f74cd3fe69a77089b52031cd2e7f1f41b0954755 eval/tasks/neutral/pr-01-run-command.ts
 03b1f41045de8e6d1947c38dd729cb773a4e86e7 flows/quick-update.flow.yaml
 f381d7c462fc76233e99e424ee53d8c3800e5de5 flows/update.flow.yaml
 b2207f6f0dbd9cc9752624b33b596e10dea1fcde flows/verify-quick-updates.flow.yaml
-26760ac1e46ffd23c791a89765835092229d254c package.json
+7ba5d363251f39defa6a4dbce6e16577c973b149 package.json
 ad8d52d4ad836bb35d87aef40377125ab7730d41 prompts/document-architecture.md
 4c12b045eb6dbf41c356665c8642b73e45a5345c prompts/fix-documentation.md
 df9b8c38fb1c15fe16b11818cdc117ac0c3a0646 prompts/partials/adapt-templates-to-technology.md
@@ -143,7 +143,7 @@ c771918456895d9356311bef952870b7338b00bb src/run-context.ts
 49ed5e277537ed0c50f1b6c2bfa90c24b8650ee8 src/run-manifest.ts
 d5753fabfe471eebaf2df7c0c519616abebb25ff src/saaga-rules.ts
 9b361af06968d2bef5b88c639b6463d2188d78a0 src/scripts/archive-quick-update.ts
-22d9fc66afed08816f647aa22fa74dd5c56c532e src/scripts/check-format-version.ts
+c64b9f6a77bc968e559e18a489233181507014c2 src/scripts/check-format-version.ts
 b70394a1d1f8a614785f453b55c2d8f4597814b6 src/scripts/check-plan-budget.ts
 9c2935196daa9300f16b61972033698703ca36ff src/scripts/cleanup-quick-update-dir.ts
 b5b7492fe26d59b0c67d036a45b84b5295118b69 src/scripts/collect-quick-updates.ts
@@ -205,7 +205,7 @@ ecad7d5036c3decb763f7d4751c5c134a33de738 tests/engine/read-file.test.ts
 f2c8ca8603f784affca33f06fb7acdb24345898e tests/engine/resume.test.ts
 91ec4164e86cdfc854816ce84246a7d6d2e0845a tests/engine/script.test.ts
 7b0108bad54312f6c66d0ade195ace1c378fb01e tests/flows.test.ts
-ec8856f106e195e66bd106b917b28f5ec2ca875e tests/github/scheduled-workflows.test.ts
+9fa61b594f739601cf908a18d512ed461285cc39 tests/github/scheduled-workflows.test.ts
 a68cba8ca2aa61e2c0c14267a9b95306bdae25c8 tests/logger.test.ts
 9d2c6f16c273c50b23e58a5f341aaf967216ef7e tests/output.test.ts
 f6c8c14783e89ad2f6e2789abc42db5ae7c7d421 tests/placeholder.test.ts
@@ -213,7 +213,7 @@ f6c8c14783e89ad2f6e2789abc42db5ae7c7d421 tests/placeholder.test.ts
 1e62bae5826eca0fc1dd10b032696a204f372468 tests/run-context.test.ts
 d8334db3bfee29e94aec8ce7fe3232695a31288e tests/saaga-rules.test.ts
 d99a9951b7332f3d5300c5063bcebfa51f5e5f63 tests/scripts/archive-quick-update.test.ts
-4d417515bbb920dd04ffcb0d19329ba0b6c2675b tests/scripts/check-format-version.test.ts
+2e5f06371d0cec926fc1302a2b087ae780bd5181 tests/scripts/check-format-version.test.ts
 58297ba8405dbded59e11c292dfb2f7588faa87e tests/scripts/check-plan-budget.test.ts
 377c704d24d64dc818006b0d8a3b86484f67baa0 tests/scripts/cleanup-quick-update-dir.test.ts
 7524990c440c777781f96e72a579cfc5c744601a tests/scripts/collect-quick-updates.test.ts
