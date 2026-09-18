@@ -193,7 +193,8 @@ describe("unstable features (CLI integration)", () => {
 
     // Doctor may fail (no backends) but we check the warning appeared
     expect(err.text).toContain("[WARN] Unstable features enabled: none");
-  });
+    // This runs the real doctor over every installed CLI. The default 5s timeout is too short.
+  }, 60_000);
 
   test("repeated --unstable-feature flags accumulate", async () => {
     const { app } = await tmpApp("repeat");

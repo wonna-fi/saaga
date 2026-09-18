@@ -114,6 +114,26 @@ API keys itself.
 | cursor   | `cursor-agent`   | `claude-4.6-opus-high-thinking` | `cursor-grok-4.5-high`              | `composer-2.5`                      |
 | copilot  | `copilot`        | `claude-sonnet-4.6`             | `claude-sonnet-4.6`                 | `claude-haiku-4.5`                  |
 | claude   | `claude`         | `opus`                          | `sonnet`                            | `haiku`                            |
+| kiro     | `kiro-cli`       | `claude-sonnet-4.5`             | `claude-sonnet-4.5`                 | `claude-haiku-4.5`                  |
+
+**Kiro** additionally requires:
+
+- `kiro-cli` with the v3 agent engine (`kiro-cli chat --help` lists `--v3`).
+- A login (`kiro-cli login`, any login type) or a `KIRO_API_KEY` (API keys
+  need a paid kiro plan; create one under API Keys at app.kiro.dev). A key
+  alone is enough for headless runs, e.g. in CI. An invalid `KIRO_API_KEY`
+  overrides a working login. When setting the key, make sure no whitespace,
+  quotes or line break came along with the paste: kiro reports that only as
+  `Error: Internal error`.
+- Headless use permitted for your account. Organisation admins can switch
+  it off; `saaga doctor --backend kiro --level full` confirms it works.
+
+Which models you can use depends on your kiro plan, and kiro's published
+model list does not always match it — `kiro-cli chat --list-models` is the
+source of truth. The defaults above are offered on every plan, including
+free. Paid plans add Opus and newer Sonnet models; to use one, pass
+`--model high=<id from --list-models>`. Free-plan credits are limited, and
+`doctor --level full` spends roughly one model call per probe.
 
 > **Restricted by default** — Saaga restricts each agent backend to the
 > narrow permissions it actually needs. On every backend the agent cannot
@@ -213,7 +233,7 @@ saaga doctor                    Check backend CLI availability and
 
 | Flag | Short | Description |
 | ---- | ----- | ----------- |
-| `--backend <name>` | `-b` | Agent backend: `cursor`, `copilot`, or `claude` |
+| `--backend <name>` | `-b` | Agent backend: `cursor`, `copilot`, `claude`, or `kiro` |
 | `--model <key>=<model>` | | Set the model a model key resolves to, e.g. `--model high=opus`. Which key a step asks for comes from the flow (repeatable; see [Model keys](#model-keys)) |
 | `--ci` | | Plain (non-color) log output, suitable for CI pipelines |
 | `--yes` | `-y` | Skip the cost confirmation prompt (see [Runtime and cost](#runtime-and-cost)) |
@@ -387,7 +407,7 @@ defaults. All keys are optional; CLI flags always take precedence.
 
 ```yaml
 # .saaga/config.yaml
-defaultBackend: cursor     # cursor | copilot | claude
+defaultBackend: cursor     # cursor | copilot | claude | kiro
 backends:                  # per-backend model overrides (all optional)
   cursor:
     models:
@@ -550,12 +570,23 @@ Two guarantees hold on every backend:
 
 Within the workspace, writes are limited to `<app>/<docs_dir>/**` and the
 run directory, leaving source code, rule files, `BASELINE`, and `FORMAT`
-untouched — on cursor and claude. **Copilot is the outlier**: its CLI does
+untouched — on cursor, claude and kiro. **Copilot is the outlier**: its CLI does
 not yet let Saaga narrow writes below the workspace boundary, so treat
 review and branch protection as the backstop there rather than the agent
 profile.
 
-Because the three CLIs expose very different permission systems, the
+**Kiro** keeps its permission rules in an agent profile under your home
+directory, so for each agent call Saaga writes a temporary
+`~/.kiro/agents/saaga-<random>.json` and deletes it when the call ends.
+It never overwrites an existing file, the rules apply only to that call's
+session, and nothing is written into your repository. A leftover from a
+killed run is removed by a later run once it is a day old. A copy of the
+profile is kept at `<run_dir>/.kiro-cli/agent.json`. Kiro also merges
+in your own `~/.kiro/settings/permissions.yaml`: your deny rules narrow a
+Saaga run further, and Saaga's rules stop your allow rules from widening
+its reads, writes or shell access.
+
+Because the four CLIs expose very different permission systems, the
 exact tool surface an agent ends up with also differs per backend, and a
 tool added in a later CLI release may arrive enabled on some backends.
 Run `saaga doctor --level full` after upgrading a backend CLI to confirm
@@ -635,6 +666,13 @@ The fast tier is deterministic and free: it checks that each backend CLI
 is on `PATH`, answers `--version`, and that its help text still documents
 every flag Saaga passes during agent runs. Use it after upgrading a
 backend CLI to catch flag removals or renames before they break a flow.
+For kiro it also checks that `kiro-cli` is logged in (`kiro/auth`) — a
+logged-out kiro waits for a browser login instead of failing — and that
+every model the run will use is offered on your plan
+(`kiro/models-available`). With `KIRO_API_KEY` set and no `kiro-cli`
+login, these checks also catch a rejected key. With both a key and a login,
+kiro answers them from the login, so both are skipped and only
+`--level full` can verify the key.
 
 Full-tier probes exercise the real permission boundaries: that files
 outside the workspace stay unreadable and unwritable, that a shell
@@ -647,7 +685,7 @@ tier takes several minutes and spends tokens.
 
 | Flag | Description |
 | ---- | ----------- |
-| `--backend <name>` | Backend to check: `cursor`, `copilot`, `claude`, or `all` (default: `all`) |
+| `--backend <name>` | Backend to check: `cursor`, `copilot`, `claude`, `kiro`, or `all` (default: `all`) |
 | `--level <level>` | Probe tier: `fast` (default, zero tokens) or `full` (makes model calls) |
 | `--model low=<model>` | Model override for full-tier probes — the global `--model` flag; doctor uses the `low` key. Not backend-scoped, so under the default `--backend all` it applies to every backend probed |
 | `--json` | Output versioned JSON instead of human-readable text |
@@ -692,7 +730,9 @@ still holds.
 Before `init` and `update` spend tokens, Saaga automatically runs the
 fast-tier doctor probes for the selected backend. If the backend CLI is
 not found or its version query fails, the run is refused with a
-diagnostic message pointing you to `saaga doctor` for details.
+diagnostic message pointing you to `saaga doctor` for details. For kiro
+this includes the login and model-availability checks, run against the
+models the flow will actually use (after `--model` overrides).
 
 ## Running in containers
 

@@ -10,7 +10,7 @@ export const CONFIG_DIR = ".saaga";
 export const CONFIG_FILE = "config.yaml";
 export const DEFAULT_DOCS_DIR = "saaga-docs";
 
-const ALLOWED_BACKENDS: readonly Backend[] = ["cursor", "copilot", "claude"];
+const ALLOWED_BACKENDS: readonly Backend[] = ["cursor", "copilot", "claude", "kiro"];
 
 /** Removed fields, mapped to the model key that replaced them. */
 const LEGACY_MODEL_FIELDS: Record<string, string> = {
@@ -137,7 +137,7 @@ function parseBackends(
   for (const [key, entry] of Object.entries(raw)) {
     if (!ALLOWED_BACKENDS.includes(key as Backend)) {
       throw new ConfigError(
-        `${CONFIG_DIR}/${CONFIG_FILE}: 'backends.${key}' is not a valid backend (must be 'cursor', 'copilot', or 'claude')`,
+        `${CONFIG_DIR}/${CONFIG_FILE}: 'backends.${key}' is not a valid backend (must be 'cursor', 'copilot', 'claude', or 'kiro')`,
       );
     }
     result[key as Backend] = parseBackendConfig(key, entry);

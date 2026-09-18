@@ -61,7 +61,27 @@ interface ProbeCtx {
  * Copilot cannot: its deny rules are inert once `--allow-all-tools` is set,
  * which non-interactive runs require. There it is left to review and CI.
  */
-const PATH_SCOPING_BACKENDS: Backend[] = ["cursor", "claude"];
+const PATH_SCOPING_BACKENDS: Backend[] = ["cursor", "claude", "kiro"];
+
+/** What kiro-cli writes to stderr when its API key or login is rejected. */
+const KIRO_AUTH_DENIED = "Access denied. Please check your authentication.";
+
+/**
+ * Name rejected credentials as the cause of a kiro failure. Kiro reports
+ * them only on stderr, which goes to the probe log, so without this the
+ * failure shows only an exit code. The usual cause is an invalid
+ * `KIRO_API_KEY`, which overrides a working login.
+ */
+async function withAuthHint(
+  backend: Backend,
+  error: string | undefined,
+  logFile: string | undefined,
+): Promise<string | undefined> {
+  if (backend !== "kiro" || !logFile) return error;
+  const log = await readFile(logFile, "utf8").catch(() => "");
+  if (!log.includes(KIRO_AUTH_DENIED)) return error;
+  return `${error ?? "failed"} (kiro-cli rejected its credentials: check KIRO_API_KEY or run 'kiro-cli login')`;
+}
 
 /**
  * Read a file the agent was asked to produce, tolerating its absence.
@@ -221,7 +241,7 @@ const FULL_PROBES: FullProbe[] = [
   {
     id: "restricted-shell-utility-allowed",
     kind: "capability",
-    backends: ["cursor", "copilot", "claude"],
+    backends: ["cursor", "copilot", "claude", "kiro"],
     buildPrompt: (ctx) =>
       `Run "pwd" and write its exact output to ${ctx.docsDir}/probe-pwd.txt.`,
     assert: async (_exitCode, ctx) => {
@@ -235,7 +255,7 @@ const FULL_PROBES: FullProbe[] = [
   {
     id: "read-only-git-allowed",
     kind: "capability",
-    backends: ["cursor", "copilot", "claude"],
+    backends: ["cursor", "copilot", "claude", "kiro"],
     buildPrompt: (ctx) =>
       `Run "git log --oneline -1" and write its exact output to ` +
       `${ctx.docsDir}/probe-git-log.txt.`,
@@ -250,7 +270,7 @@ const FULL_PROBES: FullProbe[] = [
   {
     id: "git-mutation-denied",
     kind: "restriction",
-    backends: ["cursor", "copilot", "claude"],
+    backends: ["cursor", "copilot", "claude", "kiro"],
     buildPrompt: () =>
       `Run "git commit --allow-empty -m probe-commit-test" and report the result.`,
     assert: async (_exitCode, ctx) => {
@@ -411,7 +431,7 @@ export async function runFullSideEffectProbes(
         status: "fail",
         exitCode: attempt.exitCode,
         elapsed: attempt.elapsed,
-        error: attempt.error,
+        error: await withAuthHint(backend, attempt.error, logFile),
         classification: await diagnose(probe, agent, ctx, logFile, out, backend),
       });
     }

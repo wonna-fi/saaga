@@ -1,6 +1,7 @@
 import { ClaudeAgent } from "../agent/claude-agent.js";
 import { CopilotAgent } from "../agent/copilot-agent.js";
 import { CursorAgent } from "../agent/cursor-agent.js";
+import { KiroAgent } from "../agent/kiro-agent.js";
 import type { Agent } from "../agent/types.js";
 import {
   DEFAULT_MODEL_KEY,
@@ -8,7 +9,7 @@ import {
   isValidModelKey,
 } from "../model-keys.js";
 
-export type Backend = "cursor" | "copilot" | "claude";
+export type Backend = "cursor" | "copilot" | "claude" | "kiro";
 
 /**
  * Names a model slot a flow can ask for. `low`, `medium`, and `high` are
@@ -27,7 +28,7 @@ export type BuiltinModelKey = (typeof BUILTIN_MODEL_KEYS)[number];
 // concrete agent backends along.
 export { DEFAULT_MODEL_KEY, MODEL_KEY_PATTERN, isValidModelKey };
 
-const ALLOWED_BACKENDS: readonly Backend[] = ["cursor", "copilot", "claude"];
+export const ALLOWED_BACKENDS: readonly Backend[] = ["cursor", "copilot", "claude", "kiro"];
 
 const DEFAULT_BACKEND_MODELS: Record<
   Backend,
@@ -48,12 +49,21 @@ const DEFAULT_BACKEND_MODELS: Record<
     medium: "sonnet",
     high: "opus",
   },
+  // Every kiro plan offers these models. Opus and newer Sonnets need a paid
+  // plan, so users who want a stronger `high` pass `--model high=<id>`. Never
+  // use `auto`, which picks a model per task and makes runs irreproducible.
+  kiro: {
+    low: "claude-haiku-4.5",
+    medium: "claude-sonnet-4.5",
+    high: "claude-sonnet-4.5",
+  },
 };
 
 const BACKEND_CLI_COMMANDS: Record<Backend, string> = {
   cursor: "cursor-agent",
   copilot: "copilot",
   claude: "claude",
+  kiro: "kiro-cli",
 };
 
 export class BackendError extends Error {
@@ -86,7 +96,7 @@ export function resolveBackend(input: ResolveBackendInput): Backend {
   }
   if (!ALLOWED_BACKENDS.includes(candidate as Backend)) {
     throw new BackendError(
-      `Invalid backend: ${candidate} (must be 'cursor', 'copilot', or 'claude')`,
+      `Invalid backend: ${candidate} (must be 'cursor', 'copilot', 'claude', or 'kiro')`,
     );
   }
   return candidate as Backend;
@@ -238,6 +248,9 @@ export function createAgent(opts: CreateAgentOptions): Agent {
   }
   if (opts.backend === "claude") {
     return new ClaudeAgent({ model: opts.model, ci: opts.ci });
+  }
+  if (opts.backend === "kiro") {
+    return new KiroAgent({ model: opts.model, ci: opts.ci });
   }
   const _exhaustive: never = opts.backend;
   throw new BackendError(`Unsupported backend: ${_exhaustive}`);
