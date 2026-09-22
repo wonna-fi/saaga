@@ -7,6 +7,7 @@ import { Command } from "commander";
 import { PermissionAuditor } from "./agent/audit.js";
 import type { Agent } from "./agent/types.js";
 import {
+  ALLOWED_BACKENDS,
   type Backend,
   DEFAULT_MODEL_KEY,
   backendCliCommand,
@@ -214,7 +215,7 @@ export async function runCli(
         "Customize behavior by editing the bundled flow YAML files in flows/.",
     )
     .version(version, "-v, --version", "Print version and exit")
-    .option("-b, --backend <name>", "Agent backend (cursor|copilot|claude)")
+    .option("-b, --backend <name>", `Agent backend (${ALLOWED_BACKENDS.join("|")})`)
     .option(
       "--model <key=model>",
       "Set the model for a model key, e.g. --model high=opus (repeatable)",
@@ -710,7 +711,10 @@ async function runFlowSubcommand(input: RunFlowSubcommandInput): Promise<void> {
   });
 
   if (resolved.backend && !options.agent) {
-    const preflight = await runPreflight(resolved.backend);
+    const preflight = await runPreflight(
+      resolved.backend,
+      resolved.models ? [...new Set(Object.values(resolved.models))] : undefined,
+    );
     if (!preflight.passed) {
       const stream = options.stderr ?? process.stderr;
       stream.write(

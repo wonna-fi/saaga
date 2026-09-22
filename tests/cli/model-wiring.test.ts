@@ -20,9 +20,11 @@ vi.mock("../../src/doctor/preflight.js", () => ({
 }));
 
 import { runCli } from "../../src/cli.js";
+import { runPreflight } from "../../src/doctor/preflight.js";
 import { runFlow } from "../../src/engine/runner.js";
 
 const mockRunFlow = vi.mocked(runFlow);
+const mockRunPreflight = vi.mocked(runPreflight);
 
 class StringWritable extends Writable {
   private chunks: string[] = [];
@@ -98,5 +100,19 @@ describe("per-step model keys reach the runner", () => {
         "defaultBackend: claude\nbackends:\n  claude:\n    models:\n      high: config-high\n",
       ),
     ).toEqual({ high: "config-high" });
+  });
+});
+
+describe("preflight sees the models the run will use", () => {
+  beforeEach(() => {
+    mockRunFlow.mockReset();
+    mockRunPreflight.mockClear();
+  });
+
+  // kiro/models-available checks these against the account's plan. Checking
+  // the defaults instead would pass a run whose override is not available.
+  test("a --model override reaches preflight", async () => {
+    await modelsFor("update", "defaultBackend: kiro\n", ["--model", "high=claude-opus-4.8"]);
+    expect(mockRunPreflight).toHaveBeenCalledWith("kiro", ["claude-opus-4.8"]);
   });
 });

@@ -29,7 +29,8 @@ export interface ClassifiedDenial {
   resolvedPath?: string;
 }
 
-const SHELL_TOOLS = new Set(["bash", "shell", "terminal", "run_terminal_cmd"]);
+// Kiro titles its shell tool "Run Command".
+const SHELL_TOOLS = new Set(["bash", "shell", "terminal", "run_terminal_cmd", "run command"]);
 
 function isInside(path: string, root: string): boolean {
   return path === root || path.startsWith(root + sep);

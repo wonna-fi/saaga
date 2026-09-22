@@ -17,6 +17,13 @@ class StringWritable extends Writable {
   }
 }
 
+/**
+ * These tests run the real doctor against every CLI installed on the
+ * machine. Each CLI query starts a new process, and kiro's account probes
+ * alone add several seconds, so the default 5s timeout is too short.
+ */
+const REAL_DOCTOR_TIMEOUT_MS = 60_000;
+
 async function doctorBackends(args: string[]): Promise<string[]> {
   const out = new StringWritable();
   await runCli(args, { stdout: out, stderr: new StringWritable() });
@@ -49,8 +56,9 @@ describe("saaga doctor --backend", () => {
       "cursor",
       "copilot",
       "claude",
+      "kiro",
     ]);
-  });
+  }, REAL_DOCTOR_TIMEOUT_MS);
 });
 
 interface DoctorJson {
@@ -81,7 +89,7 @@ describe("saaga doctor --probe", () => {
     ]);
     const ids = result.backends[0].probes.map((p) => p.probeId);
     expect(ids).toEqual(["version", "required-flags", "unknown-model-fails"]);
-  });
+  }, REAL_DOCTOR_TIMEOUT_MS);
 
   test("accepts a space-separated list", async () => {
     const all = await doctorJson(["doctor", "--json"]);
@@ -94,7 +102,7 @@ describe("saaga doctor --probe", () => {
     ]);
     const ids = result.backends[0].probes.map((p) => p.probeId);
     expect(ids).toEqual(["version", "unknown-model-fails"]);
-  });
+  }, REAL_DOCTOR_TIMEOUT_MS);
 
   test("runs every applicable probe when none is named", async () => {
     const all = await doctorJson(["doctor", "--json"]);
@@ -108,5 +116,5 @@ describe("saaga doctor --probe", () => {
     expect(ids).toContain("version");
     expect(ids).toContain("required-flags");
     expect(ids.length).toBeGreaterThan(1);
-  });
+  }, REAL_DOCTOR_TIMEOUT_MS);
 });

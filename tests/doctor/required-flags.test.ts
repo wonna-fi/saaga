@@ -1,5 +1,7 @@
 import { describe, expect, test } from "vitest";
+import { buildKiroArgs } from "../../src/agent/kiro-agent.js";
 import {
+  BACKEND_HELP_ARGS,
   findMissingRequiredFlags,
   REQUIRED_CLI_FLAGS,
 } from "../../src/doctor/required-flags.js";
@@ -75,6 +77,7 @@ describe("REQUIRED_CLI_FLAGS", () => {
       "claude",
       "copilot",
       "cursor",
+      "kiro",
     ]);
   });
 
@@ -82,5 +85,24 @@ describe("REQUIRED_CLI_FLAGS", () => {
     for (const flags of Object.values(REQUIRED_CLI_FLAGS)) {
       expect(flags.length).toBeGreaterThan(0);
     }
+  });
+
+  test("kiro: covers every flag the adapter can emit", () => {
+    const emitted = [
+      ...buildKiroArgs("m", "p", { agentName: "saaga-x", streamJson: true }),
+      ...buildKiroArgs("m", "p", { streamJson: false }),
+    ].filter((arg) => arg.startsWith("-"));
+    for (const flag of new Set(emitted)) {
+      expect(REQUIRED_CLI_FLAGS.kiro).toContain(flag);
+    }
+  });
+});
+
+describe("BACKEND_HELP_ARGS", () => {
+  test("reads kiro's flags from its chat subcommand, and only kiro's", () => {
+    expect(BACKEND_HELP_ARGS.kiro).toEqual(["chat"]);
+    expect(BACKEND_HELP_ARGS.claude).toBeUndefined();
+    expect(BACKEND_HELP_ARGS.copilot).toBeUndefined();
+    expect(BACKEND_HELP_ARGS.cursor).toBeUndefined();
   });
 });

@@ -3,6 +3,7 @@ import { createClaudeEventParser } from "../../src/agent/claude-agent.js";
 import { createCopilotEventParser } from "../../src/agent/copilot-agent.js";
 import { createCursorEventParser } from "../../src/agent/cursor-agent.js";
 import { LineSplitter } from "../../src/agent/events.js";
+import { createKiroEventParser } from "../../src/agent/kiro-agent.js";
 
 /** Feed lines through a parser and collect everything it emits. */
 function drain(parser: { push(line: string): unknown[] }, lines: string[]): unknown[] {
@@ -426,5 +427,166 @@ describe("claude event parser", () => {
     const events = drain(createClaudeEventParser(), [bare]);
     expect(events).toHaveLength(1);
     expect(events[0]).toMatchObject({ kind: "usage" });
+  });
+});
+
+describe("kiro event parser", () => {
+  // Shapes captured from kiro-cli 2.22.0 `chat --v3 --output-format stream-json`.
+  const update = (u: Record<string, unknown>): string =>
+    JSON.stringify({ type: "sessionUpdate", data: { sessionId: "sess_1", update: u } });
+
+  const writeCall = update({
+    sessionUpdate: "tool_call",
+    toolCallId: "tooluse_w",
+    title: "Write File",
+    kind: "edit",
+    status: "in_progress",
+    locations: [{ path: "/repo/src/blocked.txt" }],
+    rawInput: { path: "/repo/src/blocked.txt", text: "NOPE" },
+  });
+  const writePending = update({
+    sessionUpdate: "tool_call_update",
+    toolCallId: "tooluse_w",
+    status: "pending",
+    locations: [{ path: "/repo/src/blocked.txt" }],
+  });
+
+  test("an unstated write refused headlessly is a denial", () => {
+    const failed = update({
+      sessionUpdate: "tool_call_update",
+      toolCallId: "tooluse_w",
+      status: "failed",
+      title: "Write File",
+      locations: [{ path: "/repo/src/blocked.txt" }],
+      rawOutput: { message: "The user rejected this tool call." },
+    });
+    expect(drain(createKiroEventParser(), [writeCall, writePending, failed])).toEqual([
+      {
+        kind: "denial",
+        tool: "Write File",
+        path: "/repo/src/blocked.txt",
+        command: undefined,
+        message: "The user rejected this tool call.",
+      },
+    ]);
+  });
+
+  test("an explicit deny rule is a denial, target recovered from the first record", () => {
+    // For an append, the failing update has neither `locations` nor `kind`.
+    const call = update({
+      sessionUpdate: "tool_call",
+      toolCallId: "tooluse_a",
+      title: "Append to File",
+      kind: "edit",
+      locations: [{ path: "/repo/docs/secret.txt" }],
+      rawInput: { path: "/repo/docs/secret.txt" },
+    });
+    const failed = update({
+      sessionUpdate: "tool_call_update",
+      toolCallId: "tooluse_a",
+      status: "failed",
+      rawOutput: {
+        message:
+          'Tool call denied by user\'s permissions. Rule: deny fs_write matching "/repo/docs/secret.txt" Source: agent-profile.',
+      },
+    });
+    const [event] = drain(createKiroEventParser(), [call, failed]) as any[];
+    expect(event.tool).toBe("Append to File");
+    expect(event.path).toBe("/repo/docs/secret.txt");
+    expect(event.message).toMatch(/^Tool call denied by user's permissions\. Rule: deny fs_write/);
+  });
+
+  test("a refused shell command reports the command, from wrapped output", () => {
+    const call = update({
+      sessionUpdate: "tool_call",
+      toolCallId: "run_command_tooluse_1",
+      title: "Run Command",
+      kind: "execute",
+      rawInput: { command: "touch src/pwned.txt", cwd: "/repo" },
+    });
+    const failed = update({
+      sessionUpdate: "tool_call_update",
+      toolCallId: "run_command_tooluse_1",
+      status: "failed",
+      title: "Run Command",
+      content: [
+        {
+          type: "content",
+          content: {
+            type: "text",
+            text: "Output:\nTool call denied by user's permissions. Rule: deny shell matching \"*\" Source: agent-profile.\n\nExit Code: -1",
+          },
+        },
+      ],
+    });
+    const [event] = drain(createKiroEventParser(), [call, failed]) as any[];
+    expect(event).toMatchObject({ kind: "denial", tool: "Run Command", command: "touch src/pwned.txt" });
+    expect(event.message).toBe(
+      'Tool call denied by user\'s permissions. Rule: deny shell matching "*" Source: agent-profile.',
+    );
+  });
+
+  test("an ordinary tool failure is not a denial", () => {
+    const failed = update({
+      sessionUpdate: "tool_call_update",
+      toolCallId: "tooluse_l",
+      status: "failed",
+      title: "List Directory",
+      content: [
+        {
+          type: "content",
+          content: { type: "text", text: "Caught error listing: ENOENT: no such file or directory, stat '/repo/.kiro'" },
+        },
+      ],
+      rawOutput: { message: "Caught error listing: ENOENT: no such file or directory, stat '/repo/.kiro'" },
+    });
+    expect(drain(createKiroEventParser(), [failed])).toEqual([]);
+  });
+
+  test("a failed command whose output merely quotes the phrase is not a denial", () => {
+    const call = update({
+      sessionUpdate: "tool_call",
+      toolCallId: "run_command_tooluse_2",
+      title: "Run Command",
+      kind: "execute",
+      rawInput: { command: "grep -rn rejected docs/" },
+    });
+    const failed = update({
+      sessionUpdate: "tool_call_update",
+      toolCallId: "run_command_tooluse_2",
+      status: "failed",
+      title: "Run Command",
+      rawOutput: {
+        message: "Output:\ndocs/notes.md:3: kiro says The user rejected this tool call.\n\nExit Code: 2",
+      },
+    });
+    expect(drain(createKiroEventParser(), [call, failed])).toEqual([]);
+  });
+
+  test("completed calls, run records and non-JSON noise yield nothing", () => {
+    const lines = [
+      JSON.stringify({ type: "runStarted", data: { payloadSchema: "acp", engine: "v3" } }),
+      update({
+        sessionUpdate: "tool_call_update",
+        toolCallId: "t",
+        status: "completed",
+        title: "Read File",
+      }),
+      update({
+        sessionUpdate: "session_info_update",
+        _meta: { kiro: { promptTurnSummaries: [{ unit: "credit", usage: 0.02 }] } },
+      }),
+      JSON.stringify({
+        type: "runError",
+        data: { stage: "prompt", message: "The model 'bogus' is not available." },
+      }),
+      JSON.stringify({
+        type: "runError",
+        data: { stage: "interrupted", message: "the run was ended by a signal" },
+      }),
+      JSON.stringify({ type: "runFinished", data: { status: "success", stopReason: "end_turn" } }),
+      "[INFO] kas.server.starting",
+    ];
+    expect(drain(createKiroEventParser(), lines)).toEqual([]);
   });
 });

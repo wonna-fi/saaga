@@ -15,6 +15,7 @@ describe("resolveBackend", () => {
     expect(resolveBackend({ flag: "cursor" })).toBe("cursor");
     expect(resolveBackend({ flag: "copilot" })).toBe("copilot");
     expect(resolveBackend({ flag: "claude" })).toBe("claude");
+    expect(resolveBackend({ flag: "kiro" })).toBe("kiro");
   });
 
   test("falls back to config when no flag is given", () => {
@@ -37,7 +38,7 @@ describe("resolveBackend", () => {
 
   test("rejects unknown backend value", () => {
     expect(() => resolveBackend({ flag: "gemini" })).toThrow(
-      /must be 'cursor', 'copilot', or 'claude'/,
+      /must be 'cursor', 'copilot', 'claude', or 'kiro'/,
     );
   });
 
@@ -156,18 +157,22 @@ describe("resolveModel", () => {
     );
     expect(resolveModel("copilot", "high")).toBe("claude-sonnet-4.6");
     expect(resolveModel("claude", "high")).toBe("opus");
+    // Kiro's defaults must exist on every plan, including free, so none is Opus.
+    expect(resolveModel("kiro", "high")).toBe("claude-sonnet-4.5");
   });
 
   test("returns built-in medium defaults (former quick models)", () => {
     expect(resolveModel("cursor", "medium")).toBe("cursor-grok-4.5-high");
     expect(resolveModel("copilot", "medium")).toBe("claude-sonnet-4.6");
     expect(resolveModel("claude", "medium")).toBe("sonnet");
+    expect(resolveModel("kiro", "medium")).toBe("claude-sonnet-4.5");
   });
 
   test("returns built-in low defaults (cheaper models for probes)", () => {
     expect(resolveModel("cursor", "low")).toBe("composer-2.5");
     expect(resolveModel("copilot", "low")).toBe("claude-haiku-4.5");
     expect(resolveModel("claude", "low")).toBe("haiku");
+    expect(resolveModel("kiro", "low")).toBe("claude-haiku-4.5");
   });
 
   test("uses the resolved map over the built-in default", () => {
@@ -227,6 +232,7 @@ describe("backendCliCommand", () => {
     expect(backendCliCommand("cursor")).toBe("cursor-agent");
     expect(backendCliCommand("copilot")).toBe("copilot");
     expect(backendCliCommand("claude")).toBe("claude");
+    expect(backendCliCommand("kiro")).toBe("kiro-cli");
   });
 });
 

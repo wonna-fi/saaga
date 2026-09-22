@@ -30,6 +30,23 @@ export const REQUIRED_CLI_FLAGS: Record<Backend, readonly string[]> = {
     "--add-dir",
   ],
   cursor: ["--print", "--model", "--trust", "--force", "--output-format"],
+  kiro: [
+    "--no-interactive",
+    "--v3",
+    "--model",
+    "--output-format",
+    "--agent",
+    "--trust-all-tools",
+  ],
+};
+
+/**
+ * Arguments placed before `--help` for CLIs whose run flags belong to a
+ * subcommand. `kiro-cli --help` lists only subcommands, and
+ * `kiro-cli chat --help` lists the flags Saaga passes.
+ */
+export const BACKEND_HELP_ARGS: Partial<Record<Backend, readonly string[]>> = {
+  kiro: ["chat"],
 };
 
 /**

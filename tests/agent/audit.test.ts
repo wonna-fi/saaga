@@ -75,6 +75,12 @@ describe("classifyDenial", () => {
     );
   });
 
+  test("kiro's shell tool counts as shell", () => {
+    expect(
+      classifyDenial(denial({ tool: "Run Command", path: undefined }), perms, APP).className,
+    ).toBe("shell");
+  });
+
   test("a denial with no path cannot be placed", () => {
     expect(classifyDenial(denial({ tool: "Edit" }), perms, APP).className).toBe("unknown");
   });
