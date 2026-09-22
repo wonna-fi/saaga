@@ -35,6 +35,8 @@ export const SOURCE_EXTENSIONS = [
   ".ex", ".exs", ".erl", ".hrl", ".hs", ".ml", ".mli", ".elm", ".jl",
   // Shell and data access
   ".sh", ".bash", ".zsh", ".ps1", ".sql",
+  // Salesforce
+  ".cls", ".trigger", ".page", ".component", ".apex",
 ];
 
 /**
