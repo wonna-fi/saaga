@@ -28,7 +28,7 @@ Before working with this feature, understand these concepts:
 
 ### Mechanism
 
-1. The backends probed are the one `--backend` names, or all three when absent. Each is looked up
+1. The backends probed are the one `--backend` names, or all four when absent. Each is looked up
    with `which`: a binary not on `PATH` is unavailable and probed no further, otherwise the first
    line of its `--version` output is captured.
 2. **Fast tier.** Only the three fast-level probes run — no full-tier probe appears in the result at
@@ -54,10 +54,11 @@ The catalogue ships as data and its ids are stable — they are what `--probe` f
 | Probes | Tier and backends | What they establish |
 |---|---|---|
 | `version`, `required-flags`, `unknown-model-fails` | fast, but the last is skipped at the fast tier — it needs a model call | The CLI answers, its help still names every flag Saaga passes, and a bogus model is rejected rather than silently substituted |
+| `kiro/auth`, `kiro/models-available` | fast, kiro only | kiro-cli is logged in, so a run cannot hang waiting for a browser login, and every model the run will use is offered on the account's plan |
 | `handshake`, `write-in-cwd`, `read-from-cwd`, `read-gitignored`, `write-run-dir` | full | The agent can do what a flow needs: reply, write the docs tree, read source, read a gitignored file, write the run directory |
 | `read-outside-workspace-denied`, `write-outside-workspace-denied`, `arbitrary-shell-denied` | full | The workspace boundary and the shell allowance hold |
-| `write-source-denied`, `rule-files-denied`, `baseline-denied` | full, cursor + claude | Source, rule files and `BASELINE` survive a run untouched |
-| `restricted-shell-utility-allowed`, `read-only-git-allowed`, `git-mutation-denied` | full, all three | The restricted shell passes `pwd` and `git log` and refuses `git commit` |
+| `write-source-denied`, `rule-files-denied`, `baseline-denied` | full, cursor + claude + kiro | Source, rule files and `BASELINE` survive a run untouched |
+| `restricted-shell-utility-allowed`, `read-only-git-allowed`, `git-mutation-denied` | full, all four | The restricted shell passes `pwd` and `git log` and refuses `git commit` |
 | `claude/tool-surface`, `claude/absolute-path-anchoring`, `claude/run-dir-writable` | full, claude only | Claude's tool list has not drifted, and its absolute-path rules reach the run directory |
 
 ### Validation Rules
@@ -77,6 +78,7 @@ The catalogue ships as data and its ids are stable — they are what `--probe` f
 | Binary present, `--version` fails | Still available; version reported as `unknown` |
 | Every applicable probe filtered out or skipped | Exit 0 — nothing was there to fail |
 | `run` with an injected agent | Preflight is skipped; it runs only when a real backend was resolved |
+| `KIRO_API_KEY` set while kiro-cli is also logged in | `whoami` answers from the login regardless of the key, so `kiro/models-available` cannot verify it from the fast tier and is reported `skip` rather than `pass` |
 
 ## Technical Implementation
 
@@ -99,6 +101,7 @@ backend was available; the subcommand's flags are [the CLI's](./cli-entry-point.
 | `doctor/probes` | `PROBE_CATALOGUE`, `ProbeDefinition`, `ProbeRunResult`, `ProbeClassification` | The catalogue as data, and the result vocabulary the whole feature reports in |
 | `doctor/full-probes` | `runFullSideEffectProbes()`, `FullProbeRunOptions` | The full tier: scratch repo, per-probe assertions, retries, unrestricted diagnosis |
 | `doctor/required-flags` | `findMissingRequiredFlags()`, `REQUIRED_CLI_FLAGS` | The per-backend flag expectations and the token-aware match |
+| `doctor/kiro-probes` | `runKiroAccountProbes()` | `kiro/auth` and `kiro/models-available`, from one shared account check (`whoami`, then `chat --list-models`) |
 | `doctor/scratch-repo` | `createScratchRepo()`, `ScratchRepo` | A one-commit git repo in `tmpdir` with `AGENTS.md`, a `BASELINE` and a run directory, plus three fixtures a probe asserts on by nonce — a source file, a gitignored build file and an out-of-workspace secret |
 | `doctor/preflight` | `runPreflight()`, `PreflightResult` | The fast tier for one backend reduced to a boolean; never throws |
 

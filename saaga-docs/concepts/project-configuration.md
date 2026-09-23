@@ -35,7 +35,7 @@ once per invocation, before any flow starts.
 | Field | Validation |
 |-------|------------|
 | `defaultBackend` | Must be a string; the value itself is checked during [backend resolution](./backend-resolution.md) |
-| `backends` | Mapping keyed by `cursor`, `copilot` or `claude`; each entry accepts only `models`, a mapping of model key to model name |
+| `backends` | Mapping keyed by `cursor`, `copilot`, `claude` or `kiro`; each entry accepts only `models`, a mapping of model key to model name |
 | `ruleTargets` | String or array of strings, normalized to a comma-separated string; selects the files [install-rules](../features/install-rules.md) writes |
 | `docsDir` | Must be a string; defaults to `DEFAULT_DOCS_DIR` |
 | `autoApprove` | Must be a boolean; skips the cost confirmation the same way `--yes` does |

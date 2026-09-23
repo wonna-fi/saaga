@@ -21,8 +21,8 @@ its flow asks for. Both are decided once, before the run starts, so a typo or a 
 model fails immediately instead of part-way through a flow that has already paid for
 agent calls.
 
-A **backend** is one of `cursor`, `copilot` or `claude` — the `Backend` union, and the
-only values `--backend` and `defaultBackend` accept. A **model key** is a name a flow step
+A **backend** is one of `cursor`, `copilot`, `claude` or `kiro` — the `Backend` union, and
+the only values `--backend` and `defaultBackend` accept. A **model key** is a name a flow step
 uses to ask for a class of model rather than a specific one: `low`, `medium` and `high`
 are built in and have per-backend defaults, and any other key must be supplied by the
 user. `MODEL_KEY_PATTERN` (`/^[a-z][a-z0-9_-]*$/`) is the whole rule for a valid key, and

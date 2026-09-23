@@ -6,6 +6,7 @@ sources:
   - src/agent/claude-agent.ts
   - src/agent/copilot-agent.ts
   - src/agent/cursor-agent.ts
+  - src/agent/kiro-agent.ts
   - src/cli.ts
   - src/doctor/full-probes.ts
 terms:
@@ -89,14 +90,19 @@ begins `git -c`, not `git log`.
 | `claude` | `Edit(//<writeRoot>/**)` in a `--settings` JSON, plus `additionalDirectories` for roots outside `cwd`; `--permission-mode dontAsk` makes that JSON authoritative instead of prompting | A named tool deny list, `Edit(//<denyPath>)`, patterns closing claude's built-in Bash set, and `--strict-mcp-config`, which leaves the session with no MCP servers so an ambient user or project config cannot widen the tool surface | Scoped `Bash(cmd:*)` / `Bash(git sub:*)` allows, or a bare `Bash` deny under `shell: "none"` |
 | `copilot` | `--available-tools` names the visible tools; `--allow-tool write` grants file changes inside the workspace | `--disallow-temp-dir`, and the workspace boundary itself; roots outside `cwd` are re-granted with `--add-dir` | `shell(cmd:*)` / `shell(git:sub*)` entries on `--allow-tool`, and `bash` withheld from the tool list otherwise |
 | `cursor` | Nothing: with `--trust`, reads and writes are permitted by default | A generated `<runDir>/.cursor-cli/cli-config.json`, reached via `CURSOR_CONFIG_DIR`, denying every path `enumerateExcludedPaths()` returns plus each `denyPath` | `Shell(cmd:*)` / `Shell(git:sub*)` allow entries — shell is the one default-deny surface |
+| `kiro` | `fs_read`/`fs_write` rules matching the read/write roots, in a temporary named agent under `~/.kiro/agents/` (kiro's v3 engine ignores `KIRO_HOME`) | Each allow's counterpart deny (`match: ["**"], exclude: <roots>`), plus a `denyPaths` rule and one per name in `DENIED_CAPABILITIES` (`mcp`, `power`, `subagent`, `skill`, `web_fetch`, `web_search`) | `shell` allow entries for the same commands, or a bare `shell` deny under `shell: "none"` |
 
-Two structural differences drive that table. Under cursor's `--trust` a deny overrides any
-allow, so the permitted set cannot be stated positively and has to be carved out instead:
+Two structural differences drive most of that table. Under cursor's `--trust` a deny overrides
+any allow, so the permitted set cannot be stated positively and has to be carved out instead:
 `enumerateExcludedPaths()` walks the ancestor chain of each kept root and denies the siblings
 at every level. Copilot cannot scope writes *within* the workspace at all, so there the
 workspace boundary is the whole file guarantee and `denyPaths` go unenforced — which is why a
 denial is classified against the profile rather than taken at face value; see
-[agent events](./agent-events.md).
+[agent events](./agent-events.md). Kiro is deny-wins like cursor, but its rules are scoped by
+`match`/`exclude` glob lists rather than by ancestor path, and it always merges in the user's
+own `~/.kiro/settings/permissions.yaml` — so an allow rule alone could be widened by that file,
+which is why every kiro allow is paired with an explicit deny of everything else in the same
+capability rather than relying on omission.
 
 ## Internal Implementation
 

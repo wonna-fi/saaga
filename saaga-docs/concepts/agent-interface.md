@@ -8,6 +8,7 @@ sources:
   - src/agent/claude-agent.ts
   - src/agent/copilot-agent.ts
   - src/agent/cursor-agent.ts
+  - src/agent/kiro-agent.ts
   - src/agent/fake-agent.ts
   - src/cli/backend.ts
   - src/doctor/full-probes.ts
@@ -39,12 +40,17 @@ asked for is judged by [flow execution](../features/flow-execution.md) via `expe
 | `claude` | `claude` | trailing positional | `--print --dangerously-skip-permissions` | `--verbose --output-format stream-json` |
 | `copilot` | `copilot` | `-p <prompt>` | `--allow-all-tools --no-ask-user --no-auto-update` | `--output-format json` (JSONL) |
 | `cursor` | `cursor-agent` | trailing positional | `--print --force` | `--output-format stream-json`, else `text` |
+| `kiro` | `kiro-cli` | trailing positional | `chat --no-interactive --v3 --trust-all-tools` | `--output-format stream-json`, else `text` |
 
-Two quirks are load-bearing: `CopilotAgent` renames `<cwd>/.gitignore` to
+Three quirks are load-bearing: `CopilotAgent` renames `<cwd>/.gitignore` to
 `.gitignore.<hex>.bak` for the call and restores it in a `finally`, because copilot's glob
 indexer honours it and would hide files a documentation run must read; `CursorAgent` under a
 profile writes a `cli-config.json` and points `CURSOR_CONFIG_DIR` at it, which is why
-`additionalDirs[0]` must be the run directory.
+`additionalDirs[0]` must be the run directory; `KiroAgent` spawns kiro detached in its own
+process group and signals the group on cancel, `SIGTERM`, `SIGHUP` and `SIGINT`, because
+`kiro-cli` is a launcher whose child (`kiro-cli-chat`) does not receive a signal sent to it
+alone — and it kills the group early if kiro's output shows it started a browser login,
+which otherwise hangs indefinitely even under `--no-interactive`.
 
 ## Configuration
 
@@ -84,6 +90,7 @@ constructors also take is inert: `ClaudeAgent` and `CursorAgent` store and never
 | `agent/claude-agent` | `ClaudeAgent`, `ClaudeAgentOptions` | The `claude` CLI |
 | `agent/copilot-agent` | `CopilotAgent`, `CopilotAgentOptions` | The `copilot` CLI |
 | `agent/cursor-agent` | `CursorAgent`, `CursorAgentOptions` | The `cursor-agent` CLI |
+| `agent/kiro-agent` | `KiroAgent`, `KiroAgentOptions` | The `kiro-cli` CLI |
 | `agent/fake-agent` | `FakeAgent`, `FakeScenario`, `FakeAgentCall` | Test double; canned exit codes, no subprocess |
 | `agent/spawn` | `awaitProcess()`, `EventConsumer` | Await a child while draining its event stream |
 | `agent/stdio` | `buildStdio()`, `buildPipedStdio()` | execa stdio options for the plain and event paths |

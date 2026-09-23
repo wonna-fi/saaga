@@ -7,6 +7,7 @@ sources:
   - src/agent/claude-agent.ts
   - src/agent/copilot-agent.ts
   - src/agent/cursor-agent.ts
+  - src/agent/kiro-agent.ts
   - src/cli.ts
 terms:
   - AgentEvent
@@ -43,18 +44,19 @@ sometimes wrong: copilot once blamed "/etc requires root privileges" for its own
 | `agent/events` | `AgentEvent`, `AgentEventSink`, `EventParser` | The event union, the callback, and the incremental parser contract |
 | `agent/events` | `consumeEvents()` | Drive a parser over a stream and forward every event to a sink |
 | `agent/events` | `LineSplitter`, `parseJsonLine()` | Reassemble whole lines from chunks; decode one, tolerantly |
-| `agent/{claude,copilot,cursor}-agent` | `createClaudeEventParser()`, `createCopilotEventParser()`, `createCursorEventParser()` | One parser per backend dialect |
+| `agent/{claude,copilot,cursor,kiro}-agent` | `createClaudeEventParser()`, `createCopilotEventParser()`, `createCursorEventParser()`, `createKiroEventParser()` | One parser per backend dialect |
 | `agent/audit` | `classifyDenial()`, `DenialClass` | Place a denial against the profile |
 | `agent/audit` | `PermissionAuditor`, `AuditResult` | Collect denials over a run and write the classified summary |
 
 ### Parsing
 
-A parser takes one line at a time and returns what that line yielded; claude and copilot
-report a refusal by call id only, so both remember tool calls to recover its target. Output
-that is not an event is simply not one — `parseJsonLine()` ignores any line that does not
-start with `{` or does not parse, so interleaved prose is skipped rather than failing the run.
-What marks a refusal differs: claude a message pattern, since it flags refusals with the same
-`is_error` as ordinary tool failures; copilot `error.code: "denied"`; cursor three shapes.
+A parser takes one line at a time and returns what that line yielded; claude, copilot and
+kiro report a refusal by call id only, so all three remember tool calls to recover its target.
+Output that is not an event is simply not one — `parseJsonLine()` ignores any line that does
+not start with `{` or does not parse, so interleaved prose is skipped rather than failing the
+run. What marks a refusal differs: claude a message pattern, since it flags refusals with the
+same `is_error` as ordinary tool failures; copilot `error.code: "denied"`; cursor three shapes;
+kiro a message pattern too, matched against its Agent Client Protocol `tool_call_update` text.
 
 ### Denial classes
 
