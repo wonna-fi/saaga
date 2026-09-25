@@ -1,3 +1,4 @@
+import { CodexAgent } from "../agent/codex-agent.js";
 import { ClaudeAgent } from "../agent/claude-agent.js";
 import { CopilotAgent } from "../agent/copilot-agent.js";
 import { CursorAgent } from "../agent/cursor-agent.js";
@@ -9,7 +10,7 @@ import {
   isValidModelKey,
 } from "../model-keys.js";
 
-export type Backend = "cursor" | "copilot" | "claude" | "kiro";
+export type Backend = "cursor" | "copilot" | "claude" | "kiro" | "codex";
 
 /**
  * Names a model slot a flow can ask for. `low`, `medium`, and `high` are
@@ -28,7 +29,7 @@ export type BuiltinModelKey = (typeof BUILTIN_MODEL_KEYS)[number];
 // concrete agent backends along.
 export { DEFAULT_MODEL_KEY, MODEL_KEY_PATTERN, isValidModelKey };
 
-export const ALLOWED_BACKENDS: readonly Backend[] = ["cursor", "copilot", "claude", "kiro"];
+export const ALLOWED_BACKENDS: readonly Backend[] = ["cursor", "copilot", "claude", "kiro", "codex"];
 
 const DEFAULT_BACKEND_MODELS: Record<
   Backend,
@@ -43,6 +44,11 @@ const DEFAULT_BACKEND_MODELS: Record<
     low: "claude-haiku-4.5",
     medium: "claude-sonnet-4.6",
     high: "claude-sonnet-4.6",
+  },
+  codex: {
+    low: "gpt-6-luna",
+    medium: "gpt-6-sol",
+    high: "gpt-6-sol",
   },
   claude: {
     low: "haiku",
@@ -64,6 +70,7 @@ const BACKEND_CLI_COMMANDS: Record<Backend, string> = {
   copilot: "copilot",
   claude: "claude",
   kiro: "kiro-cli",
+  codex: "codex",
 };
 
 export class BackendError extends Error {
@@ -96,7 +103,7 @@ export function resolveBackend(input: ResolveBackendInput): Backend {
   }
   if (!ALLOWED_BACKENDS.includes(candidate as Backend)) {
     throw new BackendError(
-      `Invalid backend: ${candidate} (must be 'cursor', 'copilot', 'claude', or 'kiro')`,
+      `Invalid backend: ${candidate} (must be 'cursor', 'copilot', 'claude', 'kiro', or 'codex')`,
     );
   }
   return candidate as Backend;
@@ -236,10 +243,14 @@ export interface CreateAgentOptions {
   backend: Backend;
   model: string;
   ci?: boolean;
+  fast?: boolean;
 }
 
 /** Constructs the concrete `Agent` for a backend. */
 export function createAgent(opts: CreateAgentOptions): Agent {
+  if (opts.backend === "codex") {
+    return new CodexAgent({ model: opts.model, fast: opts.fast });
+  }
   if (opts.backend === "cursor") {
     return new CursorAgent({ model: opts.model, ci: opts.ci });
   }

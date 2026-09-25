@@ -37,6 +37,7 @@ export interface CostNoticeInput {
   backendCli: string;
   /** Resolved backend key; absent when the agent was injected directly. */
   backend?: string;
+  fast?: boolean;
   /**
    * Distinct models the flow's steps will use, in first-appearance order.
    * Absent or empty when the agent was injected directly.
@@ -62,6 +63,7 @@ export function buildCostNotice(input: CostNoticeInput): string {
       `${input.backendCli} account, at whatever rate your plan with that ` +
       `provider applies. Saaga does not include or cover any of that usage.`,
   ];
+  if (input.fast) lines.push("Codex fast mode is enabled and consumes credits at a higher rate.");
   const hint = COST_HINTS[input.subcommand];
   if (hint) {
     lines.push(hint);
@@ -76,7 +78,7 @@ export function buildCostSummary(input: CostNoticeInput): string {
     models && models.length > 0
       ? `, ${models.length === 1 ? "model" : "models"}=${models.join(", ")}`
       : "";
-  return `cost notice acknowledged (cli=${input.backendCli}${list})`;
+  return `cost notice acknowledged (cli=${input.backendCli}${list}${input.fast ? ", fast=true" : ""})`;
 }
 
 /**

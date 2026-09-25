@@ -10,7 +10,7 @@ export const CONFIG_DIR = ".saaga";
 export const CONFIG_FILE = "config.yaml";
 export const DEFAULT_DOCS_DIR = "saaga-docs";
 
-const ALLOWED_BACKENDS: readonly Backend[] = ["cursor", "copilot", "claude", "kiro"];
+const ALLOWED_BACKENDS: readonly Backend[] = ["cursor", "copilot", "claude", "kiro", "codex"];
 
 /** Removed fields, mapped to the model key that replaced them. */
 const LEGACY_MODEL_FIELDS: Record<string, string> = {
@@ -29,6 +29,8 @@ export class ConfigError extends Error {
 export interface BackendConfig {
   /** Model key -> model name. Keys are free-form; see `MODEL_KEY_PATTERN`. */
   models?: Record<string, string>;
+  /** Codex service tier. Opt-in because fast mode consumes more credits. */
+  fast?: boolean;
 }
 
 export interface SaagaConfig {
@@ -137,7 +139,7 @@ function parseBackends(
   for (const [key, entry] of Object.entries(raw)) {
     if (!ALLOWED_BACKENDS.includes(key as Backend)) {
       throw new ConfigError(
-        `${CONFIG_DIR}/${CONFIG_FILE}: 'backends.${key}' is not a valid backend (must be 'cursor', 'copilot', 'claude', or 'kiro')`,
+        `${CONFIG_DIR}/${CONFIG_FILE}: 'backends.${key}' is not a valid backend (must be 'cursor', 'copilot', 'claude', 'kiro', or 'codex')`,
       );
     }
     result[key as Backend] = parseBackendConfig(key, entry);
@@ -157,7 +159,7 @@ function parseBackendConfig(backend: string, value: unknown): BackendConfig {
   const config: BackendConfig = {};
 
   for (const key of Object.keys(obj)) {
-    if (key === "models") {
+    if (key === "models" || (backend === "codex" && key === "fast")) {
       continue;
     }
     // Check the removed fields first, so a stale config gets the migration
@@ -169,8 +171,17 @@ function parseBackendConfig(backend: string, value: unknown): BackendConfig {
       );
     }
     throw new ConfigError(
-      `${CONFIG_DIR}/${CONFIG_FILE}: 'backends.${backend}.${key}' is not a valid field (expected 'models')`,
+      `${CONFIG_DIR}/${CONFIG_FILE}: 'backends.${backend}.${key}' is not a valid field (expected ${backend === "codex" ? "'models' or 'fast'" : "'models'"})`,
     );
+  }
+
+  if (obj.fast !== undefined) {
+    if (typeof obj.fast !== "boolean") {
+      throw new ConfigError(
+        `${CONFIG_DIR}/${CONFIG_FILE}: 'backends.${backend}.fast' must be a boolean`,
+      );
+    }
+    config.fast = obj.fast;
   }
 
   if (obj.models !== undefined) {
