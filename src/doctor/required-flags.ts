@@ -7,6 +7,11 @@ import type { Backend } from "../cli/backend.js";
  * omitted — the `version` probe already covers it.
  */
 export const REQUIRED_CLI_FLAGS: Record<Backend, readonly string[]> = {
+  codex: [
+    "--model", "--ephemeral", "--skip-git-repo-check", "--color", "--json",
+    "--config", "--ignore-user-config", "--ignore-rules", "--strict-config",
+    "--dangerously-bypass-hook-trust", "--dangerously-bypass-approvals-and-sandbox",
+  ],
   claude: [
     "--print",
     "--model",
@@ -42,11 +47,12 @@ export const REQUIRED_CLI_FLAGS: Record<Backend, readonly string[]> = {
 
 /**
  * Arguments placed before `--help` for CLIs whose run flags belong to a
- * subcommand. `kiro-cli --help` lists only subcommands, and
- * `kiro-cli chat --help` lists the flags Saaga passes.
+ * subcommand: `kiro-cli chat --help` and `codex exec --help` list the flags
+ * Saaga passes to those backends.
  */
 export const BACKEND_HELP_ARGS: Partial<Record<Backend, readonly string[]>> = {
   kiro: ["chat"],
+  codex: ["exec"],
 };
 
 /**

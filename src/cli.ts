@@ -84,6 +84,7 @@ interface GlobalCliFlags {
   /** Raw `<key>=<model>` entries from the repeatable --model flag. */
   model?: string[];
   ci?: boolean;
+  fast?: boolean;
   verbose?: boolean;
   yes?: boolean;
   allowDir?: string[];
@@ -222,6 +223,8 @@ export async function runCli(
       (val: string, prev: string[]) => [...prev, val],
       [] as string[],
     )
+    .option("--fast", "Use Codex fast mode (increased credit consumption)")
+    .option("--no-fast", "Disable Codex fast mode, overriding project config")
     .option(
       "--ci",
       "CI mode: plain (non-color) log output",
@@ -394,6 +397,7 @@ export async function runCli(
         modelOverrides: parseModelOverrides(globals.model ?? []),
         backendModels: config.backends,
         ci: globals.ci,
+        fast: globals.fast,
       };
 
       const result = await runDoctor(doctorOpts);
@@ -470,7 +474,7 @@ interface ResolveAgentOpts {
    * that came from built-in defaults, so upgrading Saaga mid-run keeps the
    * run internally consistent.
    */
-  defaults?: { backend?: string; models?: Record<string, string> };
+  defaults?: { backend?: string; models?: Record<string, string>; fast?: boolean };
 }
 
 /**
@@ -482,6 +486,7 @@ interface ResolvedAgent {
   agent: Agent;
   backend?: Backend;
   models?: Record<string, string>;
+  fast?: boolean;
 }
 
 function resolveAgent(
@@ -497,6 +502,13 @@ function resolveAgent(
     flag: globals.backend ?? opts.defaults?.backend,
     config: config.defaultBackend,
   });
+
+  if (globals.fast !== undefined && backend !== "codex") {
+    throw new Error("--fast and --no-fast require --backend codex");
+  }
+  const fast = backend === "codex"
+    ? globals.fast ?? (opts.defaults?.backend === backend ? opts.defaults.fast : undefined) ?? config.backends?.codex?.fast ?? false
+    : undefined;
 
   const resumedModels =
     opts.defaults?.backend === backend ? opts.defaults.models : undefined;
@@ -514,7 +526,8 @@ function resolveAgent(
   const baseModel = resolveModel(backend, DEFAULT_MODEL_KEY, models);
 
   return {
-    agent: createAgent({ backend, model: baseModel, ci: globals.ci }),
+    agent: createAgent({ backend, model: baseModel, ci: globals.ci, fast }),
+    fast,
     backend,
     models: resolved,
   };
@@ -688,6 +701,7 @@ async function runFlowSubcommand(input: RunFlowSubcommandInput): Promise<void> {
       ? {
           backend: resume.manifest.backend,
           models: manifestModels(resume.manifest),
+          fast: resume.manifest.fast,
         }
       : undefined,
   });
@@ -700,6 +714,7 @@ async function runFlowSubcommand(input: RunFlowSubcommandInput): Promise<void> {
       ? backendCliCommand(resolved.backend)
       : agent.name,
     backend: resolved.backend,
+    fast: resolved.fast,
     models: resolved.models ? [...new Set(Object.values(resolved.models))] : undefined,
   };
   await confirmAgentCosts({
@@ -849,6 +864,7 @@ async function runFlowSubcommand(input: RunFlowSubcommandInput): Promise<void> {
         ...resume.manifest,
         backend: resolved.backend ?? resume.manifest.backend,
         models: resolved.models ?? resume.manifest.models,
+        fast: resolved.fast,
         status: "running",
         pid: process.pid,
         resumedAt: [...resume.manifest.resumedAt, now],
@@ -863,6 +879,7 @@ async function runFlowSubcommand(input: RunFlowSubcommandInput): Promise<void> {
         docsDir,
         backend: resolved.backend,
         models: resolved.models,
+        fast: resolved.fast,
         initialScope,
         status: "running",
         pid: process.pid,

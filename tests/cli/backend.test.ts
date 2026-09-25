@@ -38,7 +38,7 @@ describe("resolveBackend", () => {
 
   test("rejects unknown backend value", () => {
     expect(() => resolveBackend({ flag: "gemini" })).toThrow(
-      /must be 'cursor', 'copilot', 'claude', or 'kiro'/,
+      /must be 'cursor', 'copilot', 'claude', 'kiro', or 'codex'/,
     );
   });
 
@@ -274,5 +274,18 @@ describe("resolveModels", () => {
     expect(() => resolveModels("claude", ["medium", "triage"])).toThrow(
       "Unknown model key 'triage'",
     );
+  });
+});
+
+
+describe("Codex backend", () => {
+  test("resolves the backend and the default model slots", () => {
+    expect(resolveBackend({ flag: "codex" })).toBe("codex");
+    expect(resolveBackend({ config: "codex" })).toBe("codex");
+    expect(backendCliCommand("codex")).toBe("codex");
+    expect(resolveModels("codex", ["low", "medium", "high"])).toEqual({
+      low: "gpt-6-luna", medium: "gpt-6-sol", high: "gpt-6-sol",
+    });
+    expect(resolveModel("codex", "high", { high: "gpt-6-astra" })).toBe("gpt-6-astra");
   });
 });

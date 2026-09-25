@@ -38,7 +38,7 @@ describe("saaga --version", () => {
       expect(text).toContain(cmd);
     }
     expect(text).toContain("--backend");
-    expect(text).toContain("Agent backend (cursor|copilot|claude|kiro)");
+    expect(text.replace(/\s+/g, " ")).toContain("Agent backend (cursor|copilot|claude|kiro|codex)");
     expect(text).toContain("--model <");
     expect(text).toContain("--ci");
     expect(text).toContain("--yes");
