@@ -428,3 +428,30 @@ describe("loadConfig", () => {
     expect(config).toEqual({});
   });
 });
+
+
+describe("Codex configuration", () => {
+  test.each([true, false])("loads fast=%s and model overrides", async (fast) => {
+    const dir = await tmpDir();
+    await mkdir(join(dir, ".saaga"));
+    await writeFile(join(dir, ".saaga", "config.yaml"),
+      `defaultBackend: codex\nbackends:\n  codex:\n    fast: ${fast}\n    models:\n      high: gpt-6-astra\n`);
+    expect(await loadConfig(dir)).toEqual({ defaultBackend: "codex", backends: {
+      codex: { fast, models: { high: "gpt-6-astra" } },
+    } });
+  });
+
+  test.each(['"yes"', '1', 'null', '[]'])("rejects non-boolean fast %s", async (fast) => {
+    const dir = await tmpDir();
+    await mkdir(join(dir, ".saaga"));
+    await writeFile(join(dir, ".saaga", "config.yaml"), `backends:\n  codex:\n    fast: ${fast}\n`);
+    await expect(loadConfig(dir)).rejects.toThrow("'backends.codex.fast' must be a boolean");
+  });
+
+  test("rejects fast on another backend", async () => {
+    const dir = await tmpDir();
+    await mkdir(join(dir, ".saaga"));
+    await writeFile(join(dir, ".saaga", "config.yaml"), "backends:\n  claude:\n    fast: true\n");
+    await expect(loadConfig(dir)).rejects.toThrow("'backends.claude.fast' is not a valid field");
+  });
+});

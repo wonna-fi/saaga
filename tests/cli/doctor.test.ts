@@ -57,6 +57,7 @@ describe("saaga doctor --backend", () => {
       "copilot",
       "claude",
       "kiro",
+      "codex",
     ]);
   }, REAL_DOCTOR_TIMEOUT_MS);
 });

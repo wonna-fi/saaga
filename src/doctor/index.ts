@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import pc from "picocolors";
+import { buildCodexArgs } from "../agent/codex-agent.js";
 import {
   BUILTIN_MODEL_KEYS,
   createAgent,
@@ -22,6 +23,7 @@ import {
 
 export interface DoctorOptions {
   backend: Backend | "all";
+  fast?: boolean;
   level: ProbeLevel;
   json?: boolean;
   probe?: string[];
@@ -251,13 +253,18 @@ function runUnknownModelProbe(backend: Backend): ProbeRunResult {
   const t0 = Date.now();
   try {
     const args =
-      backend === "copilot"
-        ? ["-p", "hello", "--no-ask-user", "--model", bogusModel, "--no-auto-update"]
-        : backend === "cursor"
-          ? ["--print", "--trust", "--model", bogusModel, "--output-format", "text", "hello"]
-          : backend === "kiro"
-            ? ["chat", "--no-interactive", "--v3", "--model", bogusModel, "hello"]
-            : ["--print", "--permission-mode", "dontAsk", "--model", bogusModel, "hello"];
+      backend === "codex"
+        ? buildCodexArgs(bogusModel, "Reply hello without using tools.", {
+            cwd: process.cwd(),
+            permissions: { readRoots: [process.cwd()], writeRoots: [], denyPaths: [], shell: "none" },
+          })
+        : backend === "copilot"
+          ? ["-p", "hello", "--no-ask-user", "--model", bogusModel, "--no-auto-update"]
+          : backend === "cursor"
+            ? ["--print", "--trust", "--model", bogusModel, "--output-format", "text", "hello"]
+            : backend === "kiro"
+              ? ["chat", "--no-interactive", "--v3", "--model", bogusModel, "hello"]
+              : ["--print", "--permission-mode", "dontAsk", "--model", bogusModel, "hello"];
 
     execFileSync(bin, args, { stdio: "pipe", timeout: 30_000 });
     return {
@@ -282,7 +289,9 @@ function runUnknownModelProbe(backend: Backend): ProbeRunResult {
  * Turn the error from the bogus-model command into a probe result. The CLI
  * rejected the model only if it exited non-zero and its output names the
  * model. A CLI that is not logged in also exits non-zero, with a login
- * error that does not name the model, so that fails the probe too.
+ * error that does not name the model, so that fails the probe too. Codex
+ * prints the model in its startup header, so it must report a model
+ * rejection, not merely echo the requested name.
  *
  * After a timeout, a signal or a failed spawn, `status` is null, so the
  * probe fails. A logged-out kiro causes this, because it waits for a browser
@@ -305,6 +314,16 @@ export function unknownModelOutcome(
       return { status: "fail", exitCode: 0, error: "expected non-zero exit for bogus model, but got exit 0" };
     }
     const output = bufferText(e.stdout, e.stderr);
+    if (backend === "codex") {
+      const modelRejected = /model[^\n]*(?:does not exist|not found|not supported|not available|unsupported|unknown|invalid|unrecognized)/i.test(output);
+      return modelRejected
+        ? { status: "pass", exitCode: e.status }
+        : {
+            status: "fail",
+            exitCode: e.status,
+            error: "could not verify model rejection; check authentication, CLI configuration, and connectivity",
+          };
+    }
     if (output.includes(bogusModel)) return { status: "pass", exitCode: e.status };
     return {
       status: "fail",
@@ -327,8 +346,11 @@ export function unknownModelOutcome(
 }
 
 export async function runDoctor(opts: DoctorOptions): Promise<DoctorResult> {
+  if (opts.fast !== undefined && opts.backend !== "codex") {
+    throw new Error("--fast and --no-fast require --backend codex");
+  }
   const backends: Backend[] =
-    opts.backend === "all" ? ["cursor", "copilot", "claude", "kiro"] : [opts.backend];
+    opts.backend === "all" ? ["cursor", "copilot", "claude", "kiro", "codex"] : [opts.backend];
 
   let logDir: string | undefined;
   if (opts.level === "full") {
@@ -380,7 +402,7 @@ export async function runDoctor(opts: DoctorOptions): Promise<DoctorResult> {
           opts.modelOverrides,
         ),
       );
-      const agent = createAgent({ backend, model });
+      const agent = createAgent({ backend, model, fast: opts.fast ?? opts.backendModels?.[backend]?.fast });
       const runOpts: FullProbeRunOptions = {
         backend,
         agent,

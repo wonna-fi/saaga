@@ -75,6 +75,7 @@ describe("REQUIRED_CLI_FLAGS", () => {
   test("covers every backend", () => {
     expect(Object.keys(REQUIRED_CLI_FLAGS).sort()).toEqual([
       "claude",
+      "codex",
       "copilot",
       "cursor",
       "kiro",
@@ -99,8 +100,9 @@ describe("REQUIRED_CLI_FLAGS", () => {
 });
 
 describe("BACKEND_HELP_ARGS", () => {
-  test("reads kiro's flags from its chat subcommand, and only kiro's", () => {
+  test("reads run flags from each backend's matching subcommand", () => {
     expect(BACKEND_HELP_ARGS.kiro).toEqual(["chat"]);
+    expect(BACKEND_HELP_ARGS.codex).toEqual(["exec"]);
     expect(BACKEND_HELP_ARGS.claude).toBeUndefined();
     expect(BACKEND_HELP_ARGS.copilot).toBeUndefined();
     expect(BACKEND_HELP_ARGS.cursor).toBeUndefined();

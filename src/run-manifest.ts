@@ -21,6 +21,8 @@ export interface RunManifest {
   appPath: string;
   docsDir: string;
   backend?: string;
+  /** Codex service tier, pinned across resume along with the models. */
+  fast?: boolean;
   /**
    * Resolved model key -> model name for every key the run's flow asked for.
    * Re-pinned on resume so a config change between attempts cannot silently

@@ -115,6 +115,7 @@ API keys itself.
 | copilot  | `copilot`        | `claude-sonnet-4.6`             | `claude-sonnet-4.6`                 | `claude-haiku-4.5`                  |
 | claude   | `claude`         | `opus`                          | `sonnet`                            | `haiku`                            |
 | kiro     | `kiro-cli`       | `claude-sonnet-4.5`             | `claude-sonnet-4.5`                 | `claude-haiku-4.5`                  |
+| codex    | `codex`          | `gpt-6-sol`                     | `gpt-6-sol`                         | `gpt-6-luna`                       |
 
 **Kiro** additionally requires:
 
@@ -136,12 +137,34 @@ free. Paid plans add Opus and newer Sonnet models; to use one, pass
 `doctor --level full` spends roughly one model call per probe.
 
 > **Restricted by default** — Saaga restricts each agent backend to the
-> narrow permissions it actually needs. On every backend the agent cannot
-> run arbitrary shell commands and cannot reach outside the app tree
-> (the run directory lives inside the workspace at `.saaga-runs/`).
+> narrow permissions it actually needs. Filesystem and shell enforcement
+> differ between CLIs; see the backend-specific limits under
+> [Permissions](#permissions). The run directory lives inside the workspace
+> at `.saaga-runs/`.
 > Running in a container is still recommended for defense in depth — see
 > [Running in containers](#running-in-containers) and
 > [Permissions](#permissions) below.
+
+**Codex** uses `codex exec`. Install a current CLI and authenticate with
+`codex login` before running Saaga. Restricted runs require permission
+profiles, `PreToolUse` hooks, `--ignore-user-config`, `--ignore-rules`, and
+`--strict-config`. This integration was tested with Codex
+`0.155.0-alpha.9.2`; `saaga doctor --backend codex` checks the required CLI
+flags without making model calls. Older CLIs lacking these flags fail
+preflight instead of running with weaker permissions.
+
+Codex fast mode is opt-in:
+
+```bash
+saaga run init --backend codex --fast
+saaga run update --backend codex --model high=gpt-6-astra
+```
+
+`--fast` selects Codex's fast service tier, which consumes more credits
+when available for the selected model and account. `--no-fast` overrides
+a project default. Saaga records the choice in the run manifest and
+preserves it on resume unless you override it. These flags are specific
+to the Codex backend. See [Codex fast mode](https://learn.chatgpt.com/docs/agent-configuration/speed).
 
 ## Quick start
 
@@ -233,8 +256,9 @@ saaga doctor                    Check backend CLI availability and
 
 | Flag | Short | Description |
 | ---- | ----- | ----------- |
-| `--backend <name>` | `-b` | Agent backend: `cursor`, `copilot`, `claude`, or `kiro` |
+| `--backend <name>` | `-b` | Agent backend: `cursor`, `copilot`, `claude`, `kiro`, or `codex` |
 | `--model <key>=<model>` | | Set the model a model key resolves to, e.g. `--model high=opus`. Which key a step asks for comes from the flow (repeatable; see [Model keys](#model-keys)) |
+| `--fast` / `--no-fast` | | Enable or disable Codex fast mode; overrides `backends.codex.fast` |
 | `--ci` | | Plain (non-color) log output, suitable for CI pipelines |
 | `--yes` | `-y` | Skip the cost confirmation prompt (see [Runtime and cost](#runtime-and-cost)) |
 | `--allow-dir <path>` | | Grant additional read/write access to a directory (repeatable; see [Permissions](#permissions)) |
@@ -407,8 +431,14 @@ defaults. All keys are optional; CLI flags always take precedence.
 
 ```yaml
 # .saaga/config.yaml
-defaultBackend: cursor     # cursor | copilot | claude | kiro
-backends:                  # per-backend model overrides (all optional)
+defaultBackend: cursor     # cursor | copilot | claude | kiro | codex
+backends:                  # per-backend settings (all optional)
+  codex:
+    fast: false
+    models:
+      low: gpt-6-luna
+      medium: gpt-6-sol
+      high: gpt-6-sol
   cursor:
     models:
       low: claude-4.6-sonnet-medium-thinking
@@ -558,7 +588,7 @@ to exercise the plumbing.
 ## Permissions
 
 Saaga restricts each agent backend to the minimum permissions it needs.
-Two guarantees hold on every backend:
+The default policy restricts shell commands and filesystem access:
 
 - **No arbitrary shell.** The agent cannot run commands of its choosing.
   The restricted shell allows utility commands (`cd`, `ls`, `pwd`, `grep`,
@@ -570,7 +600,7 @@ Two guarantees hold on every backend:
 
 Within the workspace, writes are limited to `<app>/<docs_dir>/**` and the
 run directory, leaving source code, rule files, `BASELINE`, and `FORMAT`
-untouched — on cursor, claude and kiro. **Copilot is the outlier**: its CLI does
+untouched on cursor, claude, kiro, and codex. **Copilot is the outlier**: its CLI does
 not yet let Saaga narrow writes below the workspace boundary, so treat
 review and branch protection as the backstop there rather than the agent
 profile.
@@ -586,7 +616,36 @@ in your own `~/.kiro/settings/permissions.yaml`: your deny rules narrow a
 Saaga run further, and Saaga's rules stop your allow rules from widening
 its reads, writes or shell access.
 
-Because the four CLIs expose very different permission systems, the
+**Codex** uses a named filesystem permission profile and a `PreToolUse`
+hook. The sandbox grants reads to the project and the minimal system
+paths needed to run tools, and writes only to the docs, run, and explicit
+`--allow-dir` directories. Protected files remain readable. It denies
+network access to shell commands and disables web search, plugins, apps,
+and subagents. Codex reads source through shell tools, so its command
+allowance also includes `cat` and `rg`.
+
+The Codex hook rejects other commands, shell expansions, redirections,
+and unsupported tools. It also disables Git's external diff, textconv,
+and fsmonitor callbacks. Hooks are an additional guardrail: Codex can
+continue a tool call if a hook fails to start or times out. The filesystem
+sandbox still applies in that case. Run the full doctor probes to check
+both restrictions after a CLI upgrade.
+
+Restricted Codex calls ignore user configuration and exec rules, and
+mark the project config as untrusted so local hooks and MCP settings
+cannot widen the run. Authentication still uses the existing Codex login.
+Saaga supplies its own hook in the command arguments and enables it for
+that invocation; it does not edit your Codex configuration. Custom model
+providers configured in `config.toml` are therefore unavailable in
+restricted runs. Administrator-managed settings still apply.
+
+Codex's JSON output does not report every failed patch's reason. Permission
+auditing records explicit sandbox errors and native shell-hook rejections;
+it does not treat every failed patch as a permission denial. See the
+[Codex permission profiles](https://learn.chatgpt.com/docs/permissions) and
+[hook behavior](https://learn.chatgpt.com/docs/hooks).
+
+Because the CLIs expose different permission systems, the
 exact tool surface an agent ends up with also differs per backend, and a
 tool added in a later CLI release may arrive enabled on some backends.
 Run `saaga doctor --level full` after upgrading a backend CLI to confirm
@@ -685,7 +744,7 @@ tier takes several minutes and spends tokens.
 
 | Flag | Description |
 | ---- | ----------- |
-| `--backend <name>` | Backend to check: `cursor`, `copilot`, `claude`, `kiro`, or `all` (default: `all`) |
+| `--backend <name>` | Backend to check: `cursor`, `copilot`, `claude`, `kiro`, `codex`, or `all` (default: `all`) |
 | `--level <level>` | Probe tier: `fast` (default, zero tokens) or `full` (makes model calls) |
 | `--model low=<model>` | Model override for full-tier probes — the global `--model` flag; doctor uses the `low` key. Not backend-scoped, so under the default `--backend all` it applies to every backend probed |
 | `--json` | Output versioned JSON instead of human-readable text |
