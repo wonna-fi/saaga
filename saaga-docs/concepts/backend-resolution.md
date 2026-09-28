@@ -10,6 +10,7 @@ terms:
   - backend
   - model key
   - MODEL_KEY_PATTERN
+last_verified: 2026-09-28
 ---
 
 # Backend Resolution
@@ -22,7 +23,8 @@ model fails immediately instead of part-way through a flow that has already paid
 agent calls.
 
 A **backend** is one of `cursor`, `copilot`, `claude` or `kiro` — the `Backend` union, and
-the only values `--backend` and `defaultBackend` accept. A **model key** is a name a flow step
+the only values `--backend` and `defaultBackend` accept; see
+[adding agent backends](../patterns/adding-agent-backends.md) to extend it. A **model key** is a name a flow step
 uses to ask for a class of model rather than a specific one: `low`, `medium` and `high`
 are built in and have per-backend defaults, and any other key must be supplied by the
 user. `MODEL_KEY_PATTERN` (`/^[a-z][a-z0-9_-]*$/`) is the whole rule for a valid key, and
@@ -84,8 +86,9 @@ attempts. See [run context](./run-context.md) for the manifest as a whole.
 | `cli/backend` | `mergeModelOverrides()` | Layers overrides over configured models, per key, without mutating either |
 | `cli/backend` | `resolveModel()` | The model behind one key, or `BackendError` |
 | `cli/backend` | `resolveModels()` | Resolves every key a flow asks for, up front and deduplicated |
-| `cli/backend` | `backendCliCommand()` | Backend to CLI binary: `cursor-agent`, `copilot`, `claude` |
-| `cli/backend` | `createAgent()` | Backend to `CursorAgent`, `CopilotAgent` or `ClaudeAgent` |
+| `cli/backend` | `backendCliCommand()` | Backend to CLI binary: `cursor-agent`, `copilot`, `claude`, `kiro-cli` |
+| `cli/backend` | `createAgent()` | Backend to `CursorAgent`, `CopilotAgent`, `ClaudeAgent` or `KiroAgent` |
+| `cli/backend` | `ALLOWED_BACKENDS` | The accepted backend names, checked by `resolveBackend()` |
 | `cli/backend` | `BackendError` | Thrown for an invalid backend, `--model` value, or unresolvable key |
 | `model-keys` | `isValidModelKey()` | Whether a string matches `MODEL_KEY_PATTERN` |
 
@@ -97,7 +100,9 @@ graph; `cli/backend` re-exports its three symbols for existing importers.
 
 > - `cli/backend.DEFAULT_BACKEND_MODELS` - the per-backend default for each built-in key.
 >   Read the values from the module rather than from documentation: they track what each
->   provider currently offers and change without a Saaga release.
+>   provider currently offers and change without a Saaga release. Kiro's defaults are
+>   models every kiro plan offers, and never `auto`: kiro would then pick a model per task,
+>   making runs irreproducible.
 > - `cli/backend.resolveModel()` - guards every lookup with `typeof`, because
 >   `noUncheckedIndexedAccess` is off and an inherited key such as `constructor` satisfies
 >   `MODEL_KEY_PATTERN`, which an unguarded lookup would answer with a function.

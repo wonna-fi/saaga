@@ -6,7 +6,8 @@ sources:
   - src/cli.ts
 terms:
   - probe
-last_verified: 2026-09-01
+  - preflight
+last_verified: 2026-09-28
 ---
 
 # Feature: Doctor
@@ -30,10 +31,12 @@ Before working with this feature, understand these concepts:
 
 1. The backends probed are the one `--backend` names, or all four when absent. Each is looked up
    with `which`: a binary not on `PATH` is unavailable and probed no further, otherwise the first
-   line of its `--version` output is captured.
-2. **Fast tier.** Only the three fast-level probes run — no full-tier probe appears in the result at
+   line of its `--version` output is captured. The model ids a probe checks against the account are
+   `DoctorOptions.models` when given — preflight passes the run's *resolved* models — else the
+   built-in keys resolved against config and `--model`.
+2. **Fast tier.** Only the fast-level probes run — no full-tier probe appears in the result at
    all — and nothing is spent: what executes asks the CLI for its version and its help text, and
-   `unknown-model-fails` is recorded `skip` because it needs a model call.
+   for kiro `whoami` and `chat --list-models`; `unknown-model-fails` is `skip`, needing a model call.
 3. **Full tier.** The fast probes run first, with `unknown-model-fails` executed for real this time.
    Then a scratch repository is created, an [`Agent`](../concepts/agent-interface.md) is built at
    the `low` model key, each applicable full probe runs against it in turn — roughly a model call
@@ -64,8 +67,15 @@ The catalogue ships as data and its ids are stable — they are what `--probe` f
 ### Validation Rules
 
 - `required-flags` reads the CLI's help — `--help`, then `-h`, accepting output printed beside a
-  non-zero exit — and matches each flag token-aware, so `-p` does not match inside `--print`. A
-  missing flag fails: the argv Saaga builds would be rejected at run time.
+  non-zero exit, after any subcommand `BACKEND_HELP_ARGS` names (`kiro-cli chat --help`) — and
+  matches each flag token-aware, so `-p` does not match inside `--print`. A missing flag fails:
+  the argv Saaga builds would be rejected at run time.
+- `unknown-model-fails` passes only on a non-zero exit whose output names the bogus model; a
+  logged-out CLI's login error, exit 0, a timeout, a signal or a failed spawn all fail it.
+- `kiro/auth` passes when `whoami` reports an account type. With `KIRO_API_KEY` set and an
+  `ApiKey` (or no) account, it lists models instead, failing when that errors or lists only
+  `auto` — kiro's answer to rejected credentials. `kiro/models-available` is `skip` when `kiro/auth` did
+  not pass, and fails naming each run model the plan lacks.
 - A restriction probe asserts on a value the agent could not have produced another way, so
   `arbitrary-shell-denied` looks for the real `sha256sum` digest rather than for the file.
 - A probe that names `backends` runs only for those; the rest run for every backend probed, and
@@ -78,7 +88,8 @@ The catalogue ships as data and its ids are stable — they are what `--probe` f
 | Binary present, `--version` fails | Still available; version reported as `unknown` |
 | Every applicable probe filtered out or skipped | Exit 0 — nothing was there to fail |
 | `run` with an injected agent | Preflight is skipped; it runs only when a real backend was resolved |
-| `KIRO_API_KEY` set while kiro-cli is also logged in | `whoami` answers from the login regardless of the key, so `kiro/models-available` cannot verify it from the fast tier and is reported `skip` rather than `pass` |
+| `KIRO_API_KEY` set while kiro-cli is also logged in | `whoami` answers from the login regardless of the key, so both kiro probes are reported `skip` rather than `pass`; only a full-tier model call can verify the key |
+| kiro rejects its credentials during a full probe | The failure's error names the rejected credentials, read from the probe log, since kiro reports them only on stderr |
 
 ## Technical Implementation
 
@@ -98,12 +109,14 @@ backend was available; the subcommand's flags are [the CLI's](./cli-entry-point.
 | Module | Function/Method | Purpose |
 |---------|--------|---------|
 | `doctor/index` | `runDoctor()`, `formatDoctorResult()`, `DoctorOptions`, `DoctorResult`, `DoctorBackendResult` | Run the requested tier and compute the exit code, render the human report with its classification lines, and the shapes both use |
+| `doctor/index` | `unknownModelOutcome()` | Turn the bogus-model command's error into the `unknown-model-fails` verdict |
 | `doctor/probes` | `PROBE_CATALOGUE`, `ProbeDefinition`, `ProbeRunResult`, `ProbeClassification` | The catalogue as data, and the result vocabulary the whole feature reports in |
 | `doctor/full-probes` | `runFullSideEffectProbes()`, `FullProbeRunOptions` | The full tier: scratch repo, per-probe assertions, retries, unrestricted diagnosis |
-| `doctor/required-flags` | `findMissingRequiredFlags()`, `REQUIRED_CLI_FLAGS` | The per-backend flag expectations and the token-aware match |
-| `doctor/kiro-probes` | `runKiroAccountProbes()` | `kiro/auth` and `kiro/models-available`, from one shared account check (`whoami`, then `chat --list-models`) |
+| `doctor/required-flags` | `findMissingRequiredFlags()`, `REQUIRED_CLI_FLAGS`, `BACKEND_HELP_ARGS` | The per-backend flag expectations, the subcommand whose help lists them, and the token-aware match |
+| `doctor/kiro-probes` | `runKiroAccountProbes()`, `KiroProbeInput` | `kiro/auth` and `kiro/models-available`, from one shared account check (`whoami`, then `chat --list-models`) |
+| `doctor/kiro-probes` | `runKiroCli()`, `KiroCommandRunner`, `KiroCommandResult` | The real `kiro-cli` runner (30-second timeout) and the seam tests replace it through |
 | `doctor/scratch-repo` | `createScratchRepo()`, `ScratchRepo` | A one-commit git repo in `tmpdir` with `AGENTS.md`, a `BASELINE` and a run directory, plus three fixtures a probe asserts on by nonce — a source file, a gitignored build file and an out-of-workspace secret |
-| `doctor/preflight` | `runPreflight()`, `PreflightResult` | The fast tier for one backend reduced to a boolean; never throws |
+| `doctor/preflight` | `runPreflight()`, `PreflightResult` | The fast tier for one backend and the run's resolved models, reduced to a boolean; never throws |
 
 ## Integration Points
 

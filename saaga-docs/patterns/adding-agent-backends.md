@@ -9,12 +9,16 @@ sources:
   - src/agent/claude-agent.ts
   - src/agent/copilot-agent.ts
   - src/agent/cursor-agent.ts
+  - src/agent/kiro-agent.ts
+  - src/agent/fake-agent.ts
   - src/cli/backend.ts
   - src/cli/config.ts
   - src/doctor/required-flags.ts
   - src/doctor/full-probes.ts
   - src/doctor/probes.ts
   - src/doctor/index.ts
+  - src/doctor/kiro-probes.ts
+last_verified: 2026-09-28
 ---
 
 # Adding Agent Backends
@@ -22,17 +26,15 @@ sources:
 ## When to Use
 
 When another coding-agent CLI should be drivable by `--backend`. The bar: it takes a prompt
-non-interactively, exits with a meaningful status, and can be confined to part of the
-filesystem — without the last it can only run under `--dangerously-allow-all`. Nothing else
-changes; flows, prompts and scripts are backend-neutral by construction.
+non-interactively, exits with a meaningful status, and can be confined to part of the filesystem
+— without the last it can only run under `--dangerously-allow-all`.
 
 ## Pattern
 
 The files to touch, in this order. The example adds a `gemini` backend.
 
 ```typescript
-// 1. src/agent/gemini-agent.ts — implement Agent. The constructor takes the run's base
-//    model; opts.model overrides it per call.
+// 1. src/agent/gemini-agent.ts — implement Agent; opts.model overrides the base model per call.
 export class GeminiAgent implements Agent {
   readonly name = "gemini";
   constructor(private readonly opts: GeminiAgentOptions) {}
@@ -47,15 +49,13 @@ export class GeminiAgent implements Agent {
     } catch {
       return { exitCode: 1 };   // unspawnable, e.g. the binary is missing
     }
-    // Never `await proc` first: awaitProcess drains stdout concurrently.
     return { exitCode: await awaitProcess(proc, opts.onEvent && {
       parser: createGeminiEventParser(), sink: opts.onEvent }) };
   }
 }
 
-// 2. Translate the profile: no permissions means this CLI's own unrestricted flags, a
-//    profile means its native syntax for the same four fields — allow rules where the CLI
-//    has them, else deny everything around the roots with enumerateExcludedPaths().
+// 2. No profile: the CLI's own unrestricted flags. A profile: its native syntax for the four
+//    fields — allow rules if it has them, else deny around the roots (enumerateExcludedPaths()).
 function buildGeminiArgs(model: string, prompt: string, opts: AgentRunOpts): string[] {
   if (!opts.permissions) return ["--yolo", "--model", model, prompt];
   const { readRoots, writeRoots, denyPaths, shell } = opts.permissions;
@@ -64,39 +64,37 @@ function buildGeminiArgs(model: string, prompt: string, opts: AgentRunOpts): str
     shell === "restricted" ? "--allow-shell=readonly" : "--no-shell", prompt];
 }
 
-// 3. Parse the event stream: createGeminiEventParser() returns an EventParser whose
-//    push(line) yields that line's events — parseJsonLine() to decode, [] for the rest.
-//    The kinds it must produce are in ../concepts/agent-events.md.
+// 3. createGeminiEventParser() returns an EventParser whose push(line) yields that line's
+//    events — parseJsonLine() to decode, [] for the rest.
 ```
 
-Then `src/cli/backend.ts`: add `"gemini"` to the `Backend` union and to `ALLOWED_BACKENDS`, give
-it entries in `DEFAULT_BACKEND_MODELS` and `BACKEND_CLI_COMMANDS`, add its branch to `createAgent()`,
-and extend the invalid-backend message — `src/cli/config.ts` holds its own copy of both. Then four
-doctor files, each holding literal backend lists that silently pass over a name they omit:
-`src/doctor/required-flags.ts`, where `REQUIRED_CLI_FLAGS` gets every flag step 2 can emit;
-`src/doctor/full-probes.ts`, where a backend that can scope writes joins `PATH_SCOPING_BACKENDS`
-and the three generic restricted-shell probes list their backends; `src/doctor/probes.ts`, whose
-`PROBE_CATALOGUE` repeats those arrays for the fast probes; and `src/doctor/index.ts`, where
-`runDoctor()` expands `--backend all` from a literal array and `runUnknownModelProbe()` picks argv
-from a `===` chain that falls through to claude's flags. Finally `tests/agent/gemini-agent.test.ts`
-for the argv under both profiles, plus a captured-output case in `tests/agent/events.test.ts`.
+Then `src/cli/backend.ts`: add `"gemini"` to the `Backend` union and `ALLOWED_BACKENDS`, give it
+entries in `DEFAULT_BACKEND_MODELS` and `BACKEND_CLI_COMMANDS`, add its `createAgent()` branch, and
+extend the invalid-backend message — `src/cli/config.ts` holds its own copy of both. Then the
+`src/doctor/` files, whose literal backend lists silently pass over a name they omit: `required-flags.ts`
+(`REQUIRED_CLI_FLAGS` gets every flag step 2 can emit; `BACKEND_HELP_ARGS` names the subcommand
+if they live under one), `full-probes.ts` (`PATH_SCOPING_BACKENDS` if it can scope writes, and
+the three restricted-shell probes), `probes.ts` (`PROBE_CATALOGUE` repeats those arrays), and
+`index.ts` (`runDoctor()` expands `--backend all` from a literal array; `runUnknownModelProbe()`
+picks argv from a `===` chain that falls through to claude's flags). A CLI with account state a
+run could trip over gets its own fast-probe module under `<backend>/` ids, as
+`src/doctor/kiro-probes.ts` does, called from the fast-tier dispatch in `index.ts`. Finally
+`tests/agent/gemini-agent.test.ts` for the argv under both profiles, and a captured-output case
+in `tests/agent/events.test.ts`.
 
 ## Key Points
 
 - The compiler catches the `Record<Backend, …>` registrations — `DEFAULT_BACKEND_MODELS`,
   `BACKEND_CLI_COMMANDS`, `REQUIRED_CLI_FLAGS` — and `createAgent()` ends in a `never`
-  assignment. It catches none of the plain `Backend[]` arrays or the hand-written backend
-  names in error strings — `ALLOWED_BACKENDS` and the probe catalogues' `backends: [...]`
-  arrays among them. Grep an existing backend's name and check every hit.
+  assignment. It catches none of the plain `Backend[]` arrays, the `Partial` `BACKEND_HELP_ARGS`,
+  or the hand-written names in error strings. Grep an existing backend's name and check every hit.
 - Pass the prompt as an argument, leave stdin ignored, and treat the exit code as the whole
   result: [agent interface](../concepts/agent-interface.md) has the rest of the contract.
-- Translate all four profile fields, or say plainly which one this CLI cannot express — that
-  is exactly where the three existing backends differ, and
-  [agent permissions](../concepts/agent-permissions.md) records what each manages.
-- A parser emits nothing for most lines; unrecognised output is normal, and
-  [agent events](../concepts/agent-events.md) covers what has to come out of it. Placement
-  and import order follow [file layout](../conventions/file-layout.md) and
-  [module imports](../conventions/module-imports.md).
+- Translate all four profile fields, or say plainly which one this CLI cannot express; see
+  [agent permissions](../concepts/agent-permissions.md) for what each backend manages.
+- A parser emits nothing for most lines; [agent events](../concepts/agent-events.md) has the
+  kinds it must produce, [doctor](../features/doctor.md) the probe dispatch, and
+  [file layout](../conventions/file-layout.md) and [module imports](../conventions/module-imports.md) the placement.
 
 ## Reference Implementations
 
@@ -105,6 +103,8 @@ for the argv under both profiles, plus a captured-output case in `tests/agent/ev
 | `src/agent/claude-agent.ts` | `ClaudeAgent`, `createClaudeEventParser()` | The fullest example: settings JSON, both permission paths, id-correlated denials |
 | `src/agent/cursor-agent.ts` | `CursorAgent`, `createCursorEventParser()` | What a deny-only CLI takes: a generated config file and an env override |
 | `src/agent/copilot-agent.ts` | `CopilotAgent` | The minimum, plus a pre/post workaround kept in a `finally` |
+| `src/agent/kiro-agent.ts` | `KiroAgent`, `buildKiroArgs()`, `buildKiroPermissionRules()` | A subcommand CLI (`chat`), process-group signalling, a login-hang guard, a profile outside the run directory |
+| `src/doctor/kiro-probes.ts` | `runKiroAccountProbes()` | A backend-specific fast-probe module, testable through an injected command runner |
 | `src/agent/fake-agent.ts` | `FakeAgent` | The contract without a subprocess; how the CLI tests drive flows |
 
 ## Anti-Patterns
@@ -114,7 +114,8 @@ for the argv under both profiles, plus a captured-output case in `tests/agent/ev
 - Await the process and read its output afterwards, or pipe stderr too — both deadlock a run
   as soon as the transcript fills a pipe buffer.
 - Throw on a non-zero exit. The exit code is the result; the runner decides what it means.
-- Report an unrestricted run as restricted. A backend that cannot enforce the profile should
-  express what it can and leave the gap visible for the denial audit to find.
-- Teach a flow, prompt or script about the backend: anything backend-specific belongs behind
-  `Agent`, which is what makes one corpus reproducible across CLIs.
+- Rely on `cancelSignal` when the binary is a launcher whose child ignores signals sent to it
+  alone: spawn it detached and signal the process group, as `KiroAgent` does.
+- Report an unrestricted run as restricted: enforce what the CLI can and leave the gap for the denial audit.
+- Teach a flow, prompt or script about the backend: flows, prompts and scripts are
+  backend-neutral by construction, which is what makes one corpus reproducible across CLIs.

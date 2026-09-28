@@ -10,7 +10,7 @@ terms:
   - .saaga/config.yaml
   - .saagarules
   - unstable feature
-last_verified: 2026-09-01
+last_verified: 2026-09-28
 ---
 
 # Project Configuration

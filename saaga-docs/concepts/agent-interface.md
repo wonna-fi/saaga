@@ -16,7 +16,7 @@ terms:
   - AgentRunOpts
   - AgentRunResult
   - fake agent
-last_verified: 2026-09-01
+last_verified: 2026-09-28
 ---
 
 # Agent Interface
@@ -30,27 +30,35 @@ binary, hands it one prompt, and reads the exit status.
 
 The contract each real backend keeps: the prompt is a command-line argument; the child is
 spawned with `execa` under `reject: false`, so a non-zero exit is a return value and a spawn
-that throws outright becomes `{ exitCode: 1 }`; `opts.signal` is passed as `cancelSignal`, so
-an aborted run kills the child; and stdin is always ignored, because an unattended run must
-not block on a prompt. Success is the exit code alone — whether the agent wrote what it was
-asked for is judged by [flow execution](../features/flow-execution.md) via `expect_file`.
+that throws outright becomes `{ exitCode: 1 }`; an aborted `opts.signal` kills the child —
+passed to execa as `cancelSignal` everywhere except `KiroAgent`, which signals a process group
+instead; and stdin is always ignored, because an unattended run must not block on a prompt.
+Success is the exit code alone — whether the agent wrote what it was asked for is judged by
+[flow execution](../features/flow-execution.md) via `expect_file`. The four backends below are
+the whole set; [adding agent backends](../patterns/adding-agent-backends.md) covers a fifth.
 
 | Backend | Binary | Prompt | Unrestricted flags | Structured output, under a profile |
 |---|---|---|---|---|
 | `claude` | `claude` | trailing positional | `--print --dangerously-skip-permissions` | `--verbose --output-format stream-json` |
 | `copilot` | `copilot` | `-p <prompt>` | `--allow-all-tools --no-ask-user --no-auto-update` | `--output-format json` (JSONL) |
 | `cursor` | `cursor-agent` | trailing positional | `--print --force` | `--output-format stream-json`, else `text` |
-| `kiro` | `kiro-cli` | trailing positional | `chat --no-interactive --v3 --trust-all-tools` | `--output-format stream-json`, else `text` |
+| `kiro` | `kiro-cli` | trailing positional, after `chat --no-interactive --v3 --model <m>` | `--trust-all-tools` | `--output-format stream-json`, else `text`; a profile swaps `--trust-all-tools` for `--agent <name>` |
 
-Three quirks are load-bearing: `CopilotAgent` renames `<cwd>/.gitignore` to
+The quirks are load-bearing: `CopilotAgent` renames `<cwd>/.gitignore` to
 `.gitignore.<hex>.bak` for the call and restores it in a `finally`, because copilot's glob
 indexer honours it and would hide files a documentation run must read; `CursorAgent` under a
 profile writes a `cli-config.json` and points `CURSOR_CONFIG_DIR` at it, which is why
-`additionalDirs[0]` must be the run directory; `KiroAgent` spawns kiro detached in its own
-process group and signals the group on cancel, `SIGTERM`, `SIGHUP` and `SIGINT`, because
-`kiro-cli` is a launcher whose child (`kiro-cli-chat`) does not receive a signal sent to it
-alone — and it kills the group early if kiro's output shows it started a browser login,
-which otherwise hangs indefinitely even under `--no-interactive`.
+`additionalDirs[0]` must be the run directory (kiro records its profile there too);
+`KiroAgent` spawns kiro detached in its own process group and signals the group on abort,
+`exit`, `SIGTERM`, `SIGHUP` and `SIGINT`, because `kiro-cli` is a launcher whose child
+(`kiro-cli-chat`) does not receive a signal sent to it alone. Its `SIGINT` handler exits only
+when no other listener remains, so `saaga run`'s resumable Ctrl+C still decides. It also
+kills the group, returning 1, if stdout shows the `\r`-redrawn "Opening browser" login
+spinner, which otherwise hangs indefinitely even under `--no-interactive`; stdout is piped in
+text mode as well so this guard can read it. The fast-tier `kiro/auth` probe in
+[doctor](../features/doctor.md) catches the same state before a run starts. Finally, kiro is
+spawned with `PWD` set to `cwd`: its shell tool reports an inherited `$PWD`, so a symlinked
+workspace (macOS `/var` → `/private/var`) would otherwise appear under another path.
 
 ## Configuration
 
@@ -61,7 +69,7 @@ which otherwise hangs indefinitely even under `--no-interactive`.
 
 One `Agent` instance therefore serves a whole run whose steps ask for different models; see
 [backend resolution](./backend-resolution.md) for where both come from. The `ci` flag the
-constructors also take is inert: `ClaudeAgent` and `CursorAgent` store and never read it.
+constructors also take is inert: `ClaudeAgent`, `CursorAgent` and `KiroAgent` store and never read it.
 
 **How to access:**
 - `createAgent({ backend, model, ci })` - the concrete agent for a backend
@@ -73,7 +81,7 @@ constructors also take is inert: `ClaudeAgent` and `CursorAgent` store and never
 | Type | Field/Property | Purpose |
 |--------|-------|---------|
 | `AgentRunOpts` | `cwd` | Working directory for the child process |
-| `AgentRunOpts` | `signal` | Abort signal; execa kills the child when it fires |
+| `AgentRunOpts` | `signal` | Abort signal; the child — kiro's whole process group — is killed when it fires |
 | `AgentRunOpts` | `additionalDirs` | Extra directories granted to the CLI; `[0]` is the run directory |
 | `AgentRunOpts` | `permissions` | The [profile](./agent-permissions.md); absent means an unrestricted run |
 | `AgentRunOpts` | `logFile`, `echo` | Where the child's output is appended, and whether the terminal sees it too |
@@ -111,7 +119,7 @@ CLI tests drive whole flows without spending anything.
 
 - `src/agent/claude-agent.ts` - the fullest backend: argv, settings JSON, both permission paths
 - `src/agent/fake-agent.ts` - the contract with the subprocess removed
-- `tests/agent/{claude,copilot,cursor}-agent.test.ts` - argv, stdio and model override
+- `tests/agent/{claude,copilot,cursor,kiro}-agent.test.ts` - argv, stdio, model override, kiro's signalling
 
 ## Related Concepts
 

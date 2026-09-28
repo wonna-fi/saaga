@@ -1,7 +1,7 @@
 ---
 title: Architecture
 type: architecture
-last_verified: 2026-09-01
+last_verified: 2026-09-28
 sources:
   - src/
   - flows/
@@ -15,8 +15,8 @@ sources:
 
 # Architecture
 
-Saaga is a Node CLI that drives an external coding-agent CLI — Cursor, Copilot, or
-Claude — through a declarative workflow that writes, verifies, and maintains a
+Saaga is a Node CLI that drives an external coding-agent CLI — Cursor, Copilot, Claude,
+or Kiro — through a declarative workflow that writes, verifies, and maintains a
 domain documentation corpus for a target application, and installs always-on agent
 rules so other agents read that corpus before touching source.
 
@@ -107,7 +107,7 @@ script execution are delegated: it depends on the `Agent` interface and the regi
 ### `src/agent/` — agent backends
 
 Implements the single [`Agent` interface](./concepts/agent-interface.md) once per
-supported CLI (Cursor, Copilot, Claude, plus a fake used by tests), translating a
+supported CLI (Cursor, Copilot, Claude, Kiro, plus a fake used by tests), translating a
 rendered prompt and a permission profile into that CLI's own argv and permission
 syntax. Also owns the [permission profile](./concepts/agent-permissions.md) itself,
 [agent event parsing](./concepts/agent-events.md), subprocess streaming, and denial

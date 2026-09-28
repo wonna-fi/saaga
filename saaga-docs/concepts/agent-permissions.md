@@ -14,7 +14,7 @@ terms:
   - AgentPermissions
   - restricted shell
   - ALLOWED_SHELL_COMMANDS
-last_verified: 2026-09-01
+last_verified: 2026-09-28
 ---
 
 # Agent Permissions
@@ -74,6 +74,8 @@ template would churn the diff every time.
 | `agent/permissions` | `enumerateExcludedPaths()` | Turn "keep these" into "deny everything else" |
 | `agent/permissions` | `ALLOWED_SHELL_COMMANDS` | The restricted shell policy |
 | `agent/claude-agent` | `CLAUDE_RESTRICTED_TOOLS` | The tool surface a restricted claude run should be left with |
+| `agent/kiro-agent` | `buildKiroPermissionRules()`, `KiroPermissionRule` | Translate a profile into kiro v3 capability rules |
+| `agent/kiro-agent` | `realPathForms()`, `sweepStaleProfiles()`, `KIRO_PROFILE_MARKER` | Real-path variants of a path; the leftover-profile sweep and the marker it trusts |
 
 ### The restricted shell
 
@@ -90,7 +92,7 @@ begins `git -c`, not `git log`.
 | `claude` | `Edit(//<writeRoot>/**)` in a `--settings` JSON, plus `additionalDirectories` for roots outside `cwd`; `--permission-mode dontAsk` makes that JSON authoritative instead of prompting | A named tool deny list, `Edit(//<denyPath>)`, patterns closing claude's built-in Bash set, and `--strict-mcp-config`, which leaves the session with no MCP servers so an ambient user or project config cannot widen the tool surface | Scoped `Bash(cmd:*)` / `Bash(git sub:*)` allows, or a bare `Bash` deny under `shell: "none"` |
 | `copilot` | `--available-tools` names the visible tools; `--allow-tool write` grants file changes inside the workspace | `--disallow-temp-dir`, and the workspace boundary itself; roots outside `cwd` are re-granted with `--add-dir` | `shell(cmd:*)` / `shell(git:sub*)` entries on `--allow-tool`, and `bash` withheld from the tool list otherwise |
 | `cursor` | Nothing: with `--trust`, reads and writes are permitted by default | A generated `<runDir>/.cursor-cli/cli-config.json`, reached via `CURSOR_CONFIG_DIR`, denying every path `enumerateExcludedPaths()` returns plus each `denyPath` | `Shell(cmd:*)` / `Shell(git:sub*)` allow entries — shell is the one default-deny surface |
-| `kiro` | `fs_read`/`fs_write` rules matching the read/write roots, in a temporary named agent under `~/.kiro/agents/` (kiro's v3 engine ignores `KIRO_HOME`) | Each allow's counterpart deny (`match: ["**"], exclude: <roots>`), plus a `denyPaths` rule and one per name in `DENIED_CAPABILITIES` (`mcp`, `power`, `subagent`, `skill`, `web_fetch`, `web_search`) | `shell` allow entries for the same commands, or a bare `shell` deny under `shell: "none"` |
+| `kiro` | `fs_read`/`fs_write` rules matching the read/write roots, in a temporary named agent under `~/.kiro/agents/` (kiro's v3 engine ignores `KIRO_HOME`) | Each allow's counterpart deny (`match: ["**"], exclude: <roots>`), plus an `fs_write` deny of the `denyPaths` (reads stay allowed) and one per name in `DENIED_CAPABILITIES` (`mcp`, `power`, `subagent`, `skill`, `web_fetch`, `web_search`) | A `shell` allow for the same commands paired with a `match: ["*"]` deny excluding them, or a bare `shell` deny under `shell: "none"` |
 
 Two structural differences drive most of that table. Under cursor's `--trust` a deny overrides
 any allow, so the permitted set cannot be stated positively and has to be carved out instead:
@@ -103,6 +105,15 @@ denial is classified against the profile rather than taken at face value; see
 own `~/.kiro/settings/permissions.yaml` — so an allow rule alone could be widened by that file,
 which is why every kiro allow is paired with an explicit deny of everything else in the same
 capability rather than relying on omission.
+
+Kiro's profile lives in the user's home. Each restricted call writes a named agent
+`~/.kiro/agents/saaga-<hex>.json`, created exclusively (`wx`) so no file is overwritten, and
+deletes it when the call ends — also from a synchronous `exit` listener, since a signal's
+`process.exit()` skips the `finally`. Before writing, it sweeps `saaga-*.json` agents over 24
+hours old whose description is `KIRO_PROFILE_MARKER`, reclaiming a killed run's leftover but
+never a user's own agent. A copy stays at `<runDir>/.kiro-cli/agent.json` as the run's record,
+and every path appears in its given and real-path forms (`realPathForms()`): kiro matches
+`/private/tmp`, not `/tmp`.
 
 ## Internal Implementation
 
@@ -120,7 +131,7 @@ capability rather than relying on omission.
 - `src/agent/permissions.ts` - the profile, the shell policy, and the exclusion walk
 - `src/agent/cursor-agent.ts` - `writeCursorConfig()`, the deny-only translation in full
 - `tests/agent/permissions.test.ts` - what `buildProfile()` grants and withholds
-- `tests/agent/{claude,copilot}-agent.test.ts` - the argv and settings a profile produces
+- `tests/agent/{claude,copilot,kiro}-agent.test.ts` - the argv, settings and kiro rules a profile produces
 
 ## Related Concepts
 
