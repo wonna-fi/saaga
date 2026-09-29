@@ -1,5 +1,6 @@
+import { accessSync, constants, realpathSync, statSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
-import { resolve, sep } from "node:path";
+import { delimiter, dirname, join, resolve, sep } from "node:path";
 
 import { execa, type ResultPromise } from "execa";
 
@@ -21,14 +22,15 @@ export class CodexAgent implements Agent {
   constructor(private readonly opts: CodexAgentOptions) {}
 
   async run(prompt: string, opts: AgentRunOpts): Promise<AgentRunResult> {
+    const installDir = opts.permissions ? codexInstallDir() : undefined;
     if (opts.permissions) {
       // Codex cannot create a missing writable root inside its read-only parent.
       // Materialize only the roots that survive the protected-path exclusions.
-      for (const [path, access] of Object.entries(codexFilesystem(opts.permissions, opts.cwd))) {
+      for (const [path, access] of Object.entries(codexFilesystem(opts.permissions, opts.cwd, installDir))) {
         if (access === "write") await mkdir(path, { recursive: true });
       }
     }
-    const args = buildCodexArgs(opts.model ?? this.opts.model, prompt, opts, this.opts.fast);
+    const args = buildCodexArgs(opts.model ?? this.opts.model, prompt, opts, this.opts.fast, installDir);
     const stdio = opts.onEvent ? buildPipedStdio(opts) : buildStdio(opts);
     const parser = createCodexEventParser();
     const sink = opts.onEvent;
@@ -84,11 +86,37 @@ export const CODEX_SHELL_COMMANDS = {
   git: [...ALLOWED_SHELL_COMMANDS.git],
 };
 
+/**
+ * Where the `codex` that `PATH` resolves to is installed. On Linux, codex runs each shell command by
+ * starting its own binary again inside bubblewrap, and the sandbox mounts only what the profile
+ * grants. `:minimal` covers system directories, not a standalone install under `~/.codex/packages`
+ * or an npm install under a user's Node prefix, so without this directory every shell command fails
+ * with `bwrap: execvp …/codex: No such file or directory`. An npm install puts a JavaScript launcher
+ * on `PATH` and the native binary elsewhere in the package, so the package root is the install.
+ * Only the install is granted, never `~/.codex` itself, which holds the login.
+ */
+export function codexInstallDir(path = process.env.PATH ?? ""): string | undefined {
+  for (const dir of path.split(delimiter)) {
+    if (!dir) continue;
+    try {
+      const candidate = join(dir, "codex");
+      accessSync(candidate, constants.X_OK);
+      const real = realpathSync(candidate);
+      if (!statSync(real).isFile()) continue;
+      return real.match(/^(.*[\\/]node_modules[\\/]@openai[\\/]codex)[\\/]/)?.[1] ?? dirname(real);
+    } catch {
+      continue;
+    }
+  }
+  return undefined;
+}
+
 export function buildCodexArgs(
   model: string,
   prompt: string,
   opts: AgentRunOpts,
   fast = false,
+  installDir?: string,
 ): string[] {
   const args = [
     "exec", "--model", model, "--ephemeral", "--skip-git-repo-check", "--color", "never",
@@ -100,7 +128,7 @@ export function buildCodexArgs(
   };
   if (opts.permissions) {
     args.push("--ignore-user-config", "--ignore-rules", "--strict-config", "--dangerously-bypass-hook-trust");
-    Object.assign(config, restrictedConfig(opts.permissions, opts.cwd));
+    Object.assign(config, restrictedConfig(opts.permissions, opts.cwd, installDir));
   } else {
     args.push("--dangerously-bypass-approvals-and-sandbox");
     config["features.fast_mode"] = true;
@@ -109,7 +137,11 @@ export function buildCodexArgs(
   return [...args, "--", prompt];
 }
 
-function codexFilesystem(permissions: AgentPermissions, cwd: string): Record<string, "read" | "write"> {
+function codexFilesystem(
+  permissions: AgentPermissions,
+  cwd: string,
+  installDir?: string,
+): Record<string, "read" | "write"> {
   const filesystem: Record<string, "read" | "write"> = { ":minimal": "read" };
   const protectedPaths = permissions.denyPaths.map(path => resolve(cwd, path.replace(/[/\\]\*\*$/, "")));
   for (const root of [cwd, ...permissions.writeRoots]) {
@@ -125,11 +157,20 @@ function codexFilesystem(permissions: AgentPermissions, cwd: string): Record<str
   // Protected files must remain readable, including AGENTS.md and the corpus
   // navigation. A more specific read rule removes their parent's write grant.
   for (const path of protectedPaths) filesystem[path] = "read";
+  // Codex needs its own binary inside the sandbox; see codexInstallDir. A root
+  // that already covers it keeps its grant, since a nested read would narrow it.
+  if (installDir && !Object.keys(filesystem).some(root => installDir === root || installDir.startsWith(root + sep))) {
+    filesystem[installDir] = "read";
+  }
   return filesystem;
 }
 
-function restrictedConfig(permissions: AgentPermissions, cwd: string): Record<string, TomlValue> {
-  const filesystem = codexFilesystem(permissions, cwd);
+function restrictedConfig(
+  permissions: AgentPermissions,
+  cwd: string,
+  installDir?: string,
+): Record<string, TomlValue> {
+  const filesystem = codexFilesystem(permissions, cwd, installDir);
   const policy = JSON.stringify({ ...CODEX_SHELL_COMMANDS, shell: permissions.shell });
   const command = `${shellQuote(process.execPath)} -e ${shellQuote(CODEX_HOOK_SCRIPT)} ${shellQuote(policy)}`;
   return {

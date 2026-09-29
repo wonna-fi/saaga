@@ -1,13 +1,13 @@
-import { existsSync } from "node:fs";
-import { mkdtemp, rm } from "node:fs/promises";
+import { existsSync, realpathSync } from "node:fs";
+import { chmod, mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { delimiter, join } from "node:path";
 import { Readable } from "node:stream";
 
 import { execa } from "execa";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
-import { CodexAgent, buildCodexArgs } from "../../src/agent/codex-agent.js";
+import { CodexAgent, buildCodexArgs, codexInstallDir } from "../../src/agent/codex-agent.js";
 import { buildProfile } from "../../src/agent/permissions.js";
 
 vi.mock("execa", () => ({ execa: vi.fn() }));
@@ -18,6 +18,17 @@ let permissions: ReturnType<typeof buildProfile>;
 
 function configs(args: readonly string[]) {
   return args.filter((_arg, i) => args[i - 1] === "--config");
+}
+
+/** A `codex` reachable from a PATH directory through a symlink, as installers leave it. */
+async function installCodex(target: string): Promise<string> {
+  await mkdir(join(target, ".."), { recursive: true });
+  await writeFile(target, "#!/bin/sh\n");
+  await chmod(target, 0o755);
+  const pathDir = join(cwd, "path-bin");
+  await mkdir(pathDir, { recursive: true });
+  await symlink(target, join(pathDir, "codex"));
+  return pathDir;
 }
 
 beforeEach(async () => {
@@ -92,7 +103,57 @@ describe("CodexAgent", () => {
   });
 });
 
+describe("codexInstallDir", () => {
+  test("follows PATH to a standalone install's real directory", async () => {
+    const bin = join(cwd, "home", ".codex", "packages", "standalone", "releases", "0.159.0", "bin");
+    const pathDir = await installCodex(join(bin, "codex"));
+    expect(codexInstallDir(`${join(cwd, "missing")}${delimiter}${pathDir}`)).toBe(realpathSync(bin));
+  });
+
+  test("grants an npm install's whole package, where the native binary lives", async () => {
+    const pkg = join(cwd, "prefix", "lib", "node_modules", "@openai", "codex");
+    const pathDir = await installCodex(join(pkg, "bin", "codex.js"));
+    expect(codexInstallDir(pathDir)).toBe(realpathSync(pkg));
+  });
+
+  test("finds nothing when codex is absent or not executable", async () => {
+    expect(codexInstallDir(join(cwd, "missing"))).toBeUndefined();
+    const pathDir = await installCodex(join(cwd, "bin", "codex"));
+    await chmod(join(cwd, "bin", "codex"), 0o644);
+    expect(codexInstallDir(pathDir)).toBeUndefined();
+    expect(codexInstallDir("")).toBeUndefined();
+  });
+});
+
 describe("Codex configuration", () => {
+  test("lets the sandbox read codex's own install, and only that", () => {
+    const profile = configs(buildCodexArgs("m", "p", { cwd, permissions }, false, "/opt/codex/bin"))
+      .find(c => c.startsWith("permissions="))!;
+    expect(profile).toContain('"/opt/codex/bin" = "read"');
+    expect(profile).not.toContain(".codex/auth");
+    // An install inside a granted root is already reachable; a nested read would narrow a write root.
+    const inside = configs(buildCodexArgs("m", "p", { cwd, permissions }, false, `${cwd}/docs/bin`))
+      .find(c => c.startsWith("permissions="))!;
+    expect(inside).not.toContain(`"${cwd}/docs/bin"`);
+    expect(inside).toContain(`"${cwd}/docs" = "write"`);
+  });
+
+  test("restricted runs grant the codex found on PATH", async () => {
+    // Outside the app tree, like an install under the user's home.
+    const home = await mkdtemp(join(tmpdir(), "saaga.codex-home-"));
+    const bin = join(home, ".codex", "packages", "standalone", "current", "bin");
+    vi.stubEnv("PATH", await installCodex(join(bin, "codex")));
+    const realBin = realpathSync(bin);
+    try {
+      await new CodexAgent({ model: "m" }).run("p", { cwd, permissions });
+    } finally {
+      vi.unstubAllEnvs();
+      await rm(home, { recursive: true, force: true });
+    }
+    const profile = configs(mockExeca.mock.calls[0][1] as string[]).find(c => c.startsWith("permissions="))!;
+    expect(profile).toContain(`"${realBin}" = "read"`);
+  });
+
   test("limits writes to docs and run directories and protects managed files", () => {
     const args = buildCodexArgs("m", "p", { cwd, permissions });
     expect(args).not.toContain("--sandbox");
