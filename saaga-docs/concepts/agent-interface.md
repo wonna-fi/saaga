@@ -9,6 +9,7 @@ sources:
   - src/agent/copilot-agent.ts
   - src/agent/cursor-agent.ts
   - src/agent/kiro-agent.ts
+  - src/agent/codex-agent.ts
   - src/agent/fake-agent.ts
   - src/cli/backend.ts
   - src/doctor/full-probes.ts
@@ -34,8 +35,8 @@ that throws outright becomes `{ exitCode: 1 }`; an aborted `opts.signal` kills t
 passed to execa as `cancelSignal` everywhere except `KiroAgent`, which signals a process group
 instead; and stdin is always ignored, because an unattended run must not block on a prompt.
 Success is the exit code alone — whether the agent wrote what it was asked for is judged by
-[flow execution](../features/flow-execution.md) via `expect_file`. The four backends below are
-the whole set; [adding agent backends](../patterns/adding-agent-backends.md) covers a fifth.
+[flow execution](../features/flow-execution.md) via `expect_file`. The five backends below are
+the whole set; [adding agent backends](../patterns/adding-agent-backends.md) covers a sixth.
 
 | Backend | Binary | Prompt | Unrestricted flags | Structured output, under a profile |
 |---|---|---|---|---|
@@ -43,6 +44,7 @@ the whole set; [adding agent backends](../patterns/adding-agent-backends.md) cov
 | `copilot` | `copilot` | `-p <prompt>` | `--allow-all-tools --no-ask-user --no-auto-update` | `--output-format json` (JSONL) |
 | `cursor` | `cursor-agent` | trailing positional | `--print --force` | `--output-format stream-json`, else `text` |
 | `kiro` | `kiro-cli` | trailing positional, after `chat --no-interactive --v3 --model <m>` | `--trust-all-tools` | `--output-format stream-json`, else `text`; a profile swaps `--trust-all-tools` for `--agent <name>` |
+| `codex` | `codex` | trailing positional after `--`, following `exec --model <m> --ephemeral` | `--dangerously-bypass-approvals-and-sandbox` | `--json` when a sink is attached; hook rejections arrive on stderr, so stderr is parsed too |
 
 The quirks are load-bearing: `CopilotAgent` renames `<cwd>/.gitignore` to
 `.gitignore.<hex>.bak` for the call and restores it in a `finally`, because copilot's glob
@@ -99,6 +101,7 @@ constructors also take is inert: `ClaudeAgent`, `CursorAgent` and `KiroAgent` st
 | `agent/copilot-agent` | `CopilotAgent`, `CopilotAgentOptions` | The `copilot` CLI |
 | `agent/cursor-agent` | `CursorAgent`, `CursorAgentOptions` | The `cursor-agent` CLI |
 | `agent/kiro-agent` | `KiroAgent`, `KiroAgentOptions` | The `kiro-cli` CLI |
+| `agent/codex-agent` | `CodexAgent`, `CodexAgentOptions`, `buildCodexArgs()` | The `codex` CLI (`codex exec`); `fast` picks the fast service tier |
 | `agent/fake-agent` | `FakeAgent`, `FakeScenario`, `FakeAgentCall` | Test double; canned exit codes, no subprocess |
 | `agent/spawn` | `awaitProcess()`, `EventConsumer` | Await a child while draining its event stream |
 | `agent/stdio` | `buildStdio()`, `buildPipedStdio()` | execa stdio options for the plain and event paths |

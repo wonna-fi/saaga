@@ -7,6 +7,8 @@ sources:
   - src/agent/copilot-agent.ts
   - src/agent/cursor-agent.ts
   - src/agent/kiro-agent.ts
+  - src/agent/codex-agent.ts
+  - src/agent/codex-hook.ts
   - src/cli.ts
   - src/doctor/full-probes.ts
 terms:
@@ -93,6 +95,7 @@ begins `git -c`, not `git log`.
 | `copilot` | `--available-tools` names the visible tools; `--allow-tool write` grants file changes inside the workspace | `--disallow-temp-dir`, and the workspace boundary itself; roots outside `cwd` are re-granted with `--add-dir` | `shell(cmd:*)` / `shell(git:sub*)` entries on `--allow-tool`, and `bash` withheld from the tool list otherwise |
 | `cursor` | Nothing: with `--trust`, reads and writes are permitted by default | A generated `<runDir>/.cursor-cli/cli-config.json`, reached via `CURSOR_CONFIG_DIR`, denying every path `enumerateExcludedPaths()` returns plus each `denyPath` | `Shell(cmd:*)` / `Shell(git:sub*)` allow entries — shell is the one default-deny surface |
 | `kiro` | `fs_read`/`fs_write` rules matching the read/write roots, in a temporary named agent under `~/.kiro/agents/` (kiro's v3 engine ignores `KIRO_HOME`) | Each allow's counterpart deny (`match: ["**"], exclude: <roots>`), plus an `fs_write` deny of the `denyPaths` (reads stay allowed) and one per name in `DENIED_CAPABILITIES` (`mcp`, `power`, `subagent`, `skill`, `web_fetch`, `web_search`) | A `shell` allow for the same commands paired with a `match: ["*"]` deny excluding them, or a bare `shell` deny under `shell: "none"` |
+| `codex` | A named `saaga` filesystem permission set passed via `--config`: `write` for each surviving write root, `read` for read roots, network disabled, project pinned `untrusted`, user config and rules ignored | Protected paths (`denyPaths`, plus `.git`, `.codex`, `.agents` under each root) are re-granted `read` only, which removes the parent's write grant; roots inside a protected path get no write grant | Codex's shell tool, gated by a `PreToolUse` hook (`codex-hook`) that takes the policy as argv and accepts only allow-listed commands, pipes and `&&`; shell tool off under `shell: "none"` |
 
 Two structural differences drive most of that table. Under cursor's `--trust` a deny overrides
 any allow, so the permitted set cannot be stated positively and has to be carved out instead:

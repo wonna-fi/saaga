@@ -22,7 +22,7 @@ its flow asks for. Both are decided once, before the run starts, so a typo or a 
 model fails immediately instead of part-way through a flow that has already paid for
 agent calls.
 
-A **backend** is one of `cursor`, `copilot`, `claude` or `kiro` — the `Backend` union, and
+A **backend** is one of `cursor`, `copilot`, `claude`, `kiro` or `codex` — the `Backend` union, and
 the only values `--backend` and `defaultBackend` accept; see
 [adding agent backends](../patterns/adding-agent-backends.md) to extend it. A **model key** is a name a flow step
 uses to ask for a class of model rather than a specific one: `low`, `medium` and `high`
@@ -59,7 +59,7 @@ resolved separately from `DEFAULT_MODEL_KEY`, used whenever a call does not name
 **How to access:**
 - `resolveBackend({ flag, config })` - the `Backend`, or `BackendError`
 - `resolveModels(backend, keys, models)` - key-to-model map for every key a flow asks for
-- `createAgent({ backend, model, ci })` - the concrete [`Agent`](./agent-interface.md)
+- `createAgent({ backend, model, ci, fast })` - the concrete [`Agent`](./agent-interface.md)
 - `backendCliCommand(backend)` - the CLI binary name Saaga will execute
 - `BUILTIN_MODEL_KEYS` (constant) - the three keys with built-in defaults
 - `DEFAULT_MODEL_KEY` (constant) - the key applied when a step omits `model:`
@@ -86,8 +86,8 @@ attempts. See [run context](./run-context.md) for the manifest as a whole.
 | `cli/backend` | `mergeModelOverrides()` | Layers overrides over configured models, per key, without mutating either |
 | `cli/backend` | `resolveModel()` | The model behind one key, or `BackendError` |
 | `cli/backend` | `resolveModels()` | Resolves every key a flow asks for, up front and deduplicated |
-| `cli/backend` | `backendCliCommand()` | Backend to CLI binary: `cursor-agent`, `copilot`, `claude`, `kiro-cli` |
-| `cli/backend` | `createAgent()` | Backend to `CursorAgent`, `CopilotAgent`, `ClaudeAgent` or `KiroAgent` |
+| `cli/backend` | `backendCliCommand()` | Backend to CLI binary: `cursor-agent`, `copilot`, `claude`, `kiro-cli`, `codex` |
+| `cli/backend` | `createAgent()` | Backend to `CursorAgent`, `CopilotAgent`, `ClaudeAgent`, `KiroAgent` or `CodexAgent`; only `CodexAgent` takes `fast`, which selects codex's `fast` service tier |
 | `cli/backend` | `ALLOWED_BACKENDS` | The accepted backend names, checked by `resolveBackend()` |
 | `cli/backend` | `BackendError` | Thrown for an invalid backend, `--model` value, or unresolvable key |
 | `model-keys` | `isValidModelKey()` | Whether a string matches `MODEL_KEY_PATTERN` |
