@@ -36,6 +36,12 @@ describe("what counts as source", () => {
   test("code extensions count, prose and config do not", () => {
     expect(isSourceFile("src/cli.ts")).toBe(true);
     expect(isSourceFile("src/app.py")).toBe(true);
+    expect(isSourceFile("force-app/main/default/classes/ExampleService.cls")).toBe(true);
+    expect(isSourceFile("force-app/main/default/triggers/Example.trigger")).toBe(true);
+    expect(isSourceFile("force-app/main/default/pages/Example.page")).toBe(true);
+    expect(isSourceFile("force-app/main/default/components/Example.component")).toBe(true);
+    expect(isSourceFile("scripts/apex/example.apex")).toBe(true);
+    expect(isSourceFile("force-app/main/default/classes/ExampleServiceTest.cls")).toBe(false);
     expect(isSourceFile("README.md")).toBe(false);
     expect(isSourceFile("package.json")).toBe(false);
   });
