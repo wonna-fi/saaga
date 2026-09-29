@@ -1,6 +1,5 @@
-import { accessSync, constants, realpathSync, statSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
-import { delimiter, dirname, join, resolve, sep } from "node:path";
+import { dirname, resolve, sep } from "node:path";
 
 import { execa, type ResultPromise } from "execa";
 
@@ -14,6 +13,8 @@ import type { Agent, AgentRunOpts, AgentRunResult } from "./types.js";
 export interface CodexAgentOptions {
   model: string;
   fast?: boolean;
+  /** Finds the codex install the restricted sandbox must read; injected by tests. */
+  probeInstallDir?: (cwd: string, signal?: AbortSignal) => Promise<string | undefined>;
 }
 
 export class CodexAgent implements Agent {
@@ -22,7 +23,8 @@ export class CodexAgent implements Agent {
   constructor(private readonly opts: CodexAgentOptions) {}
 
   async run(prompt: string, opts: AgentRunOpts): Promise<AgentRunResult> {
-    const installDir = opts.permissions ? codexInstallDir() : undefined;
+    const probe = this.opts.probeInstallDir ?? probeCodexInstallDir;
+    const installDir = opts.permissions ? await probe(opts.cwd, opts.signal) : undefined;
     if (opts.permissions) {
       // Codex cannot create a missing writable root inside its read-only parent.
       // Materialize only the roots that survive the protected-path exclusions.
@@ -86,29 +88,31 @@ export const CODEX_SHELL_COMMANDS = {
   git: [...ALLOWED_SHELL_COMMANDS.git],
 };
 
+/** Why bubblewrap could not start codex: the native binary it re-executes, as codex names it. */
+const SANDBOX_EXEC_FAILURE = /bwrap: execvp (.+): No such file or directory/;
+
 /**
- * Where the `codex` that `PATH` resolves to is installed. On Linux, codex runs each shell command by
- * starting its own binary again inside bubblewrap, and the sandbox mounts only what the profile
- * grants. `:minimal` covers system directories, not a standalone install under `~/.codex/packages`
- * or an npm install under a user's Node prefix, so without this directory every shell command fails
- * with `bwrap: execvp …/codex: No such file or directory`. An npm install puts a JavaScript launcher
- * on `PATH` and the native binary elsewhere in the package, so the package root is the install.
- * Only the install is granted, never `~/.codex` itself, which holds the login.
+ * The directory of the codex binary that the restricted sandbox must be able to read, or undefined
+ * when the sandbox starts without one. On Linux, codex runs each shell command by starting its own
+ * native binary again inside bubblewrap, which mounts only what the profile grants; `:minimal`
+ * covers system directories, not a standalone install under `~/.codex/packages` or a package under a
+ * user's Node prefix. The file on `PATH` may be a shim (npm, Volta, asdf, a wrapper script), so the
+ * binary is not looked up here: codex is asked, by running `true` in its own sandbox with only
+ * `:minimal` readable, from the directory and `PATH` the real run uses. It names the binary it could
+ * not execute. No model is called. Only that directory is granted, never `~/.codex` itself.
  */
-export function codexInstallDir(path = process.env.PATH ?? ""): string | undefined {
-  for (const dir of path.split(delimiter)) {
-    if (!dir) continue;
-    try {
-      const candidate = join(dir, "codex");
-      accessSync(candidate, constants.X_OK);
-      const real = realpathSync(candidate);
-      if (!statSync(real).isFile()) continue;
-      return real.match(/^(.*[\\/]node_modules[\\/]@openai[\\/]codex)[\\/]/)?.[1] ?? dirname(real);
-    } catch {
-      continue;
-    }
+export async function probeCodexInstallDir(cwd: string, signal?: AbortSignal): Promise<string | undefined> {
+  const profile = toml({ filesystem: { ":minimal": "read" }, network: { enabled: false } });
+  try {
+    const result = await execa("codex", [
+      "sandbox", "--config", 'default_permissions="saaga-probe"',
+      "--config", `permissions={"saaga-probe" = ${profile}}`, "--", "true",
+    ], { cwd, reject: false, timeout: 30_000, stdin: "ignore", ...(signal ? { cancelSignal: signal } : {}) });
+    const path = String(result.stderr ?? "").match(SANDBOX_EXEC_FAILURE)?.[1];
+    return path ? dirname(path) : undefined;
+  } catch {
+    return undefined;
   }
-  return undefined;
 }
 
 export function buildCodexArgs(
@@ -157,7 +161,7 @@ function codexFilesystem(
   // Protected files must remain readable, including AGENTS.md and the corpus
   // navigation. A more specific read rule removes their parent's write grant.
   for (const path of protectedPaths) filesystem[path] = "read";
-  // Codex needs its own binary inside the sandbox; see codexInstallDir. A root
+  // Codex needs its own binary inside the sandbox; see probeCodexInstallDir. A root
   // that already covers it keeps its grant, since a nested read would narrow it.
   if (installDir && !Object.keys(filesystem).some(root => installDir === root || installDir.startsWith(root + sep))) {
     filesystem[installDir] = "read";

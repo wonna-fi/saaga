@@ -1,13 +1,13 @@
-import { existsSync, realpathSync } from "node:fs";
-import { chmod, mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { delimiter, join } from "node:path";
+import { join } from "node:path";
 import { Readable } from "node:stream";
 
 import { execa } from "execa";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
-import { CodexAgent, buildCodexArgs, codexInstallDir } from "../../src/agent/codex-agent.js";
+import { CodexAgent, buildCodexArgs, probeCodexInstallDir } from "../../src/agent/codex-agent.js";
 import { buildProfile } from "../../src/agent/permissions.js";
 
 vi.mock("execa", () => ({ execa: vi.fn() }));
@@ -20,16 +20,8 @@ function configs(args: readonly string[]) {
   return args.filter((_arg, i) => args[i - 1] === "--config");
 }
 
-/** A `codex` reachable from a PATH directory through a symlink, as installers leave it. */
-async function installCodex(target: string): Promise<string> {
-  await mkdir(join(target, ".."), { recursive: true });
-  await writeFile(target, "#!/bin/sh\n");
-  await chmod(target, 0o755);
-  const pathDir = join(cwd, "path-bin");
-  await mkdir(pathDir, { recursive: true });
-  await symlink(target, join(pathDir, "codex"));
-  return pathDir;
-}
+/** Agents under test never start a real codex to find its install. */
+const noProbe = async () => undefined;
 
 beforeEach(async () => {
   cwd = await mkdtemp(join(tmpdir(), "saaga.codex with spaces-"));
@@ -55,14 +47,14 @@ describe("CodexAgent", () => {
       expect(existsSync(`${cwd}/docs/BASELINE`)).toBe(false);
       return Promise.resolve({ exitCode: 0 }) as any;
     });
-    expect(await new CodexAgent({ model: "m" }).run("p", { cwd, permissions: profile })).toEqual({ exitCode: 0 });
+    expect(await new CodexAgent({ model: "m", probeInstallDir: noProbe }).run("p", { cwd, permissions: profile })).toEqual({ exitCode: 0 });
     expect(mockExeca).toHaveBeenCalledOnce();
   });
 
   test("runs non-interactively, streams logs, and propagates failure", async () => {
     mockExeca.mockReturnValue(Promise.resolve({ exitCode: 7 }) as any);
     const signal = new AbortController().signal;
-    const result = await new CodexAgent({ model: "gpt-6-sol" }).run("--prompt-looking text", {
+    const result = await new CodexAgent({ model: "gpt-6-sol", probeInstallDir: noProbe }).run("--prompt-looking text", {
       cwd, signal, permissions, logFile: "/tmp/agent.log", echo: true,
     });
     expect(result.exitCode).toBe(7);
@@ -97,31 +89,45 @@ describe("CodexAgent", () => {
     const proc = Object.assign(new Promise(resolve => stdout.on("end", () => resolve({ exitCode: 0 }))), { stdout });
     mockExeca.mockReturnValueOnce(proc as any);
     const onEvent = vi.fn();
-    expect(await new CodexAgent({ model: "m" }).run("p", { cwd, permissions, onEvent })).toEqual({ exitCode: 0 });
+    expect(await new CodexAgent({ model: "m", probeInstallDir: noProbe }).run("p", { cwd, permissions, onEvent })).toEqual({ exitCode: 0 });
     expect(mockExeca.mock.calls[0][1]).toContain("--json");
     expect(onEvent).toHaveBeenCalledWith(expect.objectContaining({ kind: "usage", inputTokens: 5, outputTokens: 3 }));
   });
 });
 
-describe("codexInstallDir", () => {
-  test("follows PATH to a standalone install's real directory", async () => {
-    const bin = join(cwd, "home", ".codex", "packages", "standalone", "releases", "0.159.0", "bin");
-    const pathDir = await installCodex(join(bin, "codex"));
-    expect(codexInstallDir(`${join(cwd, "missing")}${delimiter}${pathDir}`)).toBe(realpathSync(bin));
+describe("probeCodexInstallDir", () => {
+  const bwrapFailure = "bwrap: execvp /home/u/.codex/packages/standalone/releases/0.159.0/bin/codex: No such file or directory\n";
+
+  test("asks codex's own sandbox, from the run's directory, with only :minimal readable", async () => {
+    mockExeca.mockReturnValueOnce(Promise.resolve({ exitCode: 1, stderr: bwrapFailure }) as any);
+    expect(await probeCodexInstallDir(cwd)).toBe("/home/u/.codex/packages/standalone/releases/0.159.0/bin");
+    const [binary, args, options] = mockExeca.mock.calls[0] as any[];
+    expect(binary).toBe("codex");
+    expect(args.slice(0, 1)).toEqual(["sandbox"]);
+    expect(args.slice(-2)).toEqual(["--", "true"]);
+    expect(configs(args)).toContain('default_permissions="saaga-probe"');
+    expect(configs(args).find((c: string) => c.startsWith("permissions="))).toContain('":minimal" = "read"');
+    expect(configs(args).find((c: string) => c.startsWith("permissions="))).toContain('"enabled" = false');
+    expect(options).toMatchObject({ cwd, reject: false });
   });
 
-  test("grants an npm install's whole package, where the native binary lives", async () => {
-    const pkg = join(cwd, "prefix", "lib", "node_modules", "@openai", "codex");
-    const pathDir = await installCodex(join(pkg, "bin", "codex.js"));
-    expect(codexInstallDir(pathDir)).toBe(realpathSync(pkg));
+  test("needs nothing when the sandbox starts, and gives up quietly on anything else", async () => {
+    mockExeca.mockReturnValueOnce(Promise.resolve({ exitCode: 0, stderr: "" }) as any);
+    expect(await probeCodexInstallDir(cwd)).toBeUndefined();
+    mockExeca.mockReturnValueOnce(Promise.resolve({ exitCode: 2, stderr: "error: unrecognized subcommand 'sandbox'" }) as any);
+    expect(await probeCodexInstallDir(cwd)).toBeUndefined();
+    mockExeca.mockImplementationOnce(() => { throw new Error("ENOENT"); });
+    expect(await probeCodexInstallDir(cwd)).toBeUndefined();
   });
 
-  test("finds nothing when codex is absent or not executable", async () => {
-    expect(codexInstallDir(join(cwd, "missing"))).toBeUndefined();
-    const pathDir = await installCodex(join(cwd, "bin", "codex"));
-    await chmod(join(cwd, "bin", "codex"), 0o644);
-    expect(codexInstallDir(pathDir)).toBeUndefined();
-    expect(codexInstallDir("")).toBeUndefined();
+  test("restricted runs grant the directory the probe names; unrestricted runs do not probe", async () => {
+    const probe = vi.fn(async () => "/opt/codex/bin");
+    await new CodexAgent({ model: "m", probeInstallDir: probe }).run("p", { cwd, permissions });
+    expect(probe).toHaveBeenCalledWith(cwd, undefined);
+    const profile = configs(mockExeca.mock.calls[0][1] as string[]).find(c => c.startsWith("permissions="))!;
+    expect(profile).toContain('"/opt/codex/bin" = "read"');
+    await new CodexAgent({ model: "m", probeInstallDir: probe }).run("p", { cwd });
+    expect(probe).toHaveBeenCalledOnce();
   });
 });
 
@@ -136,22 +142,6 @@ describe("Codex configuration", () => {
       .find(c => c.startsWith("permissions="))!;
     expect(inside).not.toContain(`"${cwd}/docs/bin"`);
     expect(inside).toContain(`"${cwd}/docs" = "write"`);
-  });
-
-  test("restricted runs grant the codex found on PATH", async () => {
-    // Outside the app tree, like an install under the user's home.
-    const home = await mkdtemp(join(tmpdir(), "saaga.codex-home-"));
-    const bin = join(home, ".codex", "packages", "standalone", "current", "bin");
-    vi.stubEnv("PATH", await installCodex(join(bin, "codex")));
-    const realBin = realpathSync(bin);
-    try {
-      await new CodexAgent({ model: "m" }).run("p", { cwd, permissions });
-    } finally {
-      vi.unstubAllEnvs();
-      await rm(home, { recursive: true, force: true });
-    }
-    const profile = configs(mockExeca.mock.calls[0][1] as string[]).find(c => c.startsWith("permissions="))!;
-    expect(profile).toContain(`"${realBin}" = "read"`);
   });
 
   test("limits writes to docs and run directories and protects managed files", () => {
