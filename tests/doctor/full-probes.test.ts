@@ -1,4 +1,4 @@
-import { writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { execa } from "execa";
 import { describe, expect, test } from "vitest";
@@ -176,9 +176,12 @@ describe("shell capability probes need output only a command that ran can produc
     expect(await status(guessed, "restricted-shell-utility-allowed")).toBe("fail");
   });
 
-  test("git log needs the scratch commit's hash, not just its guessable message", async () => {
-    const ran = writing("probe-git-log.txt", async cwd => (await execa("git", ["log", "--oneline", "-1"], { cwd })).stdout + "\n");
+  test("git log must report the tree hash, which no file-read tool can recover", async () => {
+    const ran = writing("probe-git-log.txt", async cwd => (await execa("git", ["log", "-1", "--format=%T"], { cwd })).stdout + "\n");
     expect(await status(ran, "read-only-git-allowed")).toBe("pass");
+    // What a Read tool yields: the commit hash stored in .git/refs, not the tree it names.
+    const read = writing("probe-git-log.txt", async cwd => await readFile(join(cwd, ".git", "refs", "heads", (await execa("git", ["branch", "--show-current"], { cwd })).stdout), "utf8"));
+    expect(await status(read, "read-only-git-allowed")).toBe("fail");
     const guessed = writing("probe-git-log.txt", async () => "abc1234 initial\n");
     expect(await status(guessed, "read-only-git-allowed")).toBe("fail");
   });

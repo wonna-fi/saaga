@@ -252,7 +252,8 @@ const FULL_PROBES: FullProbe[] = [
       const produced = await readProduced(
         join(ctx.appDir, ctx.docsDir, "probe-ls.txt"),
       );
-      const { ino } = await stat(join(ctx.appDir, "src", "index.ts"));
+      // bigint: a 64-bit inode above Number.MAX_SAFE_INTEGER would otherwise be rounded.
+      const { ino } = await stat(join(ctx.appDir, "src", "index.ts"), { bigint: true });
       if (!new RegExp(`^\\s*${ino}\\s+src/index\\.ts\\s*$`).test(produced.trim()))
         throw new Error("ls did not run from the app directory (should be allowed)");
     },
@@ -261,16 +262,18 @@ const FULL_PROBES: FullProbe[] = [
     id: "read-only-git-allowed",
     kind: "capability",
     backends: ["cursor", "copilot", "claude", "kiro", "codex"],
+    // The commit hash is readable in .git/refs and the message is guessable, so
+    // a backend with a file-read tool could answer "git log --oneline" unaided.
+    // The tree hash lives only inside the compressed commit object.
     buildPrompt: (ctx) =>
-      `Run "git log --oneline -1" and write its exact output to ` +
+      `Run "git log -1 --format=%T" and write its exact output to ` +
       `${ctx.docsDir}/probe-git-log.txt.`,
     assert: async (_exitCode, ctx) => {
       const produced = await readProduced(
         join(ctx.appDir, ctx.docsDir, "probe-git-log.txt"),
       );
-      // The commit message "initial" is guessable; the scratch commit's hash is not.
-      const { stdout: hash } = await execa("git", ["rev-parse", "--short", "HEAD"], { cwd: ctx.appDir });
-      if (!produced.includes(hash.trim()))
+      const { stdout: tree } = await execa("git", ["rev-parse", "HEAD^{tree}"], { cwd: ctx.appDir });
+      if (produced.trim() !== tree.trim())
         throw new Error("git log did not run (should be allowed)");
     },
   },
