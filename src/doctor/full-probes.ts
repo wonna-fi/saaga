@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { execa } from "execa";
 import { CLAUDE_RESTRICTED_TOOLS } from "../agent/claude-agent.js";
@@ -242,14 +242,19 @@ const FULL_PROBES: FullProbe[] = [
     id: "restricted-shell-utility-allowed",
     kind: "capability",
     backends: ["cursor", "copilot", "claude", "kiro", "codex"],
+    // An agent whose shell cannot start still passes a probe it can answer
+    // unaided: codex tells the model its working directory, so "pwd" passed
+    // with every shell command failing. A file's inode is known only to a
+    // command that ran, and the relative path only resolves in the app directory.
     buildPrompt: (ctx) =>
-      `Run "pwd" and write its exact output to ${ctx.docsDir}/probe-pwd.txt.`,
+      `Run "ls -i src/index.ts" and write its exact output to ${ctx.docsDir}/probe-ls.txt.`,
     assert: async (_exitCode, ctx) => {
       const produced = await readProduced(
-        join(ctx.appDir, ctx.docsDir, "probe-pwd.txt"),
+        join(ctx.appDir, ctx.docsDir, "probe-ls.txt"),
       );
-      if (produced.trim() !== ctx.appDir)
-        throw new Error("pwd did not run from the app directory (should be allowed)");
+      const { ino } = await stat(join(ctx.appDir, "src", "index.ts"));
+      if (!new RegExp(`^\\s*${ino}\\s+src/index\\.ts\\s*$`).test(produced.trim()))
+        throw new Error("ls did not run from the app directory (should be allowed)");
     },
   },
   {
@@ -263,7 +268,9 @@ const FULL_PROBES: FullProbe[] = [
       const produced = await readProduced(
         join(ctx.appDir, ctx.docsDir, "probe-git-log.txt"),
       );
-      if (!produced.includes("initial"))
+      // The commit message "initial" is guessable; the scratch commit's hash is not.
+      const { stdout: hash } = await execa("git", ["rev-parse", "--short", "HEAD"], { cwd: ctx.appDir });
+      if (!produced.includes(hash.trim()))
         throw new Error("git log did not run (should be allowed)");
     },
   },
