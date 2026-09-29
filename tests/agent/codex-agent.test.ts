@@ -7,7 +7,7 @@ import { Readable } from "node:stream";
 import { execa } from "execa";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
-import { CodexAgent, buildCodexArgs, probeCodexInstallDir } from "../../src/agent/codex-agent.js";
+import { CodexAgent, buildCodexArgs, probeCodexExecutable } from "../../src/agent/codex-agent.js";
 import { buildProfile } from "../../src/agent/permissions.js";
 
 vi.mock("execa", () => ({ execa: vi.fn() }));
@@ -47,14 +47,14 @@ describe("CodexAgent", () => {
       expect(existsSync(`${cwd}/docs/BASELINE`)).toBe(false);
       return Promise.resolve({ exitCode: 0 }) as any;
     });
-    expect(await new CodexAgent({ model: "m", probeInstallDir: noProbe }).run("p", { cwd, permissions: profile })).toEqual({ exitCode: 0 });
+    expect(await new CodexAgent({ model: "m", probeExecutable: noProbe }).run("p", { cwd, permissions: profile })).toEqual({ exitCode: 0 });
     expect(mockExeca).toHaveBeenCalledOnce();
   });
 
   test("runs non-interactively, streams logs, and propagates failure", async () => {
     mockExeca.mockReturnValue(Promise.resolve({ exitCode: 7 }) as any);
     const signal = new AbortController().signal;
-    const result = await new CodexAgent({ model: "gpt-6-sol", probeInstallDir: noProbe }).run("--prompt-looking text", {
+    const result = await new CodexAgent({ model: "gpt-6-sol", probeExecutable: noProbe }).run("--prompt-looking text", {
       cwd, signal, permissions, logFile: "/tmp/agent.log", echo: true,
     });
     expect(result.exitCode).toBe(7);
@@ -89,58 +89,80 @@ describe("CodexAgent", () => {
     const proc = Object.assign(new Promise(resolve => stdout.on("end", () => resolve({ exitCode: 0 }))), { stdout });
     mockExeca.mockReturnValueOnce(proc as any);
     const onEvent = vi.fn();
-    expect(await new CodexAgent({ model: "m", probeInstallDir: noProbe }).run("p", { cwd, permissions, onEvent })).toEqual({ exitCode: 0 });
+    expect(await new CodexAgent({ model: "m", probeExecutable: noProbe }).run("p", { cwd, permissions, onEvent })).toEqual({ exitCode: 0 });
     expect(mockExeca.mock.calls[0][1]).toContain("--json");
     expect(onEvent).toHaveBeenCalledWith(expect.objectContaining({ kind: "usage", inputTokens: 5, outputTokens: 3 }));
   });
 });
 
-describe("probeCodexInstallDir", () => {
-  const bwrapFailure = "bwrap: execvp /home/u/.codex/packages/standalone/releases/0.159.0/bin/codex: No such file or directory\n";
+describe("probeCodexExecutable", () => {
+  const binary = "/home/u/.codex/packages/standalone/releases/0.159.0/bin/codex";
 
   test("asks codex's own sandbox, from the run's directory, with only :minimal readable", async () => {
-    mockExeca.mockReturnValueOnce(Promise.resolve({ exitCode: 1, stderr: bwrapFailure }) as any);
-    expect(await probeCodexInstallDir(cwd)).toBe("/home/u/.codex/packages/standalone/releases/0.159.0/bin");
-    const [binary, args, options] = mockExeca.mock.calls[0] as any[];
-    expect(binary).toBe("codex");
+    mockExeca.mockReturnValueOnce(Promise.resolve({ exitCode: 1, stderr: `bwrap: execvp ${binary}: No such file or directory\n` }) as any);
+    expect(await probeCodexExecutable(cwd)).toBe(binary);
+    const [command, args, options] = mockExeca.mock.calls[0] as any[];
+    expect(command).toBe("codex");
     expect(args.slice(0, 1)).toEqual(["sandbox"]);
     expect(args.slice(-2)).toEqual(["--", "true"]);
     expect(configs(args)).toContain('default_permissions="saaga-probe"');
     expect(configs(args).find((c: string) => c.startsWith("permissions="))).toContain('":minimal" = "read"');
     expect(configs(args).find((c: string) => c.startsWith("permissions="))).toContain('"enabled" = false');
-    expect(options).toMatchObject({ cwd, reject: false });
+    expect(options).toMatchObject({ cwd, reject: false, env: { LC_ALL: "C" } });
+  });
+
+  test("ignores the user's codex config: an empty CODEX_HOME, removed afterwards", async () => {
+    let existedDuringProbe = false;
+    mockExeca.mockImplementationOnce(() => {
+      const [, , options] = mockExeca.mock.lastCall as any[];
+      existedDuringProbe = existsSync(options.env.CODEX_HOME);
+      return Promise.resolve({ exitCode: 0, stderr: "" }) as any;
+    });
+    await probeCodexExecutable(cwd);
+    const [, , options] = mockExeca.mock.calls[0] as any[];
+    const home: string = options.env.CODEX_HOME;
+    expect(existedDuringProbe).toBe(true);
+    expect(home).not.toContain(".codex");
+    expect(existsSync(home)).toBe(false);
+  });
+
+  test("reads the path from bwrap's prefix, whatever language the reason is in", async () => {
+    mockExeca.mockReturnValueOnce(Promise.resolve({ exitCode: 1, stderr: `warning\nbwrap: execvp ${binary}: Aucun fichier ou dossier de ce type\n` }) as any);
+    expect(await probeCodexExecutable(cwd)).toBe(binary);
   });
 
   test("needs nothing when the sandbox starts, and gives up quietly on anything else", async () => {
     mockExeca.mockReturnValueOnce(Promise.resolve({ exitCode: 0, stderr: "" }) as any);
-    expect(await probeCodexInstallDir(cwd)).toBeUndefined();
+    expect(await probeCodexExecutable(cwd)).toBeUndefined();
     mockExeca.mockReturnValueOnce(Promise.resolve({ exitCode: 2, stderr: "error: unrecognized subcommand 'sandbox'" }) as any);
-    expect(await probeCodexInstallDir(cwd)).toBeUndefined();
+    expect(await probeCodexExecutable(cwd)).toBeUndefined();
     mockExeca.mockImplementationOnce(() => { throw new Error("ENOENT"); });
-    expect(await probeCodexInstallDir(cwd)).toBeUndefined();
+    expect(await probeCodexExecutable(cwd)).toBeUndefined();
   });
 
-  test("restricted runs grant the directory the probe names; unrestricted runs do not probe", async () => {
-    const probe = vi.fn(async () => "/opt/codex/bin");
-    await new CodexAgent({ model: "m", probeInstallDir: probe }).run("p", { cwd, permissions });
+  test("restricted runs grant exactly the executable the probe names; unrestricted runs do not probe", async () => {
+    const probe = vi.fn(async () => "/home/u/codex");
+    await new CodexAgent({ model: "m", probeExecutable: probe }).run("p", { cwd, permissions });
     expect(probe).toHaveBeenCalledWith(cwd, undefined);
     const profile = configs(mockExeca.mock.calls[0][1] as string[]).find(c => c.startsWith("permissions="))!;
-    expect(profile).toContain('"/opt/codex/bin" = "read"');
-    await new CodexAgent({ model: "m", probeInstallDir: probe }).run("p", { cwd });
+    // The file, never its directory: a binary directly in $HOME must not expose $HOME.
+    expect(profile).toContain('"/home/u/codex" = "read"');
+    expect(profile).not.toContain('"/home/u" = ');
+    await new CodexAgent({ model: "m", probeExecutable: probe }).run("p", { cwd });
     expect(probe).toHaveBeenCalledOnce();
   });
 });
 
 describe("Codex configuration", () => {
-  test("lets the sandbox read codex's own install, and only that", () => {
-    const profile = configs(buildCodexArgs("m", "p", { cwd, permissions }, false, "/opt/codex/bin"))
+  test("lets the sandbox read codex's own executable, and only that", () => {
+    const profile = configs(buildCodexArgs("m", "p", { cwd, permissions }, false, "/opt/codex/bin/codex"))
       .find(c => c.startsWith("permissions="))!;
-    expect(profile).toContain('"/opt/codex/bin" = "read"');
-    expect(profile).not.toContain(".codex/auth");
-    // An install inside a granted root is already reachable; a nested read would narrow a write root.
-    const inside = configs(buildCodexArgs("m", "p", { cwd, permissions }, false, `${cwd}/docs/bin`))
+    expect(profile).toContain('"/opt/codex/bin/codex" = "read"');
+    expect(profile).not.toContain('"/opt/codex/bin" = ');
+    // An executable inside a granted root is already reachable; a nested read would narrow a write root.
+    const inside = configs(buildCodexArgs("m", "p", { cwd, permissions }, false, `${cwd}/docs/bin/codex`))
       .find(c => c.startsWith("permissions="))!;
-    expect(inside).not.toContain(`"${cwd}/docs/bin"`);
+    expect(inside).not.toContain(`"${cwd}/docs/bin/codex"`);
     expect(inside).toContain(`"${cwd}/docs" = "write"`);
   });
 
