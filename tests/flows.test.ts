@@ -5,9 +5,14 @@ import { PROMPTS_DIR } from "../src/paths.js";
 import { renderPromptFile } from "../src/templates.js";
 import type { AgentStep, ScriptStep, Step } from "../src/engine/types.js";
 
-const UPDATE_FAMILY = ["update", "quick-update", "verify-quick-updates"];
+const UPDATE_FAMILY = [
+  "update",
+  "quick-update",
+  "verify-quick-updates",
+  "sweep-stale-docs",
+];
 
-/** Every bundled flow. All four write documentation and all four navigate it. */
+/** Every bundled flow. All of them write documentation and all of them navigate it. */
 const ALL_FLOWS = ["init", ...UPDATE_FAMILY];
 
 function asScript(step: Step | undefined): ScriptStep | null {
@@ -145,6 +150,55 @@ describe("validate-docs wiring", () => {
     const flow = await loadFlow("verify-quick-updates");
     expect(scriptSteps(flow.steps).map((s) => s.name)).toContain("validate-docs");
   });
+
+  test("sweep-stale-docs validates the corpus its verify/fix loop corrected", async () => {
+    const flow = await loadFlow("sweep-stale-docs");
+    expect(scriptSteps(flow.steps).map((s) => s.name)).toContain("validate-docs");
+  });
+});
+
+describe("sweep-stale-docs wiring", () => {
+  test("selects stale documents after the format gate and branches on the count", async () => {
+    const flow = await loadFlow("sweep-stale-docs");
+    const select = asScript(flow.steps[1]);
+
+    expect(asScript(flow.steps[0])?.name).toBe("check-format-version");
+    expect(select?.name).toBe("select-stale-docs");
+    expect(select?.set).toBe("stale");
+    expect(flow.steps[2]).toMatchObject({ type: "if", condition: "${stale.count} != 0" });
+  });
+
+  test("hands the selection report to the planner", async () => {
+    const flow = await loadFlow("sweep-stale-docs");
+    const planner = agentSteps(flow.steps).find((s) => s.prompt === "plan-sweep-stale-docs");
+
+    expect(planner?.vars?.stale_report_path).toBe("${stale.report_path}");
+  });
+
+  /**
+   * A sweep verifies existing documents: it neither rewrites them up front nor
+   * changes what has been documented, and coverage of undocumented code is
+   * `update`'s job, so the verifier gets no change reports to check it against.
+   */
+  test("verifies without rewriting, rebaselining or checking coverage", async () => {
+    const flow = await loadFlow("sweep-stale-docs");
+    const prompts = agentSteps(flow.steps).map((s) => s.prompt);
+    const scripts = scriptSteps(flow.steps).map((s) => s.name);
+    const verifier = agentSteps(flow.steps).find(
+      (s) => s.prompt === "verify-domain-documentation",
+    );
+
+    expect(prompts).not.toContain("slice-doc");
+    expect(scripts).not.toContain("generate-baseline");
+    expect(verifier?.vars?.changes_dir).toBe("none");
+  });
+
+  test("an empty plan for a non-empty selection fails the run", async () => {
+    const flow = await loadFlow("sweep-stale-docs");
+    const parse = scriptSteps(flow.steps).find((s) => s.name === "parse-plan");
+
+    expect(parse?.args.require_phases).toBe("true");
+  });
 });
 
 describe("generate-navigation wiring", () => {
@@ -189,7 +243,7 @@ describe("verify receives an ISO date for the last_verified stamp", () => {
    * the parser rejects, which silently removes the document from staleness
    * detection — so the wiring is asserted rather than assumed.
    */
-  test.each(["init", "update", "verify-quick-updates"])(
+  test.each(["init", "update", "verify-quick-updates", "sweep-stale-docs"])(
     "%s passes iso_date to every verify step",
     async (name) => {
       const flow = await loadFlow(name);
@@ -212,7 +266,7 @@ describe("verify receives the round and the deferred-findings report", () => {
    * FAIL on the final round is never re-checked, so its findings have to be
    * written down rather than left to a fix step nothing verifies.
    */
-  test.each(["init", "update", "verify-quick-updates"])(
+  test.each(["init", "update", "verify-quick-updates", "sweep-stale-docs"])(
     "%s passes the round, the cap and a report path to every verify step",
     async (name) => {
       const flow = await loadFlow(name);
@@ -239,7 +293,7 @@ describe("verify receives the round and the deferred-findings report", () => {
    * only inside its body. A verifier hoisted out of a loop would abort the run
    * at var-render time with `Undefined variable`, which is loud but late.
    */
-  test.each(["init", "update", "verify-quick-updates"])(
+  test.each(["init", "update", "verify-quick-updates", "sweep-stale-docs"])(
     "every verify step in %s sits inside a loop",
     async (name) => {
       const flow = await loadFlow(name);
@@ -261,7 +315,7 @@ describe("verify receives the round and the deferred-findings report", () => {
  * ran on `high` except quick-update, which ran on `medium` (the default).
  */
 describe("agent step model keys", () => {
-  test.each(["init", "update", "verify-quick-updates"])(
+  test.each(["init", "update", "verify-quick-updates", "sweep-stale-docs"])(
     "every agent step in %s asks for high",
     async (name) => {
       const flow = await loadFlow(name);

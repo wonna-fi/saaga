@@ -2,7 +2,8 @@ name: Verify quick updates (weekly)
 
 # Monday maintenance: runs `saaga run quick-update` followed by
 # `saaga run verify-quick-updates` so the week's accumulated artifacts are
-# consolidated and verified in one pass.
+# consolidated and verified in one pass, then `saaga run sweep-stale-docs`
+# to verify documents whose sources changed outside those slices.
 # The same publish logic applies: docs-only → main, mixed → PR.
 
 on:
@@ -26,6 +27,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          # sweep-stale-docs reads change from git history and refuses a
+          # shallow clone.
+          fetch-depth: 0
 
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
@@ -46,12 +50,13 @@ jobs:
           ./examples/install-agents/install-claude.sh
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
-      - name: Run quick-update then verify
+      - name: Run quick-update, verify, then sweep stale docs
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           npx tsx src/cli.ts run quick-update . --ci
           npx tsx src/cli.ts run verify-quick-updates . --ci
+          npx tsx src/cli.ts run sweep-stale-docs . --ci
 
       - name: Generate GitHub App token
         id: app-token

@@ -19,6 +19,10 @@ const COST_HINTS: Record<string, string> = {
   "verify-quick-updates":
     "verify-quick-updates is one consolidation and verification session; its " +
     "cost scales with the number of pending quick updates.",
+  "sweep-stale-docs":
+    "sweep-stale-docs is one planning session plus a verify/fix loop per " +
+    "phase; its cost scales with how many documents' sources changed since " +
+    "they were last verified.",
 };
 
 export class ConfirmationDeclinedError extends Error {

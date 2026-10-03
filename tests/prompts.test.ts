@@ -56,6 +56,12 @@ const FLOW_VARS: Record<string, Record<string, string>> = {
     metadata_dir: "/run/quick-updates",
     output_path: "/run/plans/saaga-vqu.plan.md",
   },
+  "plan-sweep-stale-docs": {
+    app: "saaga",
+    docs_dir: "saaga-docs",
+    stale_report_path: "/run/stale-docs.md",
+    output_path: "/run/plans/saaga-sweep-stale-docs.plan.md",
+  },
   "quick-update": {
     app: "saaga",
     docs_dir: "saaga-docs",
@@ -275,7 +281,7 @@ describe("frontmatter instructions reach the prompts that write documents", () =
 });
 
 describe("planning prompts no longer re-emit the methodology", () => {
-  const PLAN_PROMPTS = ["plan-init", "plan-update", "plan-verify-quick-updates"];
+  const PLAN_PROMPTS = ["plan-init", "plan-update", "plan-verify-quick-updates", "plan-sweep-stale-docs"];
 
   test.for(PLAN_PROMPTS)("%s drops the re-emit instructions", async (name) => {
     const out = await render(name);
@@ -313,7 +319,7 @@ describe("prompt strings the flow tests depend on", () => {
   });
 
   test("plan prompts keep the write-the-plan sentence", async () => {
-    for (const name of ["plan-init", "plan-update", "plan-verify-quick-updates"]) {
+    for (const name of ["plan-init", "plan-update", "plan-verify-quick-updates", "plan-sweep-stale-docs"]) {
       const out = await render(name);
       expect(out).toMatch(/Write the plan to `([^`]+)`/);
     }
@@ -502,7 +508,7 @@ describe("the deferred-findings report", () => {
 
 describe("consumer prompts reference only plan sections the plan still emits", () => {
   const CONSUMERS = ["slice-doc", "verify-domain-documentation", "fix-documentation"];
-  const PLAN_PROMPTS = ["plan-init", "plan-update", "plan-verify-quick-updates"];
+  const PLAN_PROMPTS = ["plan-init", "plan-update", "plan-verify-quick-updates", "plan-sweep-stale-docs"];
 
   // Sections the slim plan dropped. A consumer prompt that still sends the
   // agent looking for one of these makes it hunt for a heading that is never
@@ -555,6 +561,7 @@ describe("the LOD policy reaches every prompt that writes or judges a document",
     "plan-init",
     "plan-update",
     "plan-verify-quick-updates",
+    "plan-sweep-stale-docs",
   ];
 
   test.for(CONSUMERS)("%s carries the budgets and the consequence test", async (name) => {
@@ -589,7 +596,7 @@ describe("the LOD policy reaches every prompt that writes or judges a document",
 });
 
 describe("the planning prompts assign budgets and cap growth", () => {
-  const PLAN_PROMPTS = ["plan-init", "plan-update", "plan-verify-quick-updates"];
+  const PLAN_PROMPTS = ["plan-init", "plan-update", "plan-verify-quick-updates", "plan-sweep-stale-docs"];
 
   test.for(PLAN_PROMPTS)("%s asks for a per-document line budget", async (name) => {
     const out = await render(name);
@@ -727,6 +734,7 @@ describe("the conventions category reaches the prompts that write and judge docu
     "plan-init",
     "plan-update",
     "plan-verify-quick-updates",
+    "plan-sweep-stale-docs",
   ];
 
   test.for(CONSUMERS)("%s carries the convention template", async (name) => {
@@ -789,7 +797,7 @@ describe("the conventions category reaches the prompts that write and judge docu
     // lowest budget band starts at 25. A planner obeying the budget rule would
     // order the writer straight past the cap and validate-docs would fail the
     // run at the very end, after every token was already spent.
-    for (const name of ["plan-init", "plan-update", "plan-verify-quick-updates"]) {
+    for (const name of ["plan-init", "plan-update", "plan-verify-quick-updates", "plan-sweep-stale-docs"]) {
       const out = await render(name);
       expect(out).toContain(
         "the lowest band starts at 25 lines and the cap is 20",
@@ -843,7 +851,7 @@ describe("the templates bend where the subject does not fit", () => {
     // "rename User Flow to Execution Flow for engine features" was the worked
     // example of a template delta; Mechanism makes it a standing option, and an
     // example contradicting the template invites a pointless adaptation.
-    for (const name of ["plan-init", "plan-update", "plan-verify-quick-updates"]) {
+    for (const name of ["plan-init", "plan-update", "plan-verify-quick-updates", "plan-sweep-stale-docs"]) {
       const out = await render(name);
       expect(out).not.toContain("rename User Flow");
       expect(out).toContain("they are not deltas and do not belong here");
@@ -873,6 +881,7 @@ describe("the ownership rules reach every prompt that writes or judges a documen
     "plan-init",
     "plan-update",
     "plan-verify-quick-updates",
+    "plan-sweep-stale-docs",
     "document-architecture",
     "verify-architecture",
   ];
@@ -904,7 +913,7 @@ describe("the ownership rules reach every prompt that writes or judges a documen
 });
 
 describe("the planning prompts declare ownership per document", () => {
-  const PLAN_PROMPTS = ["plan-init", "plan-update", "plan-verify-quick-updates"];
+  const PLAN_PROMPTS = ["plan-init", "plan-update", "plan-verify-quick-updates", "plan-sweep-stale-docs"];
 
   test.for(PLAN_PROMPTS)("%s asks for an owns/references line", async (name) => {
     const out = await render(name);
@@ -1155,5 +1164,25 @@ describe("the corpus budget constrains plan-init", () => {
 
     expect(section).not.toContain("100–200");
     expect(section).not.toContain("Peripheral");
+  });
+});
+
+describe("the sweep planner covers exactly the selected documents", () => {
+  test("it reads the selection report", async () => {
+    const out = await render("plan-sweep-stale-docs");
+    expect(out).toContain("Read `/run/stale-docs.md`");
+  });
+
+  test("every selected document lands in exactly one phase", async () => {
+    const out = await render("plan-sweep-stale-docs");
+    expect(out).toContain(
+      "**Every document in the report MUST appear in exactly one phase.**",
+    );
+    expect(out).toContain("type: sweep-stale-docs");
+  });
+
+  test("it corrects existing documents rather than creating new ones", async () => {
+    const out = await render("plan-sweep-stale-docs");
+    expect(out).toContain("It does not create new documents");
   });
 });

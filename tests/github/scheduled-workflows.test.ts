@@ -229,6 +229,25 @@ describe("verify-quick-updates-weekly.yml", () => {
     expect(weeklyTimeout).toBeGreaterThan(nightlyTimeout);
   });
 
+  test("sweeps stale docs after verifying quick updates", async () => {
+    const wf = await loadWorkflow("verify-quick-updates-weekly.yml");
+    const job = Object.values(wf.jobs)[0];
+    const runs = allRunCommands(job);
+    const verifyIdx = runs.indexOf("verify-quick-updates");
+    const sweepIdx = runs.indexOf("sweep-stale-docs");
+    expect(sweepIdx).toBeGreaterThan(verifyIdx);
+    expect(runs).toMatch(/sweep-stale-docs .* --ci/);
+  });
+
+  test("checks out full history, which the sweep requires", async () => {
+    const wf = await loadWorkflow("verify-quick-updates-weekly.yml");
+    const job = Object.values(wf.jobs)[0];
+    const checkout = job.steps.find((s) =>
+      s.uses?.startsWith("actions/checkout"),
+    );
+    expect(checkout?.with?.["fetch-depth"]).toBe(0);
+  });
+
   test("checkout does not persist GITHUB_TOKEN credentials", async () => {
     const wf = await loadWorkflow("verify-quick-updates-weekly.yml");
     const job = Object.values(wf.jobs)[0];

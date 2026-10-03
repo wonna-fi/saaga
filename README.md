@@ -238,6 +238,10 @@ quick-update          Fast single-session doc update; its step takes the
 
 verify-quick-updates  Consolidate and verify all unverified
                       quick-update artifacts.
+
+sweep-stale-docs      Verify every document whose sources changed
+                      since it was last verified, whichever slice
+                      last touched it. Needs full git history.
 ```
 
 ### Other commands
@@ -306,7 +310,7 @@ no tokens:
 | --------- | ------ |
 | No corpus (`saaga-docs/` absent or empty) | Passes. `saaga run init` builds the corpus and stamps the version. |
 | Corpus at the current version | Passes. |
-| Corpus at a different version — including one with no `FORMAT` file, which reads as version 0 | `update`, `quick-update`, and `verify-quick-updates` stop immediately with an error naming both versions and the upgrade path. |
+| Corpus at a different version — including one with no `FORMAT` file, which reads as version 0 | `update`, `quick-update`, `verify-quick-updates`, and `sweep-stale-docs` stop immediately with an error naming both versions and the upgrade path. |
 | `init` over any existing corpus | Stops immediately: delete `saaga-docs/` first, so re-initialising is never a silent overwrite. |
 
 To upgrade a corpus, delete `saaga-docs/` and run `saaga run init` to
@@ -374,6 +378,39 @@ reported in full and do not hold the loop open. They are written to
 and the documents they concern lose their `last_verified` stamp until a
 later run verifies them clean.
 
+### Sweeping stale documents
+
+Every verification checks only the slice it is working on. A source change
+can still invalidate a claim in a document outside every slice a later run
+touches — a renamed identifier described in two places, say — and nothing
+looks at that document again. `saaga run sweep-stale-docs` closes the gap:
+
+1. It selects every document whose `sources` frontmatter covers a path
+   changed — committed or not — on or after the document's `last_verified`
+   date, plus every document with no stamp, no frontmatter, or no `sources`
+   list — conventions aside, which never carry one, since a rule the codebase
+   holds itself to is not a claim about any particular file. `ARCHITECTURE.md` is selected like any other document;
+   the generated `README.md`, `GLOSSARY.md` and `INDEX.md` files never are.
+2. A planner groups the selection into phases, and each phase runs the same
+   verify/fix loop as the other flows. Documents are corrected where
+   verification finds them wrong, never rewritten up front.
+
+The selection is written to `.saaga-runs/<run-id>/stale-docs.md`. A document
+verified clean gets today's stamp, so the next sweep skips it until its
+sources change again. A document left with only minor findings stays
+unstamped and is selected again by every sweep until a run verifies it clean.
+
+Run it on whatever schedule suits the way you keep documentation current —
+alongside `update`, or after `verify-quick-updates`. It neither changes
+`BASELINE` nor documents code the corpus does not yet cover; that is
+`update`'s job.
+
+The sweep reads change from git history, because every update-family run
+advances `BASELINE` and so loses the record of what changed. It therefore
+refuses to run outside a git repository, in a repository with no commits,
+or in a shallow clone. In CI, check out the full history — for GitHub
+Actions, `fetch-depth: 0` on `actions/checkout`.
+
 ## Runtime and cost
 
 Saaga works by driving a real coding-agent CLI, so its runtime and token
@@ -387,6 +424,7 @@ guidance below as relative expectations, not fixed numbers.
 | `update` | Re-documents only the slices that changed since `BASELINE` | Proportional to how much changed — usually a fraction of `init`, ~20-30 minutes |
 | `quick-update` | A single session, on the default (cheaper) model key | Fast and cheap; the lightest agent-backed command. ~3-10 minutes. |
 | `verify-quick-updates` | One consolidation/verification session | Short; scales with the number of pending quick-update artifacts. Comparable to one `update`. |
+| `sweep-stale-docs` | One planning session plus a verify/fix loop per phase | Scales with how many documents' sources changed since they were last verified; nothing runs when none did. |
 | `install-rules` | No agent backend at all | Effectively instant; no tokens used. |
 
 > **Token usage disclaimer** — `init` in particular can consume a
@@ -400,7 +438,7 @@ guidance below as relative expectations, not fixed numbers.
 ### Cost confirmation prompt
 
 Every agent-backed command (`init`, `update`, `quick-update`,
-`verify-quick-updates`) prints a cost notice before it starts, naming the
+`verify-quick-updates`, `sweep-stale-docs`) prints a cost notice before it starts, naming the
 backend CLI it is about to run and reminding you that the resulting agent
 usage is billed to your own account with that provider. On an interactive
 terminal it then asks for confirmation:
@@ -463,7 +501,7 @@ are built in:
 | --- | ------- | ------------- |
 | `low` | `doctor` probes | a built-in default per backend |
 | `medium` | agent steps that declare no `model:` | a built-in default per backend |
-| `high` | the agent steps of `init`, `update`, `verify-quick-updates` | a built-in default per backend |
+| `high` | the agent steps of `init`, `update`, `verify-quick-updates`, `sweep-stale-docs` | a built-in default per backend |
 
 Any absent built-in key falls back to its default, so you can override just one.
 
@@ -517,7 +555,8 @@ package-lock.json
 Create a `.saagarules` file in your project root to provide additional
 instructions and context that Saaga should take into account when
 documenting. The content is appended to every agent prompt during `init`,
-`update`, `quick-update`, and `verify-quick-updates` workflows.
+`update`, `quick-update`, `verify-quick-updates`, and `sweep-stale-docs`
+workflows.
 
 ```markdown
 # .saagarules

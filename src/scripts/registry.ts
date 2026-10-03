@@ -10,6 +10,7 @@ import { generateNavigation } from "./generate-navigation.js";
 import { installRules } from "./install-rules.js";
 import { parsePlan } from "./parse-plan.js";
 import { removeQuickUpdates } from "./remove-quick-updates.js";
+import { selectStaleDocs } from "./select-stale-docs.js";
 import { stampFormatVersion } from "./stamp-format-version.js";
 import { validateDocs } from "./validate-docs.js";
 
@@ -54,4 +55,5 @@ export const defaultScriptRegistry: ScriptRegistry = {
   "stamp-format-version": stampFormatVersion as unknown as ScriptHandler,
   "generate-navigation": generateNavigation as unknown as ScriptHandler,
   "validate-docs": validateDocs as unknown as ScriptHandler,
+  "select-stale-docs": selectStaleDocs as unknown as ScriptHandler,
 };
