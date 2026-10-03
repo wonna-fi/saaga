@@ -1,5 +1,6 @@
-import { writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { execa } from "execa";
 import { describe, expect, test } from "vitest";
 import { FakeAgent } from "../../src/agent/fake-agent.js";
 import { runFullSideEffectProbes } from "../../src/doctor/full-probes.js";
@@ -146,5 +147,42 @@ describe("diagnosing a failed capability probe", () => {
     expect(results[0].status).toBe("fail");
     expect(results[0].classification).toBeUndefined();
     expect(agent.calls).toHaveLength(1);
+  });
+});
+
+describe("shell capability probes need output only a command that ran can produce", () => {
+  /** An agent that writes `content(cwd)` to the probe's output file. */
+  function writing(file: string, content: (cwd: string) => Promise<string>) {
+    return new FakeAgent({
+      [file]: {
+        exitCode: 0,
+        effect: async (opts) => {
+          await writeFile(join(opts.cwd, "saaga-docs", file), await content(opts.cwd));
+        },
+      },
+    });
+  }
+
+  async function status(agent: FakeAgent, id: string) {
+    const [result] = await runFullSideEffectProbes({ backend: "codex", agent, filterIds: [id], quiet: true });
+    return result.status;
+  }
+
+  test("ls -i from the app directory passes; the working directory an agent is told does not", async () => {
+    const ran = writing("probe-ls.txt", async cwd => (await execa("ls", ["-i", "src/index.ts"], { cwd })).stdout + "\n");
+    expect(await status(ran, "restricted-shell-utility-allowed")).toBe("pass");
+    // What an agent whose shell cannot start writes when asked for pwd: the directory it knows.
+    const guessed = writing("probe-ls.txt", async cwd => `${cwd}\n`);
+    expect(await status(guessed, "restricted-shell-utility-allowed")).toBe("fail");
+  });
+
+  test("git log must report the tree hash, which no file-read tool can recover", async () => {
+    const ran = writing("probe-git-log.txt", async cwd => (await execa("git", ["log", "-1", "--format=%T"], { cwd })).stdout + "\n");
+    expect(await status(ran, "read-only-git-allowed")).toBe("pass");
+    // What a Read tool yields: the commit hash stored in .git/refs, not the tree it names.
+    const read = writing("probe-git-log.txt", async cwd => await readFile(join(cwd, ".git", "refs", "heads", (await execa("git", ["branch", "--show-current"], { cwd })).stdout), "utf8"));
+    expect(await status(read, "read-only-git-allowed")).toBe("fail");
+    const guessed = writing("probe-git-log.txt", async () => "abc1234 initial\n");
+    expect(await status(guessed, "read-only-git-allowed")).toBe("fail");
   });
 });

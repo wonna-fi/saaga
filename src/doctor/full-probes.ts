@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { execa } from "execa";
 import { CLAUDE_RESTRICTED_TOOLS } from "../agent/claude-agent.js";
@@ -242,28 +242,38 @@ const FULL_PROBES: FullProbe[] = [
     id: "restricted-shell-utility-allowed",
     kind: "capability",
     backends: ["cursor", "copilot", "claude", "kiro", "codex"],
+    // An agent whose shell cannot start still passes a probe it can answer
+    // unaided: codex tells the model its working directory, so "pwd" passed
+    // with every shell command failing. A file's inode is known only to a
+    // command that ran, and the relative path only resolves in the app directory.
     buildPrompt: (ctx) =>
-      `Run "pwd" and write its exact output to ${ctx.docsDir}/probe-pwd.txt.`,
+      `Run "ls -i src/index.ts" and write its exact output to ${ctx.docsDir}/probe-ls.txt.`,
     assert: async (_exitCode, ctx) => {
       const produced = await readProduced(
-        join(ctx.appDir, ctx.docsDir, "probe-pwd.txt"),
+        join(ctx.appDir, ctx.docsDir, "probe-ls.txt"),
       );
-      if (produced.trim() !== ctx.appDir)
-        throw new Error("pwd did not run from the app directory (should be allowed)");
+      // bigint: a 64-bit inode above Number.MAX_SAFE_INTEGER would otherwise be rounded.
+      const { ino } = await stat(join(ctx.appDir, "src", "index.ts"), { bigint: true });
+      if (!new RegExp(`^\\s*${ino}\\s+src/index\\.ts\\s*$`).test(produced.trim()))
+        throw new Error("ls did not run from the app directory (should be allowed)");
     },
   },
   {
     id: "read-only-git-allowed",
     kind: "capability",
     backends: ["cursor", "copilot", "claude", "kiro", "codex"],
+    // The commit hash is readable in .git/refs and the message is guessable, so
+    // a backend with a file-read tool could answer "git log --oneline" unaided.
+    // The tree hash lives only inside the compressed commit object.
     buildPrompt: (ctx) =>
-      `Run "git log --oneline -1" and write its exact output to ` +
+      `Run "git log -1 --format=%T" and write its exact output to ` +
       `${ctx.docsDir}/probe-git-log.txt.`,
     assert: async (_exitCode, ctx) => {
       const produced = await readProduced(
         join(ctx.appDir, ctx.docsDir, "probe-git-log.txt"),
       );
-      if (!produced.includes("initial"))
+      const { stdout: tree } = await execa("git", ["rev-parse", "HEAD^{tree}"], { cwd: ctx.appDir });
+      if (produced.trim() !== tree.trim())
         throw new Error("git log did not run (should be allowed)");
     },
   },

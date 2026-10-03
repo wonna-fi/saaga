@@ -1,5 +1,6 @@
-import { mkdir } from "node:fs/promises";
-import { resolve, sep } from "node:path";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, resolve, sep } from "node:path";
 
 import { execa, type ResultPromise } from "execa";
 
@@ -13,6 +14,8 @@ import type { Agent, AgentRunOpts, AgentRunResult } from "./types.js";
 export interface CodexAgentOptions {
   model: string;
   fast?: boolean;
+  /** Finds the codex executable the restricted sandbox must read; injected by tests. */
+  probeExecutable?: (cwd: string, signal?: AbortSignal) => Promise<string | undefined>;
 }
 
 export class CodexAgent implements Agent {
@@ -21,14 +24,16 @@ export class CodexAgent implements Agent {
   constructor(private readonly opts: CodexAgentOptions) {}
 
   async run(prompt: string, opts: AgentRunOpts): Promise<AgentRunResult> {
+    const probe = this.opts.probeExecutable ?? probeCodexExecutable;
+    const executable = opts.permissions ? await probe(opts.cwd, opts.signal) : undefined;
     if (opts.permissions) {
       // Codex cannot create a missing writable root inside its read-only parent.
       // Materialize only the roots that survive the protected-path exclusions.
-      for (const [path, access] of Object.entries(codexFilesystem(opts.permissions, opts.cwd))) {
+      for (const [path, access] of Object.entries(codexFilesystem(opts.permissions, opts.cwd, executable))) {
         if (access === "write") await mkdir(path, { recursive: true });
       }
     }
-    const args = buildCodexArgs(opts.model ?? this.opts.model, prompt, opts, this.opts.fast);
+    const args = buildCodexArgs(opts.model ?? this.opts.model, prompt, opts, this.opts.fast, executable);
     const stdio = opts.onEvent ? buildPipedStdio(opts) : buildStdio(opts);
     const parser = createCodexEventParser();
     const sink = opts.onEvent;
@@ -84,11 +89,52 @@ export const CODEX_SHELL_COMMANDS = {
   git: [...ALLOWED_SHELL_COMMANDS.git],
 };
 
+/**
+ * How bubblewrap reports that it could not start codex's own binary. Only the prefix is matched: the
+ * reason after the last colon is `strerror` text, which a locale may translate.
+ */
+const SANDBOX_EXEC_FAILURE = /^bwrap: execvp (.+): [^:\n]*$/m;
+
+/**
+ * The codex executable the restricted sandbox must be able to read, or undefined when the sandbox
+ * starts without it. On Linux, codex runs each shell command by starting its own native binary again
+ * inside bubblewrap, which mounts only what the profile grants; `:minimal` covers system
+ * directories, not a standalone install under `~/.codex/packages` or a package under a user's Node
+ * prefix. The file on `PATH` may be a shim (npm, Volta, asdf, a wrapper script), so the binary is not
+ * looked up here: codex is asked, by running `true` in its own sandbox with only `:minimal` readable,
+ * from the directory and `PATH` the real run uses, and it names the binary it could not execute. No
+ * model is called. Only that one file is granted, never its directory, which could be `$HOME`.
+ *
+ * The real run ignores user config and pins the project untrusted; `codex sandbox` takes neither
+ * flag, so the probe gets an empty `CODEX_HOME` instead, and `LC_ALL=C` keeps its output parseable.
+ */
+export async function probeCodexExecutable(cwd: string, signal?: AbortSignal): Promise<string | undefined> {
+  const profile = toml({ filesystem: { ":minimal": "read" }, network: { enabled: false } });
+  let home: string | undefined;
+  try {
+    home = await mkdtemp(join(tmpdir(), "saaga-codex-probe-"));
+    const result = await execa("codex", [
+      "sandbox", "--config", 'default_permissions="saaga-probe"',
+      "--config", `permissions={"saaga-probe" = ${profile}}`, "--", "true",
+    ], {
+      cwd, reject: false, timeout: 30_000, stdin: "ignore",
+      env: { CODEX_HOME: home, LC_ALL: "C" },
+      ...(signal ? { cancelSignal: signal } : {}),
+    });
+    return String(result.stderr ?? "").match(SANDBOX_EXEC_FAILURE)?.[1];
+  } catch {
+    return undefined;
+  } finally {
+    if (home) await rm(home, { recursive: true, force: true });
+  }
+}
+
 export function buildCodexArgs(
   model: string,
   prompt: string,
   opts: AgentRunOpts,
   fast = false,
+  executable?: string,
 ): string[] {
   const args = [
     "exec", "--model", model, "--ephemeral", "--skip-git-repo-check", "--color", "never",
@@ -100,7 +146,7 @@ export function buildCodexArgs(
   };
   if (opts.permissions) {
     args.push("--ignore-user-config", "--ignore-rules", "--strict-config", "--dangerously-bypass-hook-trust");
-    Object.assign(config, restrictedConfig(opts.permissions, opts.cwd));
+    Object.assign(config, restrictedConfig(opts.permissions, opts.cwd, executable));
   } else {
     args.push("--dangerously-bypass-approvals-and-sandbox");
     config["features.fast_mode"] = true;
@@ -109,7 +155,11 @@ export function buildCodexArgs(
   return [...args, "--", prompt];
 }
 
-function codexFilesystem(permissions: AgentPermissions, cwd: string): Record<string, "read" | "write"> {
+function codexFilesystem(
+  permissions: AgentPermissions,
+  cwd: string,
+  executable?: string,
+): Record<string, "read" | "write"> {
   const filesystem: Record<string, "read" | "write"> = { ":minimal": "read" };
   const protectedPaths = permissions.denyPaths.map(path => resolve(cwd, path.replace(/[/\\]\*\*$/, "")));
   for (const root of [cwd, ...permissions.writeRoots]) {
@@ -125,11 +175,20 @@ function codexFilesystem(permissions: AgentPermissions, cwd: string): Record<str
   // Protected files must remain readable, including AGENTS.md and the corpus
   // navigation. A more specific read rule removes their parent's write grant.
   for (const path of protectedPaths) filesystem[path] = "read";
+  // Codex needs its own binary inside the sandbox; see probeCodexExecutable. A root
+  // that already covers it keeps its grant, since a nested read would narrow it.
+  if (executable && !Object.keys(filesystem).some(root => executable === root || executable.startsWith(root + sep))) {
+    filesystem[executable] = "read";
+  }
   return filesystem;
 }
 
-function restrictedConfig(permissions: AgentPermissions, cwd: string): Record<string, TomlValue> {
-  const filesystem = codexFilesystem(permissions, cwd);
+function restrictedConfig(
+  permissions: AgentPermissions,
+  cwd: string,
+  executable?: string,
+): Record<string, TomlValue> {
+  const filesystem = codexFilesystem(permissions, cwd, executable);
   const policy = JSON.stringify({ ...CODEX_SHELL_COMMANDS, shell: permissions.shell });
   const command = `${shellQuote(process.execPath)} -e ${shellQuote(CODEX_HOOK_SCRIPT)} ${shellQuote(policy)}`;
   return {

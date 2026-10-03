@@ -130,7 +130,7 @@ export const PROBE_CATALOGUE: ProbeDefinition[] = [
   },
   {
     id: "restricted-shell-utility-allowed",
-    description: "pwd runs under the restricted shell allowance.",
+    description: "ls runs under the restricted shell allowance, from the app directory.",
     level: "full",
     backends: ["cursor", "copilot", "claude", "kiro", "codex"],
   },
