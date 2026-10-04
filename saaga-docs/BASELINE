@@ -1,4 +1,4 @@
-# Generated: 2026-09-29T04:54:40.702Z
+# Generated: 2026-10-04T04:56:47.363Z
 dc5db626c0687243063280d4a5282a5260abf4f3 .github/scripts/publish-saaga-changes.sh
 d7e08a188b70e03d7663a8cc06b48d27a812ca95 .github/workflows/ci.yml
 de4bc82ba2995f5752fe1c2f2420dfa8ae9d63ea .github/workflows/doctor-fast.yml
@@ -98,7 +98,7 @@ c32705dc70e984aef307bf24e93fff55c2afbca6 prompts/partials/index-format.md
 a64f431ca5e8cf2fe8f4e4a7a009de002180f515 rules/rule-stub.md
 b87404df6a93e193165f4aca4f910ccdd1f7861c src/agent/audit.ts
 fe409922b7f7d000c666d554599d8953f8691ca0 src/agent/claude-agent.ts
-ddf1d6bbac0ed892ba3ec6ad97b5415561663147 src/agent/codex-agent.ts
+c5b04c7d7ffdc4d4eb0f5794beb479cf9cae5cd0 src/agent/codex-agent.ts
 5d09b2f12473560a50a19b2b2f4580e8dcb99052 src/agent/codex-hook.ts
 e57d5ff9d56f670d85bc0b9c7b7a1968cf25e547 src/agent/copilot-agent.ts
 4cbc33d1af6e0f6d2a277049de2c10de48c7a29f src/agent/cursor-agent.ts
@@ -119,11 +119,11 @@ e852079020d7c792432c54f39d759c2b6e0cd37d src/docs/corpus-budget.ts
 9d9736991eaa1665ac5d328a09227a9e1875cd87 src/docs/link-graph.ts
 f4b061e1e2a749f53898d612087c08c72885a5c3 src/docs/navigation.ts
 8fc9f7be995306da8273710b12bbcc9696559607 src/docs/validate.ts
-a74cc3a2a38901cd287296807a2c34d902ad6bb2 src/doctor/full-probes.ts
+98a8ef19611bea520cd6ef251a9f07030a7521e6 src/doctor/full-probes.ts
 6c09e9fa84af71732fdffc9d90f836bf54ef19d8 src/doctor/index.ts
 37b98c656c4edb4d7d24d7890208c43b2df5666e src/doctor/kiro-probes.ts
 0803149038abead399d65b97b5e86e13a208e7a6 src/doctor/preflight.ts
-de6665dba9e57a65c70267aa69f1c94237031423 src/doctor/probes.ts
+9b7d35e9fee8c3266a1b4ebfe6d86369695cd5fa src/doctor/probes.ts
 dfe3d22fbfd6f11b74edabc128002919cabd6a57 src/doctor/required-flags.ts
 498ec568917ed49ed67b4285bf55fd2966010de9 src/doctor/scratch-repo.ts
 f19a8563e25eb925ac1866dc53bebff76ad13ba9 src/engine/errors.ts
@@ -166,7 +166,7 @@ f5f98b8bf1ab2c19e0116cf306da0346fa537b77 src/scripts/remove-quick-updates.ts
 9b6d6db938b4c2079e1a3ebdebda7ed791c42e0b src/unstable-features.ts
 7766b1eda900391e299f9163127df28af9ef80e8 tests/agent/audit.test.ts
 20f37c78dfcaaeba9f6e7358a83d0033c6e9dc0d tests/agent/claude-agent.test.ts
-4f7bf34cf23b2662620cb07255289e918a0ccf49 tests/agent/codex-agent.test.ts
+7277dcfc335025ad4b598b11c8d916b590d01716 tests/agent/codex-agent.test.ts
 bbd44672385291be3b87c3e017513bd5bdfd5fa5 tests/agent/codex-events.test.ts
 af932251b1e51172d1d3309887a31eed22581e65 tests/agent/codex-hook.test.ts
 4884a31b5b5d13f6cb6face9a5920fb204a33c48 tests/agent/copilot-agent.test.ts
@@ -199,7 +199,7 @@ fa22eb893580f24a70dc260ede23ee931cdb566b tests/docs/link-graph.test.ts
 90e7d4010cdd35fc46f7d9e79725ece3d274ca4a tests/docs/navigation.test.ts
 c42d29175e286f00815f303c8804ca24f7a10b80 tests/docs/validate.test.ts
 cc22a34dd73d156744332ff97eb2947565427365 tests/doctor/codex.test.ts
-26ff4a1e4cda1e194dce048fd0b958be5b1ed279 tests/doctor/full-probes.test.ts
+696d76d48b237c004105c11270a628abfc9428e1 tests/doctor/full-probes.test.ts
 c9033af154f0800ed8ee666d3c5212054f54a523 tests/doctor/index.test.ts
 c4aab3a7449528c2de341e9a3daa129e928c945b tests/doctor/kiro-probes.test.ts
 e220fed5aed9fbf68bff6c6f01e4d70c6c208d97 tests/doctor/required-flags.test.ts

@@ -60,8 +60,8 @@ The catalogue ships as data and its ids are stable — they are what `--probe` f
 | `kiro/auth`, `kiro/models-available` | fast, kiro only | kiro-cli is logged in, so a run cannot hang waiting for a browser login, and every model the run will use is offered on the account's plan |
 | `handshake`, `write-in-cwd`, `read-from-cwd`, `read-gitignored`, `write-run-dir` | full | The agent can do what a flow needs: reply, write the docs tree, read source, read a gitignored file, write the run directory |
 | `read-outside-workspace-denied`, `write-outside-workspace-denied`, `arbitrary-shell-denied` | full | The workspace boundary and the shell allowance hold |
-| `write-source-denied`, `rule-files-denied`, `baseline-denied` | full, cursor + claude + kiro | Source, rule files and `BASELINE` survive a run untouched |
-| `restricted-shell-utility-allowed`, `read-only-git-allowed`, `git-mutation-denied` | full, all four | The restricted shell passes `pwd` and `git log` and refuses `git commit` |
+| `write-source-denied`, `rule-files-denied`, `baseline-denied` | full, cursor + claude + kiro + codex | Source, rule files and `BASELINE` survive a run untouched |
+| `restricted-shell-utility-allowed`, `read-only-git-allowed`, `git-mutation-denied` | full, all five | The restricted shell passes `ls -i` (its inode proves the command ran from the app directory) and `git log` (the tree hash, unguessable without running it), and refuses `git commit` |
 | `claude/tool-surface`, `claude/absolute-path-anchoring`, `claude/run-dir-writable` | full, claude only | Claude's tool list has not drifted, and its absolute-path rules reach the run directory |
 
 ### Validation Rules
