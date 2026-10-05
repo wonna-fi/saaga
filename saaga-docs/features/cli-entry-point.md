@@ -4,13 +4,14 @@ type: feature
 sources:
   - src/cli.ts
   - src/cli/confirm.ts
+  - src/doctor/index.ts
   - src/logger.ts
   - src/output.ts
 terms:
   - cost notice
   - resume hint
   - run.log
-last_verified: 2026-09-01
+last_verified: 2026-10-05
 ---
 
 # Feature: CLI Entry Point
@@ -40,7 +41,7 @@ Before working with this feature, understand these concepts:
    are validated and installed, and one `[WARN]` line is printed if any are enabled.
 3. For `run`, the flow name is checked against the bundled flows first of all — `saaga run`
    with no flow prints them and the usage line instead — and after step 2 the flow is
-   loaded and the backend and one model per model key it asks for are resolved.
+   loaded and the backend, one model per model key it asks for, and codex's fast tier are resolved.
 4. The cost notice is printed and, on an interactive terminal, confirmed. `--yes` or
    `autoApprove` prints `Confirmation auto-approved.`; a non-TTY stdin or `--ci` prints
    `Non-interactive terminal: continuing without confirmation.` and proceeds, since
@@ -77,20 +78,25 @@ without agent credentials.
   `run init` assembles its scope — against the targets
   [install-rules](./install-rules.md) accepts.
 - `--model` values must be `<key>=<model>` with a key matching `MODEL_KEY_PATTERN`.
+- `--fast` or `--no-fast` with any backend but codex fails with `--fast and --no-fast require
+  --backend codex`: `run` checks the resolved backend, however it was chosen, and `doctor`
+  checks `--backend` itself, so `doctor --fast` alone fails. How the tier is resolved belongs to
+  [backend resolution](../concepts/backend-resolution.md).
 - An unknown `--unstable-feature` name is rejected with the list of known names.
 
 ### Flags
 
 | Scope | Flags |
 |-------|-------|
-| Global | `-b, --backend <name>`, `--model <key=model>` (repeatable), `--ci`, `--verbose`, `-y, --yes`, `--allow-dir <path>` (repeatable), `--unstable-feature <name>` (repeatable), `--dangerously-allow-all`, `--audit-permissions`, `-v, --version` |
+| Global | `-b, --backend <name>`, `--model <key=model>` (repeatable), `--fast` / `--no-fast` (codex's fast service tier, on or off over config), `--ci`, `--verbose`, `-y, --yes`, `--allow-dir <path>` (repeatable), `--unstable-feature <name>` (repeatable), `--dangerously-allow-all`, `--audit-permissions`, `-v, --version` |
 | `run [flow] [dir]` | `--rule-targets <targets>`, `--resume <run-id>`, `--continue` |
 | `install-rules [dir]` | `--rule-targets <targets>` |
 | `doctor` | `--level <fast\|full>` (default `fast`), `--json`, `--probe <ids...>` |
 
-`doctor` deliberately does not redeclare `--backend` and `--model`: commander lets an
-ancestor overwrite a subcommand copy, so a local `--model` would be clobbered by the
-parent's empty default and silently discard everything it collected.
+`doctor` deliberately does not redeclare `--backend` and `--model`, and reads them and
+`--fast` from the globals: commander lets an ancestor overwrite a subcommand copy, so a local
+`--model` would be clobbered by the parent's empty default and silently discard everything
+it collected.
 
 ### Exit Codes
 
@@ -132,8 +138,8 @@ parent's empty default and silently discard everything it collected.
 | `cli` | `runCli()` | Builds the commander program, dispatches, and maps every known error to an exit code |
 | `cli` | `CliOptions` | Injection points for tests: an `Agent`, a cwd, the three streams, an abort signal |
 | `cli/confirm` | `confirmAgentCosts()` | Prints the notice and asks `Continue? [y/N]` when interactive |
-| `cli/confirm` | `buildCostNotice()` | The notice: subcommand, backend CLI, resolution, path, billing, per-subcommand cost hint |
-| `cli/confirm` | `buildCostSummary()` | The one-line variant recorded in `run.log` |
+| `cli/confirm` | `buildCostNotice()` | The notice: subcommand, backend CLI, resolution, path, billing, a line warning that codex fast mode consumes credits faster when it is on, per-subcommand cost hint |
+| `cli/confirm` | `buildCostSummary()` | The one-line variant recorded in `run.log`, ending `fast=true` under fast mode |
 | `cli/confirm` | `ConfirmationDeclinedError` | Declined confirmation, carrying exit code 1 |
 | `logger` | `Logger` | Phase lines, `[INFO]`/`[WARN]`/`[ERROR]` lines, and indented children for nested steps |
 | `logger` | `silentLogger()` | A logger that writes nowhere, for callers that want no output |

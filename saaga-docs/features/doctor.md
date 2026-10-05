@@ -7,7 +7,7 @@ sources:
 terms:
   - probe
   - preflight
-last_verified: 2026-09-28
+last_verified: 2026-10-05
 ---
 
 # Feature: Doctor
@@ -29,7 +29,7 @@ Before working with this feature, understand these concepts:
 
 ### Mechanism
 
-1. The backends probed are the one `--backend` names, or all four when absent. Each is looked up
+1. The backends probed are the one `--backend` names, or all five when absent. Each is looked up
    with `which`: a binary not on `PATH` is unavailable and probed no further, otherwise the first
    line of its `--version` output is captured. The model ids a probe checks against the account are
    `DoctorOptions.models` when given — preflight passes the run's *resolved* models — else the
@@ -39,7 +39,8 @@ Before working with this feature, understand these concepts:
    for kiro `whoami` and `chat --list-models`; `unknown-model-fails` is `skip`, needing a model call.
 3. **Full tier.** The fast probes run first, with `unknown-model-fails` executed for real this time.
    Then a scratch repository is created, an [`Agent`](../concepts/agent-interface.md) is built at
-   the `low` model key, each applicable full probe runs against it in turn — roughly a model call
+   the `low` model key — for codex, in the [fast tier](../concepts/backend-resolution.md) when
+   `--fast` or config asks for it — each applicable full probe runs against it in turn — roughly a model call
    per probe per backend — and those results are appended to the fast ones. The repository is
    deleted afterwards whatever happens.
 4. A probe builds its prompt from the scratch repo's paths and nonces, runs the agent under a
@@ -67,11 +68,15 @@ The catalogue ships as data and its ids are stable — they are what `--probe` f
 ### Validation Rules
 
 - `required-flags` reads the CLI's help — `--help`, then `-h`, accepting output printed beside a
-  non-zero exit, after any subcommand `BACKEND_HELP_ARGS` names (`kiro-cli chat --help`) — and
+  non-zero exit, after any subcommand `BACKEND_HELP_ARGS` names (`kiro-cli chat --help`,
+  `codex exec --help`) — and
   matches each flag token-aware, so `-p` does not match inside `--print`. A missing flag fails:
   the argv Saaga builds would be rejected at run time.
 - `unknown-model-fails` passes only on a non-zero exit whose output names the bogus model; a
   logged-out CLI's login error, exit 0, a timeout, a signal or a failed spawn all fail it.
+  Codex prints the model in its startup header, so it instead needs a line rejecting the model
+  (`does not exist`, `not found`, `unsupported`, …); its command is `buildCodexArgs()` under a
+  read-only, shell-less profile, never the unrestricted flags.
 - `kiro/auth` passes when `whoami` reports an account type. With `KIRO_API_KEY` set and an
   `ApiKey` (or no) account, it lists models instead, failing when that errors or lists only
   `auto` — kiro's answer to rejected credentials. `kiro/models-available` is `skip` when `kiro/auth` did
@@ -80,6 +85,8 @@ The catalogue ships as data and its ids are stable — they are what `--probe` f
   `arbitrary-shell-denied` looks for the real `sha256sum` digest rather than for the file.
 - A probe that names `backends` runs only for those; the rest run for every backend probed, and
   `--probe` matches ids exactly at both tiers.
+- `--fast`/`--no-fast` without `--backend codex` throws before anything is probed; see
+  [the CLI](./cli-entry-point.md).
 
 ### Edge Cases
 
@@ -121,7 +128,8 @@ backend was available; the subcommand's flags are [the CLI's](./cli-entry-point.
 ## Integration Points
 
 - **Depends on**: the [backend factory](../concepts/backend-resolution.md) for the CLI command,
-  model and agent, and [`buildProfile`](../concepts/agent-permissions.md) for the profile.
+  model and agent, [`buildProfile`](../concepts/agent-permissions.md) for the profile, and
+  `buildCodexArgs()` for codex's bogus-model command.
 - **Used by**: the `run` subcommand, which preflights after cost approval and aborts with exit 1
   before creating a run directory — see [CLI Entry Point](./cli-entry-point.md) — and CI.
 - **External systems**: the backend CLIs, and `git` for the scratch repository.

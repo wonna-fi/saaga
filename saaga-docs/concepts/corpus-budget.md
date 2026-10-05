@@ -1,9 +1,10 @@
 ---
 title: Corpus Budget
 type: concept
-last_verified: 2026-09-01
+last_verified: 2026-10-05
 sources:
   - src/docs/corpus-budget.ts
+  - src/docs/validate.ts
   - prompts/partials/lod-policy.md
 terms:
   - ceiling
@@ -43,31 +44,36 @@ rather than the budget.
 The measurement walks the same
 [in-scope file list](./baseline-and-change-detection.md) the baseline does, keeping files
 whose extension is in `SOURCE_EXTENSIONS` and whose path is not a test path. Symlinks are
-skipped rather than followed, and an unreadable file is passed over: neither contributes to
-a ceiling either way.
+skipped rather than followed, and an unreadable file is passed over.
 
-The extension list is code only — `.yaml` is deliberately absent, because on a repository
-that has not ignored them a lock file or a CI matrix would raise the ceiling far more than
-it adds documentable domain. A test path is a test-shaped directory (`tests/`, `spec/`,
-`__tests__/`, …) or a test-shaped filename in any of the four conventions the majors use,
-so test volume cannot buy a bigger corpus. An allowlist always trails some language, and an
-unrecognised stack measures zero — which would pass every plan — so that case is reported
-as its own reason rather than as an ordinary pass.
+The extension list is code only — `.yaml` is deliberately absent, because a lock file or a
+CI matrix would raise the ceiling far more than it adds documentable domain. A test path is a
+test-shaped directory (`tests/`, `spec/`, `__tests__/`, …) or a test-shaped filename in any
+of the four conventions the majors use, so test volume cannot buy a bigger corpus. An
+unrecognised stack measures zero — which would pass every plan — so that case is reported as
+its own reason rather than as an ordinary pass.
 
 ### The ceilings
 
 `deriveCeilings()` computes `lines / SOURCE_LINES_PER_DOC` documents (420 source lines per
-document) and `lines × DOC_LINES_PER_SOURCE_LINE` doc-lines (0.25), each floored at
-`MIN_DOC_CEILING` (8) and `MIN_LINE_CEILING` (400) so that a small project is not handed an
-unusable budget. A repository measuring zero source lines gets ceilings of zero, which the
-check then treats as "no ceiling applies" rather than as a plan that fails everything.
+document) and `lines × DOC_LINES_PER_SOURCE_LINE` doc-lines (0.25), each rounded and then
+raised to at least `MIN_DOC_CEILING` (8) and `MIN_LINE_CEILING` (400). Zero source lines give
+ceilings of zero, which the check treats as "no ceiling applies".
+
+### Reading the roster
+
+`parsePlannedDocs()` takes the union of three line shapes, because none is complete alone:
+budget lines (`<path> — <Tier>, <n> lines`), ownership lines (`<path> — owns:`), and
+deliverable lines that *lead* with exactly one `.md` path and carry no `owns:`/`references:`.
+Fenced blocks and generated `INDEX.md`, `README.md` and `GLOSSARY.md` are never rostered. A
+budget without a tier counts only for `ARCHITECTURE.md`; elsewhere it is ignored, leaving the
+document unbudgeted. A bare basename merges into the one qualified path sharing it, and is
+reported `ambiguous-path` when several do.
 
 ### What a document is charged
 
-A **tier** is a statement about centrality, not about source size, and each tier's band
-comes from the level-of-detail policy the planning prompts carry: Core 100–200 lines,
-Supporting 60–120, Peripheral 25–60. A plan records a tier and an exact number per document.
-`docCost()` charges:
+A **tier** states centrality, not source size; its band comes from the level-of-detail policy
+the planning prompts carry: Core 100–200 lines, Supporting 60–120, Peripheral 25–60. `docCost()` charges:
 
 | Case | Charged |
 |------|---------|
@@ -82,13 +88,12 @@ plan mentions it, because it is written before the plan exists and is on disk re
 
 ### Statuses and reasons
 
-`checkPlanBudget()` returns `PASS`, `OVER` or `UNPARSEABLE`, plus every reason it found:
-`over-doc-count` and `over-line-budget` are the two that make a plan `OVER`;
-`empty-roster` and `one-sided-roster` mean the gate could not read the plan's decisions at
-all, which is `UNPARSEABLE` because a plan that was never checked must not pass silently;
-`no-measurable-source` passes but says so; and `unbudgeted`, `missing-ownership`,
-`below-tier` and `ambiguous-path` are reported alongside whatever the status is. Acting on
-a report — reporting inside a retry loop, or failing after it — belongs to
+`checkPlanBudget()` returns `PASS`, `OVER` or `UNPARSEABLE`, plus its reasons:
+`over-doc-count` and `over-line-budget` make a plan `OVER`; `empty-roster` and
+`one-sided-roster` mean the gate could not read the plan's decisions, which is `UNPARSEABLE`
+because an unchecked plan must not pass silently; `no-measurable-source` passes but says so.
+Those three are each returned alone, while `unbudgeted`, `missing-ownership`, `below-tier`
+and `ambiguous-path` accompany `PASS` or `OVER`. Acting on a report belongs to
 [corpus gates](../features/corpus-gates.md).
 
 ## Reference Implementations

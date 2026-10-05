@@ -19,8 +19,8 @@ Read in order: the architecture, then the core concepts, then the workflows.
 
 The concepts the rest of the corpus links to most often. Everything else assumes them.
 
-- [Script Registry](./concepts/script-registry.md) — The deterministic half of a flow: the id-to-handler map a `script:` step is dispatched through, and the contract between a step's arguments and a handler's return value.
 - [Backend Resolution](./concepts/backend-resolution.md) — How a run decides which agent CLI it drives and which model stands behind each model key its flow asks for.
+- [Script Registry](./concepts/script-registry.md) — The deterministic half of a flow: the id-to-handler map a `script:` step is dispatched through, and the contract between a step's arguments and a handler's return value.
 - [Agent Permissions](./concepts/agent-permissions.md) — The backend-neutral profile that says what a run lets the agent read, write, and run — and how each backend expresses it in its own CLI's permission syntax.
 - [Agent Interface](./concepts/agent-interface.md) — The one-method boundary every coding-agent CLI is driven through: `run(prompt, opts)` spawning a subprocess and reporting an exit code.
 

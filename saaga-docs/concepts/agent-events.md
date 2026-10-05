@@ -8,13 +8,14 @@ sources:
   - src/agent/copilot-agent.ts
   - src/agent/cursor-agent.ts
   - src/agent/kiro-agent.ts
+  - src/agent/codex-agent.ts
   - src/cli.ts
 terms:
   - AgentEvent
   - denial
   - denial class
   - permission auditor
-last_verified: 2026-09-28
+last_verified: 2026-10-05
 ---
 
 # Agent Events
@@ -24,8 +25,9 @@ last_verified: 2026-09-28
 The normalized facts Saaga extracts from a backend while it runs: which tool calls were
 refused, which toolset the session opened with, and what it cost. Every backend can be asked
 for newline-delimited JSON instead of prose, and each has a parser turning its dialect into
-the same event kinds — all three for claude only; copilot, cursor and kiro yield denials only
-(kiro reports usage in credits rather than tokens or dollars and never announces its tools). The
+the same event kinds — all three for claude only; codex yields denials and token usage; copilot,
+cursor and kiro yield denials only (kiro reports usage in credits rather than tokens or dollars).
+Only claude announces its tools. The
 point is not tidier output — it is that a refusal is reported
 by the CLI's own code rather than narrated by the model, whose narration varies and is
 sometimes wrong: copilot once blamed "/etc requires root privileges" for its own refusal.
@@ -46,7 +48,7 @@ sometimes wrong: copilot once blamed "/etc requires root privileges" for its own
 | `agent/events` | `AgentEvent`, `AgentEventSink`, `EventParser` | The event union, the callback, and the incremental parser contract |
 | `agent/events` | `consumeEvents()` | Drive a parser over a stream and forward every event to a sink |
 | `agent/events` | `LineSplitter`, `parseJsonLine()` | Reassemble whole lines from chunks; decode one, tolerantly |
-| `agent/{claude,copilot,cursor,kiro}-agent` | `createClaudeEventParser()`, `createCopilotEventParser()`, `createCursorEventParser()`, `createKiroEventParser()` | One parser per backend dialect |
+| `agent/{claude,copilot,cursor,kiro,codex}-agent` | `createClaudeEventParser()`, `createCopilotEventParser()`, `createCursorEventParser()`, `createKiroEventParser()`, `createCodexEventParser()` | One parser per backend dialect |
 | `agent/audit` | `classifyDenial()`, `DenialClass` | Place a denial against the profile |
 | `agent/audit` | `PermissionAuditor`, `AuditResult` | Collect denials over a run and write the classified summary |
 
@@ -62,6 +64,14 @@ kiro a message pattern too, on a `status: "failed"` Agent Client Protocol `tool_
 Kiro's two patterns — one for an action no rule allowed, one for an explicit deny — match
 only at the start of the message, after the optional `Output:` line kiro puts before shell
 results, so a failed grep whose output merely quotes the phrase is not a refusal.
+
+Codex is the one dialect read from two streams. A command its
+[hook](./agent-permissions.md) blocks never gets a JSONL item: the refusal is a
+`codex_core::tools::router` error line on stderr, yielding a `shell` denial with the command,
+and a `patch rejected:` line there that matches a denial pattern yields an `apply_patch` denial with no path. On stdout,
+`turn.completed` carries token usage (no cost, no turns), and a completed `command_execution`
+with a non-zero exit, or a `failed` `file_change` (one denial per changed path), counts when its
+output matches one too (`Saaga policy:`, `permission denied`, `read-only file system`, …).
 
 ### Denial classes
 
@@ -85,9 +95,9 @@ folding repeats into one line so a retried write cannot bury the one entry worth
 ## Reference Implementations
 
 - `src/agent/audit.ts` - classification, grouping, and the summary's layout
-- `src/agent/cursor-agent.ts` - `createCursorEventParser()`, the messiest of the four
-- `tests/agent/events.test.ts`, `tests/agent/audit.test.ts` - captured output per backend,
-  and each class with the grouped log a run produces
+- `src/agent/cursor-agent.ts` - `createCursorEventParser()`, the messiest dialect
+- `tests/agent/events.test.ts`, `tests/agent/codex-events.test.ts`, `tests/agent/audit.test.ts` -
+  captured output per backend, and each class with the grouped log a run produces
 
 ## Related Concepts
 

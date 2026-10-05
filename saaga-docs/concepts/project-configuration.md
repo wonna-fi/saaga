@@ -10,7 +10,7 @@ terms:
   - .saaga/config.yaml
   - .saagarules
   - unstable feature
-last_verified: 2026-09-28
+last_verified: 2026-10-05
 ---
 
 # Project Configuration
@@ -26,7 +26,7 @@ once per invocation, before any flow starts.
 
 | Source | Precedence | Description |
 |--------|------------|-------------|
-| CLI flags | 1 (highest) | `--backend`, `--model`, `--rule-targets`, `--yes` override the file per field |
+| CLI flags | 1 (highest) | `--backend`, `--model`, `--fast`/`--no-fast`, `--rule-targets`, `--yes` override the file per field |
 | `.saaga/config.yaml` | 2 | The project's own settings; an absent file means an empty config, not an error |
 | Built-in default | 3 | `agentsmd` for rule targets, `saaga-docs` for the corpus directory, no auto-approval |
 
@@ -35,7 +35,7 @@ once per invocation, before any flow starts.
 | Field | Validation |
 |-------|------------|
 | `defaultBackend` | Must be a string; the value itself is checked during [backend resolution](./backend-resolution.md) |
-| `backends` | Mapping keyed by `cursor`, `copilot`, `claude` or `kiro`; each entry accepts only `models`, a mapping of model key to model name |
+| `backends` | Mapping keyed by `cursor`, `copilot`, `claude`, `kiro` or `codex`; each entry accepts `models`, a mapping of model key to model name, and `codex` alone also `fast`, a boolean opting into codex's fast service tier |
 | `ruleTargets` | String or array of strings, normalized to a comma-separated string; selects the files [install-rules](../features/install-rules.md) writes |
 | `docsDir` | Must be a string; defaults to `DEFAULT_DOCS_DIR` |
 | `autoApprove` | Must be a boolean; skips the cost confirmation the same way `--yes` does |
@@ -91,9 +91,8 @@ permission constraints — see [prompt templates](./prompt-templates.md) for whe
 ## Internal Implementation
 
 > - `cli/config.parseBackendConfig()` - rejects any key under a backend other than
->   `models`, and maps the removed `modelLow`/`modelMedium`/`modelHigh` fields to a
->   migration hint naming their `models.<key>` replacement rather than a generic error.
-
+>   `models` (and `fast` under `codex`), and maps the removed `modelLow`/`modelMedium`/`modelHigh`
+>   fields to a migration hint naming their `models.<key>` replacement rather than a generic error.
 > **Observation:** unknown keys *under* `backends.<backend>` are rejected, but unknown
 > keys at the top level of the file are ignored. This may be intentional or a bug.
 

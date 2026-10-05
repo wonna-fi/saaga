@@ -32,6 +32,7 @@ definition verbatim — to change one, change the INDEX row it comes from.
 - [ceiling](./concepts/corpus-budget.md) — The two ceilings a documentation plan is held to — how many documents and how many lines — derived from the repository's own source rather than from the plan.
 - [charged lines](./concepts/corpus-budget.md) — The two ceilings a documentation plan is held to — how many documents and how many lines — derived from the repository's own source rather than from the plan.
 - [CLI Entry Point](./features/cli-entry-point.md) — The `saaga` command surface — `run`, `install-rules` and `doctor`, their flags and exit codes, and the lifecycle of a flow run from cost approval to the last line printed.
+- [CODEX_SHELL_COMMANDS](./concepts/agent-permissions.md) — The backend-neutral profile that says what a run lets the agent read, write, and run — and how each backend expresses it in its own CLI's permission syntax.
 - [corpus](./concepts/corpus-documents.md) — What a document in the corpus is: its frontmatter, its category, its place in the link graph, and the structural rules it must satisfy.
 - [Corpus Budget](./concepts/corpus-budget.md) — The two ceilings a documentation plan is held to — how many documents and how many lines — derived from the repository's own source rather than from the plan.
 - [Corpus Documents](./concepts/corpus-documents.md) — What a document in the corpus is: its frontmatter, its category, its place in the link graph, and the structural rules it must satisfy.
@@ -46,6 +47,7 @@ definition verbatim — to change one, change the INDEX row it comes from.
 - [Eval Harness](./features/eval-harness.md) — The repo-only experiment measuring whether the documentation corpus helps a coding agent: pre-registered tasks run in isolated sandboxes under different documentation conditions, scored and reported per condition.
 - [Extending Workflows](./patterns/extending-workflows.md) — The sequence of edits that changes what a flow does or adds a new one: the flow file, the prompts it names, the scope it must set, and an end-to-end test driven by the fake agent.
 - [fake agent](./concepts/agent-interface.md) — The one-method boundary every coding-agent CLI is driven through: `run(prompt, opts)` spawning a subprocess and reporting an exit code.
+- [fast tier](./concepts/backend-resolution.md) — How a run decides which agent CLI it drives and which model stands behind each model key its flow asks for.
 - [File Layout](./conventions/file-layout.md) — Where a module, its test, a built-in script, a flow file and a prompt template each live, and the filename-to-identifier correspondences that go with them.
 - [file manifest](./concepts/baseline-and-change-detection.md) — The manifest of every file a corpus was documented from, the ignore rules that decide what is in scope, and the four categories a later run files each difference under.
 - [flow](./concepts/flow-definitions.md) — A documentation workflow written as data: a YAML file of steps, the six primitives a step may be, and the validation that decides whether it loads.

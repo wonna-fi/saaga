@@ -16,7 +16,8 @@ terms:
   - AgentPermissions
   - restricted shell
   - ALLOWED_SHELL_COMMANDS
-last_verified: 2026-09-28
+  - CODEX_SHELL_COMMANDS
+last_verified: 2026-10-05
 ---
 
 # Agent Permissions
@@ -49,6 +50,7 @@ run directory, and passes it to every agent step; there is no per-step profile.
 - `buildProfile({ appPath, docsDir, runDir, allowDirs })` - the profile for a run
 - `enumerateExcludedPaths(keepPaths)` - the paths to deny so only `keepPaths` stay reachable
 - `ALLOWED_SHELL_COMMANDS` (constant) - the restricted shell policy, grouped `utilities` and `git`
+- `CODEX_SHELL_COMMANDS` (constant) - codex's wider variant of it
 
 ## Data Storage
 
@@ -77,6 +79,8 @@ template would churn the diff every time.
 | `agent/permissions` | `ALLOWED_SHELL_COMMANDS` | The restricted shell policy |
 | `agent/claude-agent` | `CLAUDE_RESTRICTED_TOOLS` | The tool surface a restricted claude run should be left with |
 | `agent/codex-agent` | `probeCodexExecutable()` | Ask codex which executable its restricted sandbox must be able to read; no model call |
+| `agent/codex-agent` | `CODEX_SHELL_COMMANDS` | Codex's shell policy, handed to its hook |
+| `agent/codex-hook` | `CODEX_HOOK_SCRIPT` | The `PreToolUse` hook source, run by Node with the policy as argv |
 | `agent/kiro-agent` | `buildKiroPermissionRules()`, `KiroPermissionRule` | Translate a profile into kiro v3 capability rules |
 | `agent/kiro-agent` | `realPathForms()`, `sweepStaleProfiles()`, `KIRO_PROFILE_MARKER` | Real-path variants of a path; the leftover-profile sweep and the marker it trusts |
 
@@ -88,6 +92,15 @@ permitted command must neither mutate the repository nor be a general escape hat
 anchor on the *subcommand*, which defeats `git -c core.pager='sh -c …' log`: that command
 begins `git -c`, not `git log`.
 
+Codex enforces a wider set, `CODEX_SHELL_COMMANDS` (adds `cat` and `rg`), through its
+`PreToolUse` hook `CODEX_HOOK_SCRIPT`, run as `node -e <script> <policy JSON>` — in argv so an
+agent cannot rewrite it via the writable run directory. Only words, quotes, `|` and `&&` pass;
+expansions, redirections, `;`, globs and newlines are refused, as are program-running git options
+(`--ext-diff`, `--textconv`, `--output`, … even abbreviated) and `rg --pre`/`--hostname-bin`. An
+allowed command is re-emitted fully quoted, git gaining `--no-pager` and `-c` overrides blanking
+its pager, external diff and signature programs. Tools other than the shell, `apply_patch` and
+`update_plan` are refused with `Saaga policy: <reason>`, as [agent events](./agent-events.md) parses.
+
 ### Per-backend translation
 
 | Backend | Allowed by | Denied by | Shell |
@@ -96,7 +109,7 @@ begins `git -c`, not `git log`.
 | `copilot` | `--available-tools` names the visible tools; `--allow-tool write` grants file changes inside the workspace | `--disallow-temp-dir`, and the workspace boundary itself; roots outside `cwd` are re-granted with `--add-dir` | `shell(cmd:*)` / `shell(git:sub*)` entries on `--allow-tool`, and `bash` withheld from the tool list otherwise |
 | `cursor` | Nothing: with `--trust`, reads and writes are permitted by default | A generated `<runDir>/.cursor-cli/cli-config.json`, reached via `CURSOR_CONFIG_DIR`, denying every path `enumerateExcludedPaths()` returns plus each `denyPath` | `Shell(cmd:*)` / `Shell(git:sub*)` allow entries — shell is the one default-deny surface |
 | `kiro` | `fs_read`/`fs_write` rules matching the read/write roots, in a temporary named agent under `~/.kiro/agents/` (kiro's v3 engine ignores `KIRO_HOME`) | Each allow's counterpart deny (`match: ["**"], exclude: <roots>`), plus an `fs_write` deny of the `denyPaths` (reads stay allowed) and one per name in `DENIED_CAPABILITIES` (`mcp`, `power`, `subagent`, `skill`, `web_fetch`, `web_search`) | A `shell` allow for the same commands paired with a `match: ["*"]` deny excluding them, or a bare `shell` deny under `shell: "none"` |
-| `codex` | A named `saaga` filesystem permission set passed via `--config`: `write` for each surviving write root, `read` for read roots, network disabled, project pinned `untrusted`, user config and rules ignored | Protected paths (`denyPaths`, plus `.git`, `.codex`, `.agents` under each root) are re-granted `read` only, which removes the parent's write grant; roots inside a protected path get no write grant. Codex's own native binary, which it re-executes inside bubblewrap for each shell command, gets a `read` grant for that one file (never its directory), found by `probeCodexExecutable()` — a `codex sandbox … true` run whose bwrap exec failure names the binary — unless a root already covers it | Codex's shell tool, gated by a `PreToolUse` hook (`codex-hook`) that takes the policy as argv and accepts only allow-listed commands, pipes and `&&`; shell tool off under `shell: "none"` |
+| `codex` | A named `saaga` filesystem permission set passed via `--config`: `:minimal` system reads, `write` for each surviving write root, `read` for read roots; `--ignore-user-config --ignore-rules --strict-config`, and the project pinned `untrusted` so its own config and hooks cannot widen the run | Protected paths (`denyPaths`, plus `.git`, `.codex`, `.agents` under each root) are re-granted `read` only, which removes the parent's write grant; roots inside a protected path get no write grant. Network, web search, apps, plugins and multi-agent are off. Codex's own native binary, which it re-executes inside bubblewrap for each shell command, gets a `read` grant for that one file (never its directory), found by `probeCodexExecutable()` — a `codex sandbox … true` run whose bwrap exec failure names the binary, `undefined` on any failure — unless a root already covers it | The shell tool behind the `PreToolUse` hook above, with no login shell and an environment of only a fixed `PATH`; the tool is off under `shell: "none"` |
 
 Two structural differences drive most of that table. Under cursor's `--trust` a deny overrides
 any allow, so the permitted set cannot be stated positively and has to be carved out instead:
@@ -135,7 +148,8 @@ and every path appears in its given and real-path forms (`realPathForms()`): kir
 - `src/agent/permissions.ts` - the profile, the shell policy, and the exclusion walk
 - `src/agent/cursor-agent.ts` - `writeCursorConfig()`, the deny-only translation in full
 - `tests/agent/permissions.test.ts` - what `buildProfile()` grants and withholds
-- `tests/agent/{claude,copilot,kiro}-agent.test.ts` - the argv, settings and kiro rules a profile produces
+- `tests/agent/{claude,copilot,kiro,codex}-agent.test.ts` - the argv, settings and kiro rules a profile produces
+- `tests/agent/codex-hook.test.ts` - commands the codex hook allows, rewrites and refuses
 
 ## Related Concepts
 

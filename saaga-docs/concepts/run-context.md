@@ -9,7 +9,7 @@ terms:
   - run id
   - run directory
   - run manifest
-last_verified: 2026-09-01
+last_verified: 2026-10-05
 ---
 
 # Run Context
@@ -32,7 +32,7 @@ as in the id) and `isoDate` (`YYYY-MM-DD`, the form document frontmatter uses).
 |--------|-------|---------|
 | `run.json` | `runId`, `flow`, `flowHash` | Which run this is, and the flow definition it started with |
 | `run.json` | `app`, `appPath`, `docsDir` | The target it was launched against |
-| `run.json` | `backend`, `models` | The [backend and model pins](./backend-resolution.md) to reapply on resume |
+| `run.json` | `backend`, `models`, `fast` | The [backend, model and codex fast-tier pins](./backend-resolution.md) to reapply on resume; `fast` is absent for other backends |
 | `run.json` | `initialScope` | The scope `runFlow()` was started with, reused verbatim on resume |
 | `run.json` | `status`, `pid`, `startedAt`, `resumedAt`, `lastError` | The outcome so far, and who last owned the run |
 

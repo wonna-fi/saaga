@@ -10,6 +10,7 @@ sources:
   - src/agent/copilot-agent.ts
   - src/agent/cursor-agent.ts
   - src/agent/kiro-agent.ts
+  - src/agent/codex-agent.ts
   - src/agent/fake-agent.ts
   - src/cli/backend.ts
   - src/cli/config.ts
@@ -18,7 +19,7 @@ sources:
   - src/doctor/probes.ts
   - src/doctor/index.ts
   - src/doctor/kiro-probes.ts
-last_verified: 2026-09-28
+last_verified: 2026-10-05
 ---
 
 # Adding Agent Backends
@@ -70,13 +71,15 @@ function buildGeminiArgs(model: string, prompt: string, opts: AgentRunOpts): str
 
 Then `src/cli/backend.ts`: add `"gemini"` to the `Backend` union and `ALLOWED_BACKENDS`, give it
 entries in `DEFAULT_BACKEND_MODELS` and `BACKEND_CLI_COMMANDS`, add its `createAgent()` branch, and
-extend the invalid-backend message — `src/cli/config.ts` holds its own copy of both. Then the
+extend the invalid-backend message — `src/cli/config.ts` holds its own copy of both, and its
+`parseBackendConfig()` is where a backend-only key goes (as codex's `fast`). Then the
 `src/doctor/` files, whose literal backend lists silently pass over a name they omit: `required-flags.ts`
 (`REQUIRED_CLI_FLAGS` gets every flag step 2 can emit; `BACKEND_HELP_ARGS` names the subcommand
 if they live under one), `full-probes.ts` (`PATH_SCOPING_BACKENDS` if it can scope writes, and
 the three restricted-shell probes), `probes.ts` (`PROBE_CATALOGUE` repeats those arrays), and
 `index.ts` (`runDoctor()` expands `--backend all` from a literal array; `runUnknownModelProbe()`
-picks argv from a `===` chain that falls through to claude's flags). A CLI with account state a
+picks argv from a `===` chain that falls through to claude's flags, and `unknownModelOutcome()`
+needs its own branch if the CLI echoes the requested model, as codex does). A CLI with account state a
 run could trip over gets its own fast-probe module under `<backend>/` ids, as
 `src/doctor/kiro-probes.ts` does, called from the fast-tier dispatch in `index.ts`. Finally
 `tests/agent/gemini-agent.test.ts` for the argv under both profiles, and a captured-output case
@@ -104,6 +107,7 @@ in `tests/agent/events.test.ts`.
 | `src/agent/cursor-agent.ts` | `CursorAgent`, `createCursorEventParser()` | What a deny-only CLI takes: a generated config file and an env override |
 | `src/agent/copilot-agent.ts` | `CopilotAgent` | The minimum, plus a pre/post workaround kept in a `finally` |
 | `src/agent/kiro-agent.ts` | `KiroAgent`, `buildKiroArgs()`, `buildKiroPermissionRules()` | A subcommand CLI (`chat`), process-group signalling, a login-hang guard, a profile outside the run directory |
+| `src/agent/codex-agent.ts` | `CodexAgent`, `buildCodexArgs()`, `probeCodexExecutable()` | A profile passed as `--config` TOML, a shell gated by a hook whose policy rides in argv, a pre-run probe feeding the sandbox, stderr parsed through a transform, and a backend-only option (`fast`) |
 | `src/doctor/kiro-probes.ts` | `runKiroAccountProbes()` | A backend-specific fast-probe module, testable through an injected command runner |
 | `src/agent/fake-agent.ts` | `FakeAgent` | The contract without a subprocess; how the CLI tests drive flows |
 
@@ -112,7 +116,8 @@ in `tests/agent/events.test.ts`.
 **Do NOT:**
 
 - Await the process and read its output afterwards, or pipe stderr too — both deadlock a run
-  as soon as the transcript fills a pipe buffer.
+  as soon as the transcript fills a pipe buffer. Stderr worth parsing goes through an execa
+  transform, as in `CodexAgent`.
 - Throw on a non-zero exit. The exit code is the result; the runner decides what it means.
 - Rely on `cancelSignal` when the binary is a launcher whose child ignores signals sent to it
   alone: spawn it detached and signal the process group, as `KiroAgent` does.

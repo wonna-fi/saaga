@@ -17,7 +17,7 @@ terms:
   - AgentRunOpts
   - AgentRunResult
   - fake agent
-last_verified: 2026-09-28
+last_verified: 2026-10-05
 ---
 
 # Agent Interface
@@ -44,7 +44,7 @@ the whole set; [adding agent backends](../patterns/adding-agent-backends.md) cov
 | `copilot` | `copilot` | `-p <prompt>` | `--allow-all-tools --no-ask-user --no-auto-update` | `--output-format json` (JSONL) |
 | `cursor` | `cursor-agent` | trailing positional | `--print --force` | `--output-format stream-json`, else `text` |
 | `kiro` | `kiro-cli` | trailing positional, after `chat --no-interactive --v3 --model <m>` | `--trust-all-tools` | `--output-format stream-json`, else `text`; a profile swaps `--trust-all-tools` for `--agent <name>` |
-| `codex` | `codex` | trailing positional after `--`, following `exec --model <m> --ephemeral` | `--dangerously-bypass-approvals-and-sandbox` | `--json` when a sink is attached; hook rejections arrive on stderr, so stderr is parsed too |
+| `codex` | `codex` | trailing positional after `--`, following `exec --model <m> --ephemeral --skip-git-repo-check --color never` and the `--config` pairs | `--dangerously-bypass-approvals-and-sandbox` | `--json` when a sink is attached; hook rejections arrive on stderr, so stderr is parsed too |
 
 The quirks are load-bearing: `CopilotAgent` renames `<cwd>/.gitignore` to
 `.gitignore.<hex>.bak` for the call and restores it in a `finally`, because copilot's glob
@@ -61,6 +61,10 @@ text mode as well so this guard can read it. The fast-tier `kiro/auth` probe in
 [doctor](../features/doctor.md) catches the same state before a run starts. Finally, kiro is
 spawned with `PWD` set to `cwd`: its shell tool reports an inherited `$PWD`, so a symlinked
 workspace (macOS `/var` → `/private/var`) would otherwise appear under another path.
+`CodexAgent` always passes `--config service_tier=…`, `"fast"` when constructed with `fast`
+and `"default"` otherwise. Under a profile it first locates its own executable for the
+[sandbox grant](./agent-permissions.md) and creates every missing writable root, since codex
+cannot create one inside its read-only parent.
 
 ## Configuration
 
@@ -70,11 +74,12 @@ workspace (macOS `/var` → `/private/var`) would otherwise appear under another
 | The model passed to the constructor | 2 | The run's base model, used when a call names none |
 
 One `Agent` instance therefore serves a whole run whose steps ask for different models; see
-[backend resolution](./backend-resolution.md) for where both come from. The `ci` flag the
-constructors also take is inert: `ClaudeAgent`, `CursorAgent` and `KiroAgent` store and never read it.
+[backend resolution](./backend-resolution.md) for where both, and codex's `fast`, come from.
+The `ci` flag is inert: `ClaudeAgent`, `CursorAgent` and `KiroAgent` store and never read it,
+`CopilotAgent` discards it, and `CodexAgent` does not take it.
 
 **How to access:**
-- `createAgent({ backend, model, ci })` - the concrete agent for a backend
+- `createAgent({ backend, model, ci, fast })` - the concrete agent for a backend
 - `agent.run(prompt, opts)` - one agent invocation
 - `agent.name` (string) - the backend's name, as printed in the run banner
 
@@ -116,13 +121,14 @@ CLI tests drive whole flows without spending anything.
 > - `agent/spawn.awaitProcess()` - drains stdout *concurrently* with awaiting the process: a
 >   long transcript fills the pipe buffer and the child blocks on write while the parent waits
 >   for an exit that cannot come. A backend that awaits first and reads afterwards deadlocks;
->   `buildPipedStdio()` pipes only stdout for the same reason.
+>   `buildPipedStdio()` pipes only stdout for the same reason. `CodexAgent` reads stderr
+>   without piping it, through an execa line transform ahead of its normal sinks.
 
 ## Reference Implementations
 
 - `src/agent/claude-agent.ts` - the fullest backend: argv, settings JSON, both permission paths
 - `src/agent/fake-agent.ts` - the contract with the subprocess removed
-- `tests/agent/{claude,copilot,cursor,kiro}-agent.test.ts` - argv, stdio, model override, kiro's signalling
+- `tests/agent/{claude,copilot,cursor,kiro,codex}-agent.test.ts` - argv, stdio, model override, kiro's signalling
 
 ## Related Concepts
 

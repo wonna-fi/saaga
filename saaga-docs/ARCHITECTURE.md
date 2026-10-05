@@ -1,7 +1,7 @@
 ---
 title: Architecture
 type: architecture
-last_verified: 2026-09-28
+last_verified: 2026-10-05
 sources:
   - src/
   - flows/
@@ -16,7 +16,7 @@ sources:
 # Architecture
 
 Saaga is a Node CLI that drives an external coding-agent CLI — Cursor, Copilot, Claude,
-or Kiro — through a declarative workflow that writes, verifies, and maintains a
+Kiro, or Codex — through a declarative workflow that writes, verifies, and maintains a
 domain documentation corpus for a target application, and installs always-on agent
 rules so other agents read that corpus before touching source.
 
@@ -107,7 +107,7 @@ script execution are delegated: it depends on the `Agent` interface and the regi
 ### `src/agent/` — agent backends
 
 Implements the single [`Agent` interface](./concepts/agent-interface.md) once per
-supported CLI (Cursor, Copilot, Claude, Kiro, plus a fake used by tests), translating a
+supported CLI (Cursor, Copilot, Claude, Kiro, Codex, plus a fake used by tests), translating a
 rendered prompt and a permission profile into that CLI's own argv and permission
 syntax. Also owns the [permission profile](./concepts/agent-permissions.md) itself,
 [agent event parsing](./concepts/agent-events.md), subprocess streaming, and denial
@@ -149,7 +149,7 @@ the filesystem.
 ### `src/run-context.ts`, `src/run-manifest.ts` — run identity
 
 [Allocate a run id and its directory under `<app>/.saaga-runs/`](./concepts/run-context.md),
-and record what a run was — flow, flow hash, backend, models, initial scope, status
+and record what a run was — flow, flow hash, backend, models, fast tier, initial scope, status
 — so a later invocation can find an interrupted run and resume it consistently.
 `src/run-context.ts` has no dependencies within `src/`; `src/run-manifest.ts`
 depends on `src/model-keys.ts` and on the engine's `Scope` type.
