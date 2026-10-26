@@ -75,8 +75,8 @@ function architectureScenario(): FakeScenarioValue {
 
 /**
  * A slice writer that actually writes: it reads the plan the prompt names and
- * creates every document the roster parser finds in it, which is the same
- * roster the gate checks.
+ * creates every document the roster parser finds in it, a superset of what
+ * the gate checks.
  */
 function sliceScenario(): FakeScenarioValue {
   return {
@@ -132,6 +132,11 @@ phases:
 ---
 
 # Plan body
+
+## Phase 1
+
+- concepts/alpha.md — Core, 100 lines
+- concepts/alpha.md — owns: alpha; references: none
 `;
 
 describe("saaga run init", () => {
@@ -206,6 +211,16 @@ phases:
 ---
 
 # Plan body
+
+## Phase 1
+
+- concepts/alpha.md — Core, 100 lines
+- concepts/alpha.md — owns: alpha; references: none
+
+## Phase 2
+
+- features/login.md — Supporting, 60 lines
+- features/login.md — owns: login; references: none
 `;
 
     const fake = new FakeAgent({
@@ -398,6 +413,11 @@ phases:
 ---
 
 # Plan body
+
+## Phase 1
+
+- concepts/alpha.md — Core, 100 lines
+- concepts/alpha.md — owns: alpha; references: none
 `;
 
     const fake = new FakeAgent({
@@ -1096,6 +1116,16 @@ phases:
 - features/login.md — owns: login; references: none
 `;
 
+  /** The error the run fails with; a run that succeeds fails the test. */
+  async function failureOf(run: Promise<number>): Promise<Error> {
+    return run.then(
+      (code) => {
+        throw new Error(`expected the run to fail, but it exited ${code}`);
+      },
+      (e: unknown) => e as Error,
+    );
+  }
+
   /** The run directory of the one run this app has had. */
   async function manifestOf(app: string): Promise<{ status: string }> {
     const [runDir] = await readdir(join(app, ".saaga-runs"));
@@ -1117,12 +1147,8 @@ phases:
     });
 
     const err = new StringWritable();
-    const thrown = await runCli(["run", "init", app], {
-      agent: fake,
-      stderr: err,
-    }).catch((e: unknown) => e as Error);
+    const thrown = await failureOf(runCli(["run", "init", app], { agent: fake, stderr: err }));
 
-    expect(thrown).toBeInstanceOf(Error);
     expect(thrown.message).toContain("were never written");
     // All three: the architecture document the plan never names, and both
     // documents phase 1 promised.
@@ -1136,10 +1162,9 @@ phases:
     await expect(stat(join(app, DEFAULT_DOCS_DIR, "BASELINE"))).rejects.toThrow();
     expect((await manifestOf(app)).status).toBe("failed");
 
-    // Resuming replays the journal and reaches the same verdict, so the hint
-    // is suppressed.
-    expect(err.text).toContain("failed.");
-    expect(err.text).not.toContain("To resume");
+    // Resuming skips the agent steps but runs this check again, so once the
+    // documents are written the run can still finish: the hint stays.
+    expect(err.text).toContain("failed. To resume: saaga run --resume");
   });
 
   test("a partly written corpus names only what is missing", async () => {
@@ -1163,14 +1188,80 @@ phases:
       "Document a Plan Slice": halfSlice,
     });
 
-    const thrown = await runCli(["run", "init", app], { agent: fake }).catch(
-      (e: unknown) => e as Error,
-    );
+    const thrown = await failureOf(runCli(["run", "init", app], { agent: fake }));
 
     expect(thrown.message).toContain("1 of 3 documents");
     expect(thrown.message).toContain("saaga-docs/features/login.md");
     expect(thrown.message).not.toContain("alpha.md");
     await expect(stat(join(app, DEFAULT_DOCS_DIR, "BASELINE"))).rejects.toThrow();
+  });
+
+  test("writing the missing document by hand and resuming finishes the run", async () => {
+    const { app } = await tmpAppEnv("byhand");
+    const docs = join(app, DEFAULT_DOCS_DIR);
+    const alphaOnly: FakeScenarioValue = {
+      exitCode: 0,
+      effect: async () => {
+        await mkdir(join(docs, "concepts"), { recursive: true });
+        await writeFile(join(docs, "concepts", "alpha.md"), "# Alpha\n", "utf8");
+      },
+    };
+    const fake = new FakeAgent({
+      "Document the Architecture": architectureScenario(),
+      "Plan Domain Documentation": planInitScenario(PLAN).scenario,
+      "Verify the Architecture Document": verifyScenario(() => "PASS"),
+      "Verify Domain Documentation Slice": verifyScenario(() => "PASS"),
+      "Document a Plan Slice": alphaOnly,
+    });
+
+    const stderr = new StringWritable();
+    const thrown = await failureOf(runCli(["run", "init", app], { agent: fake, stderr }));
+    expect(thrown.message).toContain("saaga-docs/features/login.md");
+
+    await mkdir(join(docs, "features"), { recursive: true });
+    await writeFile(join(docs, "features", "login.md"), "# Login\n", "utf8");
+
+    // Every agent step already ran, so an agent call on resume would throw.
+    const [id] = await readdir(join(app, ".saaga-runs"));
+    const none = new FakeAgent({});
+    expect(
+      await runCli(["run", "--resume", id, app], { agent: none, stderr: new StringWritable() }),
+    ).toBe(0);
+    expect(none.calls).toHaveLength(0);
+    expect((await stat(join(docs, "BASELINE"))).isFile()).toBe(true);
+    expect((await manifestOf(app)).status).toBe("completed");
+  });
+
+  test("markdown source files a slice names do not fail a complete corpus", async () => {
+    const { app } = await tmpAppEnv("keyfiles");
+    const plan =
+      PLAN +
+      "- **Key files to analyze**:\n" +
+      "  - `CONTRIBUTING.md` — the release checklist login follows\n" +
+      "  - docs/decisions.md — why login works this way\n";
+
+    // Writes the two planned documents and nothing else, independent of the
+    // roster parser the check uses.
+    const writer: FakeScenarioValue = {
+      exitCode: 0,
+      effect: async (opts) => {
+        const docs = join(opts.cwd, DEFAULT_DOCS_DIR);
+        for (const doc of ["concepts/alpha.md", "features/login.md"]) {
+          await mkdir(dirname(join(docs, doc)), { recursive: true });
+          await writeFile(join(docs, doc), `# ${doc}\n`, "utf8");
+        }
+      },
+    };
+    const fake = new FakeAgent({
+      "Document the Architecture": architectureScenario(),
+      "Plan Domain Documentation": planInitScenario(plan).scenario,
+      "Verify the Architecture Document": verifyScenario(() => "PASS"),
+      "Verify Domain Documentation Slice": verifyScenario(() => "PASS"),
+      "Document a Plan Slice": writer,
+    });
+
+    expect(await runCli(["run", "init", app], { agent: fake })).toBe(0);
+    expect((await stat(join(app, DEFAULT_DOCS_DIR, "BASELINE"))).isFile()).toBe(true);
   });
 
   test("a complete corpus baselines and stamps as before", async () => {

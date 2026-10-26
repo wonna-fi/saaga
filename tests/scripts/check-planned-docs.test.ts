@@ -90,12 +90,11 @@ describe("check-planned-docs", () => {
    * the architecture step reported success and wrote nothing.
    */
   test("requires ARCHITECTURE.md even when the plan never names it", async () => {
-    const env = await tmpEnv(planFor([]));
+    const env = await tmpEnv(planFor(["concepts/alpha.md"]), ["concepts/alpha.md"]);
 
     const err = await checkPlannedDocs(args(env), { cwd: env.app }).catch((e) => e);
-    expect(err).toBeInstanceOf(NonResumableError);
     expect(err.message).toContain(`${DOCS_DIR}/ARCHITECTURE.md`);
-    expect(err.message).toContain("1 of 1 documents");
+    expect(err.message).toContain("1 of 2 documents");
   });
 
   test("names every missing document and none of the present ones", async () => {
@@ -106,13 +105,85 @@ describe("check-planned-docs", () => {
     ]);
 
     const err = await checkPlannedDocs(args(env), { cwd: env.app }).catch((e) => e);
-    expect(err).toBeInstanceOf(NonResumableError);
     expect(err.message).toContain("2 of 4 documents");
     expect(err.message).toContain(`${DOCS_DIR}/concepts/beta.md`);
     expect(err.message).toContain(`${DOCS_DIR}/features/login.md`);
     expect(err.message).not.toContain("concepts/alpha.md");
-    // Resuming replays the journal, so the recovery is a re-init.
+  });
+
+  // The step reads the plan and the disk afresh on every attempt, so a corpus
+  // completed by hand passes on resume. Suppressing the resume hint would
+  // leave a full re-init, every slice included, as the only way out.
+  test("a missing document is a plain Error with both ways out", async () => {
+    const env = await tmpEnv(planFor(["concepts/alpha.md"]), ["ARCHITECTURE.md"]);
+
+    const err = await checkPlannedDocs(args(env), { cwd: env.app }).catch((e) => e);
+    expect(err).not.toBeInstanceOf(NonResumableError);
+    expect(err.message).toContain(`remove them from the plan at ${env.plan}, and then resume`);
     expect(err.message).toContain(`delete ${DOCS_DIR}/`);
+  });
+
+  // The roster parser charges budget for any line that leads with a `.md`
+  // path, so a slice's "Key files to analyze" can put source files on it.
+  // They are not documents this run writes.
+  test("markdown source files a slice names are not required", async () => {
+    const plan =
+      `${PHASES}\n## Phase 1\n\n` +
+      docLines("concepts/alpha.md") +
+      "- **Key files to analyze**:\n" +
+      "  - `CONTRIBUTING.md` — the release checklist the flow follows\n" +
+      "  - docs/decisions.md — the decision ledger\n" +
+      "  `.claude/skills/x/SKILL.md`, `package.json`\n";
+    const env = await tmpEnv(plan, ["ARCHITECTURE.md", "concepts/alpha.md"]);
+
+    expect(await checkPlannedDocs(args(env), { cwd: env.app })).toEqual({
+      expected: 2,
+      missing: 0,
+    });
+  });
+
+  // A bare basename two categories share stays on the roster uncollapsed; it
+  // names no folder, so there is no one path to require.
+  test("a basename two categories share is not required on its own", async () => {
+    const plan =
+      `${PHASES}\n## Phase 1\n\n` +
+      docLines("concepts/payments.md") +
+      docLines("features/payments.md") +
+      "- `payments.md` is Core: everything else links to it\n";
+    const env = await tmpEnv(plan, [
+      "ARCHITECTURE.md",
+      "concepts/payments.md",
+      "features/payments.md",
+    ]);
+
+    expect(await checkPlannedDocs(args(env), { cwd: env.app })).toEqual({
+      expected: 3,
+      missing: 0,
+    });
+  });
+
+  // The budget gate refuses an unreadable plan only when it measured some
+  // source, so this step has to refuse one too rather than check
+  // ARCHITECTURE.md alone.
+  test("a plan with domain phases but no readable documents fails", async () => {
+    const plan =
+      `${PHASES}\n## Phase 1\n\n` +
+      "| Document | Tier |\n|---|---|\n| concepts/alpha.md | Core |\n";
+    const env = await tmpEnv(plan, ["ARCHITECTURE.md"]);
+
+    await expect(checkPlannedDocs(args(env), { cwd: env.app })).rejects.toThrow(
+      /declares domain phases but names no documents/,
+    );
+  });
+
+  test("a plan with no domain phases requires ARCHITECTURE.md alone", async () => {
+    const plan = `---\nphases:\n  - number: 0\n    title: "Setup"\n---\n`;
+    const env = await tmpEnv(plan, ["ARCHITECTURE.md"]);
+
+    expect(await checkPlannedDocs(args(env), { cwd: env.app })).toEqual({
+      expected: 1,
+      missing: 0,
+    });
   });
 
   test("a directory at a document's path does not count as the document", async () => {

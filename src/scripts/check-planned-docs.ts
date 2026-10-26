@@ -1,8 +1,12 @@
 import { readFile, stat } from "node:fs/promises";
 import { resolve } from "node:path";
 
-import { ARCHITECTURE_DOC, parsePlannedDocs } from "../docs/corpus-budget.js";
-import { NonResumableError } from "../engine/errors.js";
+import {
+  ARCHITECTURE_DOC,
+  countNonZeroPhases,
+  parsePlannedDocs,
+} from "../docs/corpus-budget.js";
+import { CATEGORY_ORDER } from "../docs/navigation.js";
 import type { ScriptContext } from "./registry.js";
 
 export interface CheckPlannedDocsArgs {
@@ -53,11 +57,30 @@ export async function checkPlannedDocs(
     throw new Error(`check-planned-docs: cannot read the plan at ${plan}`);
   }
 
-  // The same roster the budget gate holds the plan to, plus ARCHITECTURE.md:
-  // it is written before the plan exists and is expected on disk whether or
-  // not the plan records its decisions.
-  const paths = parsePlannedDocs(planText, docsDir).docs.map((d) => d.path);
-  if (!paths.includes(ARCHITECTURE_DOC)) paths.unshift(ARCHITECTURE_DOC);
+  // The budget gate's roster, narrowed to documents filed under a category
+  // folder, where every writer template puts them. The roster over-counts on
+  // purpose, because any line that leads with a `.md` path costs budget. Here
+  // that would demand a source file named under "Key files to analyze"
+  // (`CONTRIBUTING.md`, `.claude/skills/x/SKILL.md`), or a basename two
+  // categories share, inside the docs directory, and fail a complete corpus.
+  const paths = parsePlannedDocs(planText, docsDir)
+    .docs.map((d) => d.path)
+    .filter(isCategoryDoc);
+
+  // The budget gate's empty-roster guard is skipped when the repository has no
+  // source it can measure, so an unreadable plan can reach this step. Passing
+  // it would check ARCHITECTURE.md alone.
+  if (paths.length === 0 && countNonZeroPhases(planText) > 0) {
+    throw new Error(
+      `check-planned-docs: the plan at ${plan} declares domain phases but names no ` +
+        `documents under ${CATEGORY_ORDER.map((c) => `${docsDir}/${c}/`).join(", ")}, ` +
+        `so the corpus cannot be checked against it`,
+    );
+  }
+
+  // Written before the plan exists, so it is expected on disk whether or not
+  // the plan records its decisions.
+  paths.unshift(ARCHITECTURE_DOC);
 
   const missing: string[] = [];
   for (const path of paths) {
@@ -67,17 +90,27 @@ export async function checkPlannedDocs(
   if (missing.length > 0) {
     const listed = missing.slice(0, MAX_LISTED).map((p) => `${docsDir}/${p}`);
     const rest = missing.length - listed.length;
-    throw new NonResumableError(
+    // A plain Error, so the resume hint prints: this step reads the plan and
+    // the disk afresh on every attempt, and resuming skips the agent steps
+    // that already ran, so a corpus completed by hand is not thrown away.
+    throw new Error(
       `check-planned-docs: ${missing.length} of ${paths.length} documents the plan ` +
         `names were never written to ${docsDir}/: ${listed.join(", ")}` +
         `${rest > 0 ? ` and ${rest} more` : ""}. ` +
         `The agent steps that should have written them reported success, so the ` +
-        `corpus is incomplete and no baseline was written. Resuming replays the same ` +
-        `steps, so delete ${docsDir}/ and run 'saaga run init' again.`,
+        `corpus is incomplete and no baseline was written. Resuming does not run ` +
+        `those steps again: write the missing documents, or remove them from the ` +
+        `plan at ${plan}, and then resume. To start over instead, delete ${docsDir}/ ` +
+        `and run 'saaga run init' again.`,
     );
   }
 
   return { expected: paths.length, missing: 0 };
+}
+
+function isCategoryDoc(path: string): boolean {
+  const [category, ...rest] = path.split("/");
+  return rest.length > 0 && CATEGORY_ORDER.includes(category);
 }
 
 async function isFile(path: string): Promise<boolean> {

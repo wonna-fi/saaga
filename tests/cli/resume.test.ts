@@ -41,6 +41,11 @@ phases:
 ---
 
 # Plan body
+
+## Phase 1
+
+- concepts/core.md — Core, 100 lines
+- concepts/core.md — owns: core; references: none
 `;
 
 function planInitScenario(): FakeScenarioValue {
@@ -83,13 +88,25 @@ function verifyScenario(): FakeScenarioValue {
   };
 }
 
+/** Writes the one document the plan names; phase 0 has nothing to write. */
+function sliceScenario(): FakeScenarioValue {
+  return {
+    exitCode: 0,
+    effect: async (opts) => {
+      const concepts = join(opts.cwd, DEFAULT_DOCS_DIR, "concepts");
+      await mkdir(concepts, { recursive: true });
+      await writeFile(join(concepts, "core.md"), "# Core\n", "utf8");
+    },
+  };
+}
+
 /** A working agent for the whole init flow. */
 function healthyAgent(): FakeAgent {
   return new FakeAgent({
     "Document the Architecture": architectureScenario(),
     "Verify the Architecture Document": verifyScenario(),
     "Plan Domain Documentation": planInitScenario(),
-    "Document a Plan Slice": { exitCode: 0 },
+    "Document a Plan Slice": sliceScenario(),
     "Verify Domain Documentation Slice": verifyScenario(),
   });
 }
