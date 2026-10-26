@@ -1,6 +1,7 @@
 import { archiveQuickUpdate } from "./archive-quick-update.js";
 import { checkFormatVersion } from "./check-format-version.js";
 import { checkPlanBudgetScript } from "./check-plan-budget.js";
+import { checkPlannedDocs } from "./check-planned-docs.js";
 import { cleanupQuickUpdateDir } from "./cleanup-quick-update-dir.js";
 import { collectQuickUpdates } from "./collect-quick-updates.js";
 import { detectChanges } from "./detect-changes.js";
@@ -51,6 +52,7 @@ export const defaultScriptRegistry: ScriptRegistry = {
   "ensure-gitignore": ensureGitignore as unknown as ScriptHandler,
   "check-format-version": checkFormatVersion as unknown as ScriptHandler,
   "check-plan-budget": checkPlanBudgetScript as unknown as ScriptHandler,
+  "check-planned-docs": checkPlannedDocs as unknown as ScriptHandler,
   "stamp-format-version": stampFormatVersion as unknown as ScriptHandler,
   "generate-navigation": generateNavigation as unknown as ScriptHandler,
   "validate-docs": validateDocs as unknown as ScriptHandler,

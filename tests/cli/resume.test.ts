@@ -5,6 +5,7 @@ import { Writable } from "node:stream";
 import { describe, expect, test } from "vitest";
 import { FakeAgent, type FakeScenarioValue } from "../../src/agent/fake-agent.js";
 import { runCli } from "../../src/cli.js";
+import { DEFAULT_DOCS_DIR } from "../../src/cli/config.js";
 import {
   manifestModels,
   readManifest,
@@ -40,6 +41,11 @@ phases:
 ---
 
 # Plan body
+
+## Phase 1
+
+- concepts/core.md — Core, 100 lines
+- concepts/core.md — owns: core; references: none
 `;
 
 function planInitScenario(): FakeScenarioValue {
@@ -50,6 +56,22 @@ function planInitScenario(): FakeScenarioValue {
       if (!m) throw new Error("plan path not found in plan-init prompt");
       await mkdir(dirname(m[1]), { recursive: true });
       await writeFile(m[1], PLAN, "utf8");
+    },
+  };
+}
+
+/**
+ * `init` refuses to baseline a corpus whose planned documents are missing, so
+ * the architecture writer leaves its document on disk. It survives into the
+ * resumed run, where the step itself is replayed from the journal.
+ */
+function architectureScenario(): FakeScenarioValue {
+  return {
+    exitCode: 0,
+    effect: async (opts) => {
+      const docs = join(opts.cwd, DEFAULT_DOCS_DIR);
+      await mkdir(docs, { recursive: true });
+      await writeFile(join(docs, "ARCHITECTURE.md"), "# Architecture\n", "utf8");
     },
   };
 }
@@ -66,13 +88,26 @@ function verifyScenario(): FakeScenarioValue {
   };
 }
 
+/** Writes the one document the plan names, and the index of its category. */
+function sliceScenario(): FakeScenarioValue {
+  return {
+    exitCode: 0,
+    effect: async (opts) => {
+      const concepts = join(opts.cwd, DEFAULT_DOCS_DIR, "concepts");
+      await mkdir(concepts, { recursive: true });
+      await writeFile(join(concepts, "INDEX.md"), "# Concepts\n", "utf8");
+      await writeFile(join(concepts, "core.md"), "# Core\n", "utf8");
+    },
+  };
+}
+
 /** A working agent for the whole init flow. */
 function healthyAgent(): FakeAgent {
   return new FakeAgent({
-    "Document the Architecture": { exitCode: 0 },
+    "Document the Architecture": architectureScenario(),
     "Verify the Architecture Document": verifyScenario(),
     "Plan Domain Documentation": planInitScenario(),
-    "Document a Plan Slice": { exitCode: 0 },
+    "Document a Plan Slice": sliceScenario(),
     "Verify Domain Documentation Slice": verifyScenario(),
   });
 }
@@ -94,7 +129,7 @@ async function onlyRunDir(app: string): Promise<{ id: string; dir: string }> {
 async function interruptedInit(app: string) {
   const controller = new AbortController();
   const agent = new FakeAgent({
-    "Document the Architecture": { exitCode: 0 },
+    "Document the Architecture": architectureScenario(),
     "Verify the Architecture Document": verifyScenario(),
     "Plan Domain Documentation": planInitScenario(),
     "Document a Plan Slice": { exitCode: 0, effect: () => controller.abort() },

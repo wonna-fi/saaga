@@ -9,6 +9,7 @@ import {
 } from "../../src/agent/fake-agent.js";
 import { runCli } from "../../src/cli.js";
 import { DEFAULT_DOCS_DIR } from "../../src/cli/config.js";
+import { parsePlannedDocs } from "../../src/docs/corpus-budget.js";
 import {
   CURRENT_FORMAT_VERSION,
   readFormatVersion,
@@ -56,6 +57,59 @@ function planInitScenario(planContent: string): {
   };
 }
 
+/**
+ * The architecture writer, doing the one thing `check-planned-docs` holds it
+ * to: leaving `ARCHITECTURE.md` on disk. A fake that exits 0 and writes
+ * nothing is what issue #73 is about, so it is no longer the default here.
+ */
+function architectureScenario(): FakeScenarioValue {
+  return {
+    exitCode: 0,
+    effect: async (opts) => {
+      const docs = join(opts.cwd, DEFAULT_DOCS_DIR);
+      await mkdir(docs, { recursive: true });
+      await writeFile(join(docs, "ARCHITECTURE.md"), "# Architecture\n", "utf8");
+    },
+  };
+}
+
+/**
+ * A slice writer that actually writes: it reads the plan the prompt names and
+ * creates every document the roster parser finds in it, a superset of what
+ * the gate checks, and the INDEX.md of every folder it writes into.
+ */
+function sliceScenario(): FakeScenarioValue {
+  return {
+    exitCode: 0,
+    effect: async (opts, prompt) => {
+      const m = prompt.match(/The path to the documentation plan: `([^`]+)`/);
+      if (!m) throw new Error("plan path not found in slice-doc prompt");
+      const planText = await readFile(m[1], "utf8");
+      const docs = join(opts.cwd, DEFAULT_DOCS_DIR);
+
+      for (const doc of parsePlannedDocs(planText, DEFAULT_DOCS_DIR).docs) {
+        await writeDocs(docs, [doc.path]);
+      }
+    },
+  };
+}
+
+/**
+ * Writes each document, and an INDEX.md into its folder unless one is there:
+ * a category folder the gate finds a document in must also have its index.
+ */
+async function writeDocs(docs: string, paths: string[]): Promise<void> {
+  for (const path of paths) {
+    const full = join(docs, path);
+    await mkdir(dirname(full), { recursive: true });
+    await writeFile(full, `# ${path}\n`, "utf8");
+    const index = join(dirname(full), "INDEX.md");
+    if (path.includes("/") && !(await stat(index).then(() => true, () => false))) {
+      await writeFile(index, "# Index\n", "utf8");
+    }
+  }
+}
+
 function verifyScenario(
   statusFor: (callIndex: number) => "PASS" | "FAIL",
 ): FakeScenarioValue {
@@ -92,6 +146,11 @@ phases:
 ---
 
 # Plan body
+
+## Phase 1
+
+- concepts/alpha.md — Core, 100 lines
+- concepts/alpha.md — owns: alpha; references: none
 `;
 
 describe("saaga run init", () => {
@@ -100,10 +159,10 @@ describe("saaga run init", () => {
     const planScenario = planInitScenario(SINGLE_PHASE_PLAN);
 
     const fake = new FakeAgent({
-      "Document the Architecture": { exitCode: 0 },
+      "Document the Architecture": architectureScenario(),
       "Verify the Architecture Document": verifyScenario(() => "PASS"),
       "Plan Domain Documentation": planScenario.scenario,
-      "Document a Plan Slice": { exitCode: 0 },
+      "Document a Plan Slice": sliceScenario(),
     });
 
     const exitCode = await runCli(["run", "init", app], {
@@ -142,7 +201,7 @@ describe("saaga run init", () => {
   test("fails when plan-init does not produce the expected file", async () => {
     const { app } = await tmpAppEnv("noplan");
     const fake = new FakeAgent({
-      "Document the Architecture": { exitCode: 0 },
+      "Document the Architecture": architectureScenario(),
       "Verify the Architecture Document": verifyScenario(() => "PASS"),
       "Plan Domain Documentation": { exitCode: 0 },
     });
@@ -166,13 +225,23 @@ phases:
 ---
 
 # Plan body
+
+## Phase 1
+
+- concepts/alpha.md — Core, 100 lines
+- concepts/alpha.md — owns: alpha; references: none
+
+## Phase 2
+
+- features/login.md — Supporting, 60 lines
+- features/login.md — owns: login; references: none
 `;
 
     const fake = new FakeAgent({
-      "Document the Architecture": { exitCode: 0 },
+      "Document the Architecture": architectureScenario(),
       "Verify the Architecture Document": verifyScenario(() => "PASS"),
       "Plan Domain Documentation": planInitScenario(planContent).scenario,
-      "Document a Plan Slice": { exitCode: 0 },
+      "Document a Plan Slice": sliceScenario(),
       "Verify Domain Documentation Slice": verifyScenario(() => "PASS"),
     });
 
@@ -202,11 +271,11 @@ phases:
     const { app } = await tmpAppEnv("verifyfix");
 
     const fake = new FakeAgent({
-      "Document the Architecture": { exitCode: 0 },
+      "Document the Architecture": architectureScenario(),
       "Verify the Architecture Document": verifyScenario(() => "PASS"),
       "Plan Domain Documentation":
         planInitScenario(ONE_NONZERO_PHASE_PLAN).scenario,
-      "Document a Plan Slice": { exitCode: 0 },
+      "Document a Plan Slice": sliceScenario(),
       "Verify Domain Documentation Slice": verifyScenario((i) =>
         i >= 2 ? "PASS" : "FAIL",
       ),
@@ -249,13 +318,13 @@ phases:
     const { app } = await tmpAppEnv("archfix");
 
     const fake = new FakeAgent({
-      "Document the Architecture": { exitCode: 0 },
+      "Document the Architecture": architectureScenario(),
       "Plan Domain Documentation": planInitScenario(SINGLE_PHASE_PLAN).scenario,
       "Verify the Architecture Document": verifyScenario((i) =>
         i >= 2 ? "PASS" : "FAIL",
       ),
       "Fix Documentation Errors": { exitCode: 0 },
-      "Document a Plan Slice": { exitCode: 0 },
+      "Document a Plan Slice": sliceScenario(),
     });
 
     const exitCode = await runCli(["run", "init", app], { agent: fake });
@@ -295,13 +364,13 @@ phases:
     const { app } = await tmpAppEnv("archphase");
 
     const fake = new FakeAgent({
-      "Document the Architecture": { exitCode: 0 },
+      "Document the Architecture": architectureScenario(),
       "Plan Domain Documentation": planInitScenario(SINGLE_PHASE_PLAN).scenario,
       "Verify the Architecture Document": verifyScenario((i) =>
         i >= 2 ? "PASS" : "FAIL",
       ),
       "Fix Documentation Errors": { exitCode: 0 },
-      "Document a Plan Slice": { exitCode: 0 },
+      "Document a Plan Slice": sliceScenario(),
     });
 
     const err = new StringWritable();
@@ -324,11 +393,11 @@ phases:
     const { app } = await tmpAppEnv("archstuck");
 
     const fake = new FakeAgent({
-      "Document the Architecture": { exitCode: 0 },
+      "Document the Architecture": architectureScenario(),
       "Plan Domain Documentation": planInitScenario(SINGLE_PHASE_PLAN).scenario,
       "Verify the Architecture Document": verifyScenario(() => "FAIL"),
       "Fix Documentation Errors": { exitCode: 0 },
-      "Document a Plan Slice": { exitCode: 0 },
+      "Document a Plan Slice": sliceScenario(),
     });
 
     // Exhausting the loop is not an error: the corpus is on disk and the reports
@@ -358,13 +427,18 @@ phases:
 ---
 
 # Plan body
+
+## Phase 1
+
+- concepts/alpha.md — Core, 100 lines
+- concepts/alpha.md — owns: alpha; references: none
 `;
 
     const fake = new FakeAgent({
-      "Document the Architecture": { exitCode: 0 },
+      "Document the Architecture": architectureScenario(),
       "Verify the Architecture Document": verifyScenario(() => "PASS"),
       "Plan Domain Documentation": planInitScenario(planContent).scenario,
-      "Document a Plan Slice": { exitCode: 0 },
+      "Document a Plan Slice": sliceScenario(),
       "Verify Domain Documentation Slice": verifyScenario(() => "PASS"),
     });
 
@@ -397,10 +471,10 @@ phases:
   test("--rule-targets flag reaches the install step", async () => {
     const { app } = await tmpAppEnv("flagged");
     const fake = new FakeAgent({
-      "Document the Architecture": { exitCode: 0 },
+      "Document the Architecture": architectureScenario(),
       "Verify the Architecture Document": verifyScenario(() => "PASS"),
       "Plan Domain Documentation": planInitScenario(SINGLE_PHASE_PLAN).scenario,
-      "Document a Plan Slice": { exitCode: 0 },
+      "Document a Plan Slice": sliceScenario(),
     });
 
     const exitCode = await runCli(
@@ -460,10 +534,10 @@ phases:
     );
 
     const fake = new FakeAgent({
-      "Document the Architecture": { exitCode: 0 },
+      "Document the Architecture": architectureScenario(),
       "Verify the Architecture Document": verifyScenario(() => "PASS"),
       "Plan Domain Documentation": planInitScenario(SINGLE_PHASE_PLAN).scenario,
-      "Document a Plan Slice": { exitCode: 0 },
+      "Document a Plan Slice": sliceScenario(),
     });
 
     const exitCode = await runCli(["run", "init", app], { agent: fake });
@@ -488,10 +562,10 @@ describe("saaga run init > prompt archive", () => {
     const planScenario = planInitScenario(SINGLE_PHASE_PLAN);
 
     const fake = new FakeAgent({
-      "Document the Architecture": { exitCode: 0 },
+      "Document the Architecture": architectureScenario(),
       "Verify the Architecture Document": verifyScenario(() => "PASS"),
       "Plan Domain Documentation": planScenario.scenario,
-      "Document a Plan Slice": { exitCode: 0 },
+      "Document a Plan Slice": sliceScenario(),
     });
 
     const exitCode = await runCli(["run", "init", app], { agent: fake });
@@ -526,10 +600,10 @@ describe("saaga run init: corpus format version", () => {
     const planScenario = planInitScenario(SINGLE_PHASE_PLAN);
 
     const fake = new FakeAgent({
-      "Document the Architecture": { exitCode: 0 },
+      "Document the Architecture": architectureScenario(),
       "Verify the Architecture Document": verifyScenario(() => "PASS"),
       "Plan Domain Documentation": planScenario.scenario,
-      "Document a Plan Slice": { exitCode: 0 },
+      "Document a Plan Slice": sliceScenario(),
     });
 
     const exitCode = await runCli(["run", "init", app], { agent: fake });
@@ -572,10 +646,10 @@ describe("saaga run init: corpus format version", () => {
     const { app } = await tmpAppEnv("isodate");
     const planScenario = planInitScenario(ONE_NONZERO_PHASE_PLAN);
     const fake = new FakeAgent({
-      "Document the Architecture": { exitCode: 0 },
+      "Document the Architecture": architectureScenario(),
       "Verify the Architecture Document": verifyScenario(() => "PASS"),
       "Plan Domain Documentation": planScenario.scenario,
-      "Document a Plan Slice": { exitCode: 0 },
+      "Document a Plan Slice": sliceScenario(),
       "Verify Domain Documentation Slice": verifyScenario(() => "PASS"),
     });
 
@@ -627,7 +701,7 @@ describe("saaga run init: corpus format version", () => {
     };
 
     const fake = new FakeAgent({
-      "Document the Architecture": { exitCode: 0 },
+      "Document the Architecture": architectureScenario(),
       "Verify the Architecture Document": verifyScenario(() => "PASS"),
       "Plan Domain Documentation": planInitScenario(SINGLE_PHASE_PLAN).scenario,
       "Document a Plan Slice": writeCorpus,
@@ -785,7 +859,7 @@ describe("the verification threshold and the per-document stamp", () => {
     };
 
     const fake = new FakeAgent({
-      "Document the Architecture": { exitCode: 0 },
+      "Document the Architecture": architectureScenario(),
       "Verify the Architecture Document": verifyScenario(() => "PASS"),
       "Plan Domain Documentation": planInitScenario(ONE_NONZERO_PHASE_PLAN).scenario,
       "Document a Plan Slice": writeCorpus(docs),
@@ -853,7 +927,7 @@ describe("the verification threshold and the per-document stamp", () => {
     };
 
     const fake = new FakeAgent({
-      "Document the Architecture": { exitCode: 0 },
+      "Document the Architecture": architectureScenario(),
       "Verify the Architecture Document": verifyScenario(() => "PASS"),
       "Plan Domain Documentation": planInitScenario(ONE_NONZERO_PHASE_PLAN).scenario,
       "Document a Plan Slice": writeCorpus(docs),
@@ -896,10 +970,10 @@ describe("the verification threshold and the per-document stamp", () => {
     const { app } = await tmpAppEnv("archdeferred");
 
     const fake = new FakeAgent({
-      "Document the Architecture": { exitCode: 0 },
+      "Document the Architecture": architectureScenario(),
       "Verify the Architecture Document": verifyScenario(() => "PASS"),
       "Plan Domain Documentation": planInitScenario(SINGLE_PHASE_PLAN).scenario,
-      "Document a Plan Slice": { exitCode: 0 },
+      "Document a Plan Slice": sliceScenario(),
     });
 
     expect(await runCli(["run", "init", app], { agent: fake })).toBe(0);
@@ -962,10 +1036,10 @@ describe("saaga run init: the corpus budget", () => {
   test("an in-budget plan is planned once and proceeds", async () => {
     const { app } = await tmpSourceApp("budgeted");
     const fake = new FakeAgent({
-      "Document the Architecture": { exitCode: 0 },
+      "Document the Architecture": architectureScenario(),
       "Verify the Architecture Document": verifyScenario(() => "PASS"),
       "Plan Domain Documentation": planSequence([plan(5)]),
-      "Document a Plan Slice": { exitCode: 0 },
+      "Document a Plan Slice": sliceScenario(),
       "Verify Domain Documentation": verifyScenario(() => "PASS"),
     });
 
@@ -980,10 +1054,10 @@ describe("saaga run init: the corpus budget", () => {
   test("an over-budget plan is re-planned, and the retry sees the report", async () => {
     const { app } = await tmpSourceApp("retried");
     const fake = new FakeAgent({
-      "Document the Architecture": { exitCode: 0 },
+      "Document the Architecture": architectureScenario(),
       "Verify the Architecture Document": verifyScenario(() => "PASS"),
       "Plan Domain Documentation": planSequence([plan(40), plan(4)]),
-      "Document a Plan Slice": { exitCode: 0 },
+      "Document a Plan Slice": sliceScenario(),
       "Verify Domain Documentation": verifyScenario(() => "PASS"),
     });
 
@@ -1012,10 +1086,10 @@ describe("saaga run init: the corpus budget", () => {
   test("a persistently over-budget plan fails at the enforce step", async () => {
     const { app } = await tmpSourceApp("overbudget");
     const fake = new FakeAgent({
-      "Document the Architecture": { exitCode: 0 },
+      "Document the Architecture": architectureScenario(),
       "Verify the Architecture Document": verifyScenario(() => "PASS"),
       "Plan Domain Documentation": planSequence([plan(40)]),
-      "Document a Plan Slice": { exitCode: 0 },
+      "Document a Plan Slice": sliceScenario(),
     });
 
     await expect(runCli(["run", "init", app], { agent: fake })).rejects.toThrow(
@@ -1027,5 +1101,195 @@ describe("saaga run init: the corpus budget", () => {
       fake.calls.filter((c) => c.prompt.includes("Plan Domain Documentation")),
     ).toHaveLength(3);
     expect(fake.calls.some((c) => c.prompt.includes("Document a Plan Slice"))).toBe(false);
+  });
+});
+
+/**
+ * Issue #73. Under the Copilot backend the writers could not create the docs
+ * directory, so every document the plan named went unwritten — and the run
+ * still reported success, baselined the empty corpus, and left `update` with
+ * nothing to detect. Each writer is an agent step that exits 0 whatever it
+ * wrote, the verify loops end silently at their cap, and `validate-docs`
+ * passes over an empty corpus, so the check has to be its own step and it has
+ * to sit before the baseline.
+ */
+describe("saaga run init: the planned documents must exist", () => {
+  const PLAN = `---
+phases:
+  - number: 0
+    title: "Setup Structure"
+  - number: 1
+    title: "Core"
+---
+
+## Phase 1
+
+- concepts/alpha.md — Core, 100 lines
+- concepts/alpha.md — owns: alpha; references: none
+- features/login.md — Supporting, 60 lines
+- features/login.md — owns: login; references: none
+`;
+
+  /** The error the run fails with; a run that succeeds fails the test. */
+  async function failureOf(run: Promise<number>): Promise<Error> {
+    return run.then(
+      (code) => {
+        throw new Error(`expected the run to fail, but it exited ${code}`);
+      },
+      (e: unknown) => e as Error,
+    );
+  }
+
+  /** The run directory of the one run this app has had. */
+  async function manifestOf(app: string): Promise<{ status: string }> {
+    const [runDir] = await readdir(join(app, ".saaga-runs"));
+    const raw = await readFile(join(app, ".saaga-runs", runDir, "run.json"), "utf8");
+    return JSON.parse(raw) as { status: string };
+  }
+
+  test("a run whose writers wrote nothing fails instead of baselining", async () => {
+    const { app } = await tmpAppEnv("silentwriters");
+
+    // Every agent reports success and writes nothing: the #73 run exactly.
+    const fake = new FakeAgent({
+      "Document the Architecture": { exitCode: 0 },
+      "Plan Domain Documentation": planInitScenario(PLAN).scenario,
+      "Verify the Architecture Document": verifyScenario(() => "FAIL"),
+      "Verify Domain Documentation Slice": verifyScenario(() => "FAIL"),
+      "Fix Documentation Errors": { exitCode: 0 },
+      "Document a Plan Slice": { exitCode: 0 },
+    });
+
+    const err = new StringWritable();
+    const thrown = await failureOf(runCli(["run", "init", app], { agent: fake, stderr: err }));
+
+    expect(thrown.message).toContain("were never written");
+    // All three: the architecture document the plan never names, and both
+    // documents phase 1 promised.
+    expect(thrown.message).toContain("saaga-docs/ARCHITECTURE.md");
+    expect(thrown.message).toContain("saaga-docs/concepts/alpha.md");
+    expect(thrown.message).toContain("saaga-docs/features/login.md");
+    expect(thrown.message).toContain("delete saaga-docs/");
+
+    // The point of the issue: no BASELINE, so the next `update` still sees
+    // the whole repository as undocumented.
+    await expect(stat(join(app, DEFAULT_DOCS_DIR, "BASELINE"))).rejects.toThrow();
+    expect((await manifestOf(app)).status).toBe("failed");
+
+    // Resuming skips the agent steps but runs this check again, so once the
+    // documents are written the run can still finish: the hint stays.
+    expect(err.text).toContain("failed. To resume: saaga run --resume");
+  });
+
+  test("a partly written corpus names only what is missing", async () => {
+    const { app } = await tmpAppEnv("partial");
+
+    // Architecture lands and so does one of the two planned documents, with
+    // its index; the other category gets neither.
+    const halfSlice: FakeScenarioValue = {
+      exitCode: 0,
+      effect: async (opts) => {
+        await writeDocs(join(opts.cwd, DEFAULT_DOCS_DIR), ["concepts/alpha.md"]);
+      },
+    };
+
+    const fake = new FakeAgent({
+      "Document the Architecture": architectureScenario(),
+      "Plan Domain Documentation": planInitScenario(PLAN).scenario,
+      "Verify the Architecture Document": verifyScenario(() => "PASS"),
+      "Verify Domain Documentation Slice": verifyScenario(() => "PASS"),
+      "Document a Plan Slice": halfSlice,
+    });
+
+    const thrown = await failureOf(runCli(["run", "init", app], { agent: fake }));
+
+    expect(thrown.message).toContain("2 of 5 documents");
+    expect(thrown.message).toContain("saaga-docs/features/INDEX.md");
+    expect(thrown.message).toContain("saaga-docs/features/login.md");
+    expect(thrown.message).not.toContain("alpha.md");
+    expect(thrown.message).not.toContain("concepts/INDEX.md");
+    await expect(stat(join(app, DEFAULT_DOCS_DIR, "BASELINE"))).rejects.toThrow();
+  });
+
+  test("writing the missing document by hand and resuming finishes the run", async () => {
+    const { app } = await tmpAppEnv("byhand");
+    const docs = join(app, DEFAULT_DOCS_DIR);
+    const alphaOnly: FakeScenarioValue = {
+      exitCode: 0,
+      effect: async () => {
+        await writeDocs(docs, ["concepts/alpha.md"]);
+      },
+    };
+    const fake = new FakeAgent({
+      "Document the Architecture": architectureScenario(),
+      "Plan Domain Documentation": planInitScenario(PLAN).scenario,
+      "Verify the Architecture Document": verifyScenario(() => "PASS"),
+      "Verify Domain Documentation Slice": verifyScenario(() => "PASS"),
+      "Document a Plan Slice": alphaOnly,
+    });
+
+    const stderr = new StringWritable();
+    const thrown = await failureOf(runCli(["run", "init", app], { agent: fake, stderr }));
+    expect(thrown.message).toContain("saaga-docs/features/login.md");
+
+    await writeDocs(docs, ["features/login.md"]);
+
+    // Every agent step already ran, so an agent call on resume would throw.
+    const [id] = await readdir(join(app, ".saaga-runs"));
+    const none = new FakeAgent({});
+    expect(
+      await runCli(["run", "--resume", id, app], { agent: none, stderr: new StringWritable() }),
+    ).toBe(0);
+    expect(none.calls).toHaveLength(0);
+    expect((await stat(join(docs, "BASELINE"))).isFile()).toBe(true);
+    expect((await manifestOf(app)).status).toBe("completed");
+  });
+
+  test("markdown source files a slice names do not fail a complete corpus", async () => {
+    const { app } = await tmpAppEnv("keyfiles");
+    const plan =
+      PLAN +
+      "- **Key files to analyze**:\n" +
+      "  - `CONTRIBUTING.md` — the release checklist login follows\n" +
+      "  - docs/decisions.md — why login works this way\n";
+
+    // Writes the two planned documents and their indexes and nothing else,
+    // independent of the roster parser the check uses.
+    const writer: FakeScenarioValue = {
+      exitCode: 0,
+      effect: async (opts) => {
+        await writeDocs(join(opts.cwd, DEFAULT_DOCS_DIR), [
+          "concepts/alpha.md",
+          "features/login.md",
+        ]);
+      },
+    };
+    const fake = new FakeAgent({
+      "Document the Architecture": architectureScenario(),
+      "Plan Domain Documentation": planInitScenario(plan).scenario,
+      "Verify the Architecture Document": verifyScenario(() => "PASS"),
+      "Verify Domain Documentation Slice": verifyScenario(() => "PASS"),
+      "Document a Plan Slice": writer,
+    });
+
+    expect(await runCli(["run", "init", app], { agent: fake })).toBe(0);
+    expect((await stat(join(app, DEFAULT_DOCS_DIR, "BASELINE"))).isFile()).toBe(true);
+  });
+
+  test("a complete corpus baselines and stamps as before", async () => {
+    const { app } = await tmpAppEnv("complete");
+
+    const fake = new FakeAgent({
+      "Document the Architecture": architectureScenario(),
+      "Plan Domain Documentation": planInitScenario(PLAN).scenario,
+      "Verify the Architecture Document": verifyScenario(() => "PASS"),
+      "Verify Domain Documentation Slice": verifyScenario(() => "PASS"),
+      "Document a Plan Slice": sliceScenario(),
+    });
+
+    expect(await runCli(["run", "init", app], { agent: fake })).toBe(0);
+
+    expect((await stat(join(app, DEFAULT_DOCS_DIR, "BASELINE"))).isFile()).toBe(true);
+    expect((await manifestOf(app)).status).toBe("completed");
   });
 });
