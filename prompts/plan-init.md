@@ -27,7 +27,7 @@ Check for existing documentation about this application:
 - Read the `AGENTS.md` file in the workspace root for project-level context
 - Check `README.md` for setup and development information
 - Check `{docs_dir}/ARCHITECTURE.md` for existing architecture documentation
-- Check if `{docs_dir}/concepts/`, `{docs_dir}/patterns/`, `{docs_dir}/features/`, `{docs_dir}/conventions/` already exist
+- Check `{docs_dir}/concepts/`, `{docs_dir}/patterns/`, `{docs_dir}/features/` and `{docs_dir}/conventions/` for existing documents. The run creates these folders before planning, so an empty folder is not existing documentation.
 
 If domain documentation already exists, note it in the plan and build upon it rather than replacing it.
 
@@ -62,8 +62,8 @@ follows it in most places) and lexical (following it does not require understand
 a code flow; a rule that does is a pattern). Most repositories yield between zero
 and four families.
 
-If you find none, say so in one line and the run creates no `conventions/`
-directory. Do not invent conventions to fill the category.
+If you find none, say so in one line; the empty `conventions/` folder is removed
+at the end of the run. Do not invent conventions to fill the category.
 
 ### 1e. Determine Dependency Order
 
