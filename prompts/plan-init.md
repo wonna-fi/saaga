@@ -27,7 +27,7 @@ Check for existing documentation about this application:
 - Read the `AGENTS.md` file in the workspace root for project-level context
 - Check `README.md` for setup and development information
 - Check `{docs_dir}/ARCHITECTURE.md` for existing architecture documentation
-- Check if `{docs_dir}/concepts/`, `{docs_dir}/patterns/`, `{docs_dir}/features/`, `{docs_dir}/conventions/` already exist
+- Check `{docs_dir}/concepts/`, `{docs_dir}/patterns/`, `{docs_dir}/features/` and `{docs_dir}/conventions/` for existing documents. The run creates these folders before planning, so an empty folder is not existing documentation.
 
 If domain documentation already exists, note it in the plan and build upon it rather than replacing it.
 
@@ -62,8 +62,8 @@ follows it in most places) and lexical (following it does not require understand
 a code flow; a rule that does is a pattern). Most repositories yield between zero
 and four families.
 
-If you find none, say so in one line and the run creates no `conventions/`
-directory. Do not invent conventions to fill the category.
+If you find none, say so in one line; the empty `conventions/` folder is removed
+at the end of the run. Do not invent conventions to fill the category.
 
 ### 1e. Determine Dependency Order
 
@@ -159,8 +159,8 @@ phase of their own; name the families here, or say in one line that there are no
 
 Deliverables for Phase 0:
 
-1. Create folder structure: `{docs_dir}/concepts/`, `{docs_dir}/patterns/`, `{docs_dir}/features/`. Add `{docs_dir}/conventions/` **only if** Step 1d found at least one convention family; otherwise omit it entirely — an empty category is worse than no category.
-2. Create empty INDEX.md files for each folder created
+1. Create an empty `INDEX.md` in `{docs_dir}/concepts/`, `{docs_dir}/patterns/` and `{docs_dir}/features/`. The folders already exist.
+2. Create `{docs_dir}/conventions/INDEX.md` **only if** Step 1d found at least one convention family; otherwise leave `{docs_dir}/conventions/` empty — an empty category is worse than no category, and an empty folder is removed at the end of the run.
 
 Do NOT create or modify any agent rule file (`AGENTS.md`, `CLAUDE.md`, Cursor `.mdc`, or Copilot instructions) in this phase. Installing the documentation guidance into rule files is handled separately by the `install-rules` step, which is the single source of truth for that content.
 

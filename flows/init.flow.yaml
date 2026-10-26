@@ -16,6 +16,15 @@ steps:
       app_dir: ${app_path}
       pattern: .saaga-runs/
 
+  # Some backends cannot create a missing folder, so the corpus's folders must
+  # exist before the first agent writes into them.
+  - script:
+      name: ensure-docs-dirs
+      label: creating documentation folders
+      app_dir: ${app_path}
+      docs_dir: ${docs_dir}
+      mode: create
+
   - agent:
       prompt: document-architecture
       model: high
@@ -173,6 +182,14 @@ steps:
                         phase_number: ${phase.number}
                         review_path: ${run_dir}/slice-${phase.number}/review-${iteration}.md
                         docs_dir: ${docs_dir}
+
+  # Every category was created up front; drop the ones nothing was written into.
+  - script:
+      name: ensure-docs-dirs
+      label: removing empty documentation folders
+      app_dir: ${app_path}
+      docs_dir: ${docs_dir}
+      mode: prune
 
   # The verify loops exit silently at their cap, and validate-docs passes over
   # an empty corpus, so this is what refuses to baseline a run whose writers

@@ -771,8 +771,21 @@ describe("the conventions category reaches the prompts that write and judge docu
     expect(out).toContain("### 1d. Identify Convention Families");
     expect(out).toContain("one family per plan entry, never one per");
     expect(out).toContain("Do not invent conventions to fill the category.");
-    // The directory is conditional: an empty category is worse than none.
-    expect(out).toContain("only if** Step 1d found at least one convention family");
+    // The category is conditional: an empty category is worse than none, so
+    // the run removes the conventions/ folder when nothing was written into it.
+    expect(out).toContain("found at least one convention family; otherwise leave");
+    expect(out).toContain("an empty folder is removed at the end of the run");
+  });
+
+  test("no init prompt asks an agent to create a docs folder", async () => {
+    // Some backends can neither create a missing parent from their file tool
+    // nor run mkdir, so the ensure-docs-dirs step creates the folders first.
+    const plan = await render("plan-init");
+    expect(plan).toContain("The folders already exist.");
+    expect(plan).toContain("an empty folder is not existing documentation");
+    const architecture = await render("document-architecture");
+    expect(architecture).toContain("directory already exists");
+    expect(architecture).not.toContain("if it does not exist");
   });
 
   test("conventions are their own trailing phase, never phase 0", async () => {

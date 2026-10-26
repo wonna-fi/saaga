@@ -163,11 +163,11 @@ describe("saaga run --resume", () => {
     expect(manifest.flow).toBe("init");
     expect(manifest.initialScope.run_id).toBe(id);
     const journal = await readFile(join(dir, "steps.jsonl"), "utf8");
-    // check-format-version, ensure-gitignore, architecture, then the
+    // check-format-version, ensure-gitignore, ensure-docs-dirs, architecture, then the
     // corpus-budget loop's plan, parse-plan and check-plan-budget, the
     // post-loop enforce, then the architecture verify/fix loop's verify and
     // its read-file
-    expect(journal.trim().split("\n")).toHaveLength(9);
+    expect(journal.trim().split("\n")).toHaveLength(10);
   });
 
   test("resumes at the interrupted step and completes", async () => {
@@ -179,7 +179,7 @@ describe("saaga run --resume", () => {
     const exitCode = await runCli(["run", "--resume", id, app], { agent, stderr: err });
 
     expect(exitCode).toBe(0);
-    expect(err.text).toContain(`resuming run ${id} (attempt 2, 9 steps already done)`);
+    expect(err.text).toContain(`resuming run ${id} (attempt 2, 10 steps already done)`);
     expect(firstLines(agent)).toEqual([
       "# Document a Plan Slice",
       "# Document a Plan Slice",
