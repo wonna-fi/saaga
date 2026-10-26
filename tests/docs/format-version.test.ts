@@ -28,6 +28,37 @@ describe("readFormatVersion", () => {
     expect(await readFormatVersion(docs)).toEqual({ state: "no-corpus" });
   });
 
+  test("empty category folders left by a failed init are no corpus", async () => {
+    const docs = await tmpDocsDir();
+    for (const category of ["concepts", "patterns", "conventions", "features"]) {
+      await mkdir(join(docs, category), { recursive: true });
+    }
+
+    expect(await readFormatVersion(docs)).toEqual({ state: "no-corpus" });
+  });
+
+  test("a category folder with a document in it is version 0", async () => {
+    const docs = await tmpDocsDir();
+    await mkdir(join(docs, "concepts"), { recursive: true });
+    await mkdir(join(docs, "features"), { recursive: true });
+    await writeFile(join(docs, "concepts", "INDEX.md"), "# Concepts\n", "utf8");
+
+    expect(await readFormatVersion(docs)).toEqual({
+      state: "corpus",
+      version: 0,
+    });
+  });
+
+  test("an empty folder that is not a category still counts", async () => {
+    const docs = await tmpDocsDir();
+    await mkdir(join(docs, "drafts"), { recursive: true });
+
+    expect(await readFormatVersion(docs)).toEqual({
+      state: "corpus",
+      version: 0,
+    });
+  });
+
   test("a populated docs directory without the stamp is version 0", async () => {
     const docs = await tmpDocsDir();
     await mkdir(docs, { recursive: true });

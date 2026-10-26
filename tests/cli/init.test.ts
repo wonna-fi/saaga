@@ -632,6 +632,37 @@ describe("saaga run init: corpus format version", () => {
     expect(fake.calls).toHaveLength(0);
   });
 
+  test("a run that failed before writing anything does not block a fresh init", async () => {
+    const { app } = await tmpAppEnv("retry");
+    const broken = new FakeAgent({ "Document the Architecture": { exitCode: 1 } });
+
+    expect(
+      await runCli(["run", "init", app], { agent: broken, stderr: new StringWritable() }),
+    ).toBe(1);
+    // The create step ran, so the empty category folders are still there.
+    expect((await readdir(join(app, DEFAULT_DOCS_DIR))).sort()).toEqual([
+      "concepts",
+      "conventions",
+      "features",
+      "patterns",
+    ]);
+
+    const fake = new FakeAgent({
+      "Document the Architecture": {
+        exitCode: 0,
+        effect: async () => {
+          const architecture = join(app, DEFAULT_DOCS_DIR, "ARCHITECTURE.md");
+          await writeFile(architecture, "# Architecture\n", "utf8");
+        },
+      },
+      "Verify the Architecture Document": verifyScenario(() => "PASS"),
+      "Plan Domain Documentation": planInitScenario(SINGLE_PHASE_PLAN).scenario,
+      "Document a Plan Slice": { exitCode: 0 },
+    });
+
+    expect(await runCli(["run", "init", app], { agent: fake })).toBe(0);
+  });
+
   test("refuses even when the existing corpus is at the current version", async () => {
     const { app } = await tmpAppEnv("current");
     await writeFormatVersion(join(app, DEFAULT_DOCS_DIR));

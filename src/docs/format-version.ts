@@ -1,6 +1,7 @@
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { parse as parseYaml } from "yaml";
+import { CATEGORY_ORDER } from "./navigation.js";
 
 /**
  * The corpus format this build of Saaga produces and consumes: the directory
@@ -18,7 +19,10 @@ export const CURRENT_FORMAT_VERSION = 1;
 export const FORMAT_FILE = "FORMAT";
 
 export type FormatVersionState =
-  /** Docs directory absent or empty: greenfield, not a version-0 corpus. */
+  /**
+   * Docs directory absent, empty, or holding only empty category folders:
+   * greenfield, not a version-0 corpus.
+   */
   | { state: "no-corpus" }
   /** A corpus exists; `version` is 0 when it predates the stamp. */
   | { state: "corpus"; version: number };
@@ -31,6 +35,10 @@ export type FormatVersionState =
  * absent or empty docs directory is a greenfield `init` target, while a
  * populated directory without a `FORMAT` file is a pre-beta corpus that every
  * update-family flow must refuse.
+ *
+ * Empty category folders don't count as content: `init` creates them before
+ * its first agent step, so a run that failed before writing anything leaves
+ * them behind, and a fresh `init` must still be allowed to start.
  */
 export async function readFormatVersion(
   docsPath: string,
@@ -42,7 +50,13 @@ export async function readFormatVersion(
     return { state: "no-corpus" };
   }
 
-  if (entries.length === 0) {
+  const written: string[] = [];
+  for (const entry of entries) {
+    const emptyCategory =
+      CATEGORY_ORDER.includes(entry) && (await isEmptyDir(resolve(docsPath, entry)));
+    if (!emptyCategory) written.push(entry);
+  }
+  if (written.length === 0) {
     return { state: "no-corpus" };
   }
 
@@ -86,4 +100,12 @@ export async function writeFormatVersion(docsPath: string): Promise<void> {
     `format_version: ${CURRENT_FORMAT_VERSION}\n`,
     "utf8",
   );
+}
+
+async function isEmptyDir(path: string): Promise<boolean> {
+  try {
+    return (await readdir(path)).length === 0;
+  } catch {
+    return false;
+  }
 }
