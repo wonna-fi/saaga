@@ -19,7 +19,10 @@ export interface CheckPlannedDocsArgs {
 }
 
 export interface CheckPlannedDocsResult {
-  /** Documents the plan names, ARCHITECTURE.md included. */
+  /**
+   * Documents the plan names, plus ARCHITECTURE.md and the INDEX.md of each
+   * category they are filed under.
+   */
   expected: number;
   /** Of those, how many are not on disk. Always 0 when the script returns. */
   missing: number;
@@ -78,9 +81,18 @@ export async function checkPlannedDocs(
     );
   }
 
+  // Phase 0 writes each category's INDEX.md and every slice writer adds its
+  // rows there; no step generates one. Navigation is built from those rows, so
+  // a missing index leaves its documents out of README.md and GLOSSARY.md, and
+  // with none at all navigation is skipped with only a warning. A category the
+  // plan files nothing under owes no index.
+  const indexes = CATEGORY_ORDER.filter((c) =>
+    paths.some((p) => p.startsWith(`${c}/`)),
+  ).map((c) => `${c}/INDEX.md`);
+
   // Written before the plan exists, so it is expected on disk whether or not
   // the plan records its decisions.
-  paths.unshift(ARCHITECTURE_DOC);
+  paths.unshift(ARCHITECTURE_DOC, ...indexes);
 
   const missing: string[] = [];
   for (const path of paths) {
@@ -108,9 +120,13 @@ export async function checkPlannedDocs(
   return { expected: paths.length, missing: 0 };
 }
 
+/**
+ * Filed under a category folder. A `..` segment can climb out of the docs
+ * directory, onto a file this run never wrote, so it disqualifies the path.
+ */
 function isCategoryDoc(path: string): boolean {
   const [category, ...rest] = path.split("/");
-  return rest.length > 0 && CATEGORY_ORDER.includes(category);
+  return rest.length > 0 && !rest.includes("..") && CATEGORY_ORDER.includes(category);
 }
 
 async function isFile(path: string): Promise<boolean> {

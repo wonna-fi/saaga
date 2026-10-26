@@ -76,7 +76,7 @@ function architectureScenario(): FakeScenarioValue {
 /**
  * A slice writer that actually writes: it reads the plan the prompt names and
  * creates every document the roster parser finds in it, a superset of what
- * the gate checks.
+ * the gate checks, and the INDEX.md of every folder it writes into.
  */
 function sliceScenario(): FakeScenarioValue {
   return {
@@ -88,12 +88,26 @@ function sliceScenario(): FakeScenarioValue {
       const docs = join(opts.cwd, DEFAULT_DOCS_DIR);
 
       for (const doc of parsePlannedDocs(planText, DEFAULT_DOCS_DIR).docs) {
-        const full = join(docs, doc.path);
-        await mkdir(dirname(full), { recursive: true });
-        await writeFile(full, `# ${doc.path}\n`, "utf8");
+        await writeDocs(docs, [doc.path]);
       }
     },
   };
+}
+
+/**
+ * Writes each document, and an INDEX.md into its folder unless one is there:
+ * a category folder the gate finds a document in must also have its index.
+ */
+async function writeDocs(docs: string, paths: string[]): Promise<void> {
+  for (const path of paths) {
+    const full = join(docs, path);
+    await mkdir(dirname(full), { recursive: true });
+    await writeFile(full, `# ${path}\n`, "utf8");
+    const index = join(dirname(full), "INDEX.md");
+    if (path.includes("/") && !(await stat(index).then(() => true, () => false))) {
+      await writeFile(index, "# Index\n", "utf8");
+    }
+  }
 }
 
 function verifyScenario(
@@ -1170,13 +1184,12 @@ phases:
   test("a partly written corpus names only what is missing", async () => {
     const { app } = await tmpAppEnv("partial");
 
-    // Architecture lands and so does one of the two planned documents.
+    // Architecture lands and so does one of the two planned documents, with
+    // its index; the other category gets neither.
     const halfSlice: FakeScenarioValue = {
       exitCode: 0,
       effect: async (opts) => {
-        const docs = join(opts.cwd, DEFAULT_DOCS_DIR, "concepts");
-        await mkdir(docs, { recursive: true });
-        await writeFile(join(docs, "alpha.md"), "# Alpha\n", "utf8");
+        await writeDocs(join(opts.cwd, DEFAULT_DOCS_DIR), ["concepts/alpha.md"]);
       },
     };
 
@@ -1190,9 +1203,11 @@ phases:
 
     const thrown = await failureOf(runCli(["run", "init", app], { agent: fake }));
 
-    expect(thrown.message).toContain("1 of 3 documents");
+    expect(thrown.message).toContain("2 of 5 documents");
+    expect(thrown.message).toContain("saaga-docs/features/INDEX.md");
     expect(thrown.message).toContain("saaga-docs/features/login.md");
     expect(thrown.message).not.toContain("alpha.md");
+    expect(thrown.message).not.toContain("concepts/INDEX.md");
     await expect(stat(join(app, DEFAULT_DOCS_DIR, "BASELINE"))).rejects.toThrow();
   });
 
@@ -1202,8 +1217,7 @@ phases:
     const alphaOnly: FakeScenarioValue = {
       exitCode: 0,
       effect: async () => {
-        await mkdir(join(docs, "concepts"), { recursive: true });
-        await writeFile(join(docs, "concepts", "alpha.md"), "# Alpha\n", "utf8");
+        await writeDocs(docs, ["concepts/alpha.md"]);
       },
     };
     const fake = new FakeAgent({
@@ -1218,8 +1232,7 @@ phases:
     const thrown = await failureOf(runCli(["run", "init", app], { agent: fake, stderr }));
     expect(thrown.message).toContain("saaga-docs/features/login.md");
 
-    await mkdir(join(docs, "features"), { recursive: true });
-    await writeFile(join(docs, "features", "login.md"), "# Login\n", "utf8");
+    await writeDocs(docs, ["features/login.md"]);
 
     // Every agent step already ran, so an agent call on resume would throw.
     const [id] = await readdir(join(app, ".saaga-runs"));
@@ -1240,16 +1253,15 @@ phases:
       "  - `CONTRIBUTING.md` — the release checklist login follows\n" +
       "  - docs/decisions.md — why login works this way\n";
 
-    // Writes the two planned documents and nothing else, independent of the
-    // roster parser the check uses.
+    // Writes the two planned documents and their indexes and nothing else,
+    // independent of the roster parser the check uses.
     const writer: FakeScenarioValue = {
       exitCode: 0,
       effect: async (opts) => {
-        const docs = join(opts.cwd, DEFAULT_DOCS_DIR);
-        for (const doc of ["concepts/alpha.md", "features/login.md"]) {
-          await mkdir(dirname(join(docs, doc)), { recursive: true });
-          await writeFile(join(docs, doc), `# ${doc}\n`, "utf8");
-        }
+        await writeDocs(join(opts.cwd, DEFAULT_DOCS_DIR), [
+          "concepts/alpha.md",
+          "features/login.md",
+        ]);
       },
     };
     const fake = new FakeAgent({

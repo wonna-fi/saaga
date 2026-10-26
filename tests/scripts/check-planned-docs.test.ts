@@ -74,14 +74,39 @@ describe("check-planned-docs", () => {
     );
   });
 
-  test("passes when every planned document and ARCHITECTURE.md are on disk", async () => {
+  test("passes when every planned document, its index and ARCHITECTURE.md are on disk", async () => {
     const planned = ["concepts/alpha.md", "features/login.md"];
-    const env = await tmpEnv(planFor(planned), ["ARCHITECTURE.md", ...planned]);
+    const env = await tmpEnv(planFor(planned), [
+      "ARCHITECTURE.md",
+      "concepts/INDEX.md",
+      "features/INDEX.md",
+      ...planned,
+    ]);
 
+    // Nothing is filed under patterns/, so it owes no index.
     expect(await checkPlannedDocs(args(env), { cwd: env.app })).toEqual({
-      expected: 3,
+      expected: 5,
       missing: 0,
     });
+  });
+
+  /**
+   * Phase 0 writes the category indexes and no later step generates one, so a
+   * phase 0 that reported success and wrote nothing leaves navigation with no
+   * rows to build README.md and GLOSSARY.md from.
+   */
+  test("a category with planned documents needs its INDEX.md", async () => {
+    const env = await tmpEnv(planFor(["concepts/alpha.md", "features/login.md"]), [
+      "ARCHITECTURE.md",
+      "concepts/INDEX.md",
+      "concepts/alpha.md",
+      "features/login.md",
+    ]);
+
+    const err = await checkPlannedDocs(args(env), { cwd: env.app }).catch((e) => e);
+    expect(err.message).toContain("1 of 5 documents");
+    expect(err.message).toContain(`${DOCS_DIR}/features/INDEX.md`);
+    expect(err.message).not.toContain("concepts/INDEX.md");
   });
 
   /**
@@ -90,22 +115,27 @@ describe("check-planned-docs", () => {
    * the architecture step reported success and wrote nothing.
    */
   test("requires ARCHITECTURE.md even when the plan never names it", async () => {
-    const env = await tmpEnv(planFor(["concepts/alpha.md"]), ["concepts/alpha.md"]);
+    const env = await tmpEnv(planFor(["concepts/alpha.md"]), [
+      "concepts/INDEX.md",
+      "concepts/alpha.md",
+    ]);
 
     const err = await checkPlannedDocs(args(env), { cwd: env.app }).catch((e) => e);
     expect(err.message).toContain(`${DOCS_DIR}/ARCHITECTURE.md`);
-    expect(err.message).toContain("1 of 2 documents");
+    expect(err.message).toContain("1 of 3 documents");
   });
 
   test("names every missing document and none of the present ones", async () => {
     const planned = ["concepts/alpha.md", "concepts/beta.md", "features/login.md"];
     const env = await tmpEnv(planFor(planned), [
       "ARCHITECTURE.md",
+      "concepts/INDEX.md",
+      "features/INDEX.md",
       "concepts/alpha.md",
     ]);
 
     const err = await checkPlannedDocs(args(env), { cwd: env.app }).catch((e) => e);
-    expect(err.message).toContain("2 of 4 documents");
+    expect(err.message).toContain("2 of 6 documents");
     expect(err.message).toContain(`${DOCS_DIR}/concepts/beta.md`);
     expect(err.message).toContain(`${DOCS_DIR}/features/login.md`);
     expect(err.message).not.toContain("concepts/alpha.md");
@@ -134,10 +164,14 @@ describe("check-planned-docs", () => {
       "  - `CONTRIBUTING.md` — the release checklist the flow follows\n" +
       "  - docs/decisions.md — the decision ledger\n" +
       "  `.claude/skills/x/SKILL.md`, `package.json`\n";
-    const env = await tmpEnv(plan, ["ARCHITECTURE.md", "concepts/alpha.md"]);
+    const env = await tmpEnv(plan, [
+      "ARCHITECTURE.md",
+      "concepts/INDEX.md",
+      "concepts/alpha.md",
+    ]);
 
     expect(await checkPlannedDocs(args(env), { cwd: env.app })).toEqual({
-      expected: 2,
+      expected: 3,
       missing: 0,
     });
   });
@@ -152,15 +186,43 @@ describe("check-planned-docs", () => {
       "- `payments.md` is Core: everything else links to it\n";
     const env = await tmpEnv(plan, [
       "ARCHITECTURE.md",
+      "concepts/INDEX.md",
+      "features/INDEX.md",
       "concepts/payments.md",
       "features/payments.md",
     ]);
 
     expect(await checkPlannedDocs(args(env), { cwd: env.app })).toEqual({
-      expected: 3,
+      expected: 5,
       missing: 0,
     });
   });
+
+  // `normalizeDocPath` keeps `..` segments, so a category prefix alone would
+  // let a planned path resolve to a file outside the docs directory that the
+  // run never wrote. Whether or not one is there, the path is not checked.
+  test.each([true, false])(
+    "a path that climbs out of the docs directory is not required (file outside: %s)",
+    async (fileOutside) => {
+      const plan =
+        `${PHASES}\n## Phase 1\n\n` +
+        docLines("concepts/alpha.md") +
+        docLines("concepts/../../CONTRIBUTING.md");
+      const env = await tmpEnv(plan, [
+        "ARCHITECTURE.md",
+        "concepts/INDEX.md",
+        "concepts/alpha.md",
+      ]);
+      if (fileOutside) {
+        await writeFile(join(env.app, "CONTRIBUTING.md"), "# Contributing\n", "utf8");
+      }
+
+      expect(await checkPlannedDocs(args(env), { cwd: env.app })).toEqual({
+        expected: 3,
+        missing: 0,
+      });
+    },
+  );
 
   // The budget gate refuses an unreadable plan only when it measured some
   // source, so this step has to refuse one too rather than check
@@ -199,10 +261,11 @@ describe("check-planned-docs", () => {
 
   /**
    * Conventions are listed as a bare `{docs_dir}`-prefixed path with neither
-   * decision line, and the generated navigation files are never rostered — so
-   * a convention is required and an INDEX.md is not.
+   * decision line, and the navigation files are never rostered — so a
+   * convention is required, an INDEX.md only as its category's index, and
+   * README.md and GLOSSARY.md not at all.
    */
-  test("conventions are required; generated INDEX/README/GLOSSARY are not", async () => {
+  test("conventions are required; README/GLOSSARY are not", async () => {
     const plan =
       `${PHASES}\n## Phase 1\n\n` +
       docLines("concepts/alpha.md") +
@@ -213,15 +276,21 @@ describe("check-planned-docs", () => {
 
     const complete = await tmpEnv(plan, [
       "ARCHITECTURE.md",
+      "concepts/INDEX.md",
+      "conventions/INDEX.md",
       "concepts/alpha.md",
       "conventions/naming.md",
     ]);
     expect(await checkPlannedDocs(args(complete), { cwd: complete.app })).toEqual({
-      expected: 3,
+      expected: 5,
       missing: 0,
     });
 
-    const noConvention = await tmpEnv(plan, ["ARCHITECTURE.md", "concepts/alpha.md"]);
+    const noConvention = await tmpEnv(plan, [
+      "ARCHITECTURE.md",
+      "concepts/INDEX.md",
+      "concepts/alpha.md",
+    ]);
     await expect(
       checkPlannedDocs(args(noConvention), { cwd: noConvention.app }),
     ).rejects.toThrow(/conventions\/naming\.md/);
@@ -236,10 +305,14 @@ describe("check-planned-docs", () => {
       "```\n" +
       docLines("concepts/example.md") +
       "```\n";
-    const env = await tmpEnv(plan, ["ARCHITECTURE.md", "concepts/alpha.md"]);
+    const env = await tmpEnv(plan, [
+      "ARCHITECTURE.md",
+      "concepts/INDEX.md",
+      "concepts/alpha.md",
+    ]);
 
     expect(await checkPlannedDocs(args(env), { cwd: env.app })).toEqual({
-      expected: 2,
+      expected: 3,
       missing: 0,
     });
   });
@@ -248,10 +321,10 @@ describe("check-planned-docs", () => {
   // should not bury the recovery instruction under a wall of paths.
   test("a long missing list is capped and summarised", async () => {
     const planned = Array.from({ length: 25 }, (_, i) => `concepts/d${i}.md`);
-    const env = await tmpEnv(planFor(planned), ["ARCHITECTURE.md"]);
+    const env = await tmpEnv(planFor(planned), ["ARCHITECTURE.md", "concepts/INDEX.md"]);
 
     const err = await checkPlannedDocs(args(env), { cwd: env.app }).catch((e) => e);
-    expect(err.message).toContain("25 of 26 documents");
+    expect(err.message).toContain("25 of 27 documents");
     expect(err.message).toContain("and 5 more");
     expect(err.message).toContain(`delete ${DOCS_DIR}/`);
   });

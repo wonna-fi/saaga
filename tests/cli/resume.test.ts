@@ -88,13 +88,14 @@ function verifyScenario(): FakeScenarioValue {
   };
 }
 
-/** Writes the one document the plan names; phase 0 has nothing to write. */
+/** Writes the one document the plan names, and the index of its category. */
 function sliceScenario(): FakeScenarioValue {
   return {
     exitCode: 0,
     effect: async (opts) => {
       const concepts = join(opts.cwd, DEFAULT_DOCS_DIR, "concepts");
       await mkdir(concepts, { recursive: true });
+      await writeFile(join(concepts, "INDEX.md"), "# Concepts\n", "utf8");
       await writeFile(join(concepts, "core.md"), "# Core\n", "utf8");
     },
   };
