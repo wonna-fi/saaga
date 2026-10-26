@@ -5,6 +5,7 @@ import { checkPlannedDocs } from "./check-planned-docs.js";
 import { cleanupQuickUpdateDir } from "./cleanup-quick-update-dir.js";
 import { collectQuickUpdates } from "./collect-quick-updates.js";
 import { detectChanges } from "./detect-changes.js";
+import { ensureDocsDirs } from "./ensure-docs-dirs.js";
 import { ensureGitignore } from "./ensure-gitignore.js";
 import { generateBaseline } from "./generate-baseline.js";
 import { generateNavigation } from "./generate-navigation.js";
@@ -50,6 +51,7 @@ export const defaultScriptRegistry: ScriptRegistry = {
   "remove-quick-updates": removeQuickUpdates as unknown as ScriptHandler,
   "install-rules": installRules as unknown as ScriptHandler,
   "ensure-gitignore": ensureGitignore as unknown as ScriptHandler,
+  "ensure-docs-dirs": ensureDocsDirs as unknown as ScriptHandler,
   "check-format-version": checkFormatVersion as unknown as ScriptHandler,
   "check-plan-budget": checkPlanBudgetScript as unknown as ScriptHandler,
   "check-planned-docs": checkPlannedDocs as unknown as ScriptHandler,

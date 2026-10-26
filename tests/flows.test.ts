@@ -77,6 +77,28 @@ describe("format-version gate wiring", () => {
     );
   });
 
+  test("init creates the docs folders before its first agent step", async () => {
+    const flow = await loadFlow("init");
+    const firstAgent = flow.steps.findIndex((s) => s.type === "agent");
+    const create = flow.steps.findIndex(
+      (s) => asScript(s)?.name === "ensure-docs-dirs" && asScript(s)!.args.mode === "create",
+    );
+
+    expect(create).toBeGreaterThanOrEqual(0);
+    expect(create).toBeLessThan(firstAgent);
+  });
+
+  test("init prunes empty docs folders before generating the baseline", async () => {
+    const flow = await loadFlow("init");
+    const names = flow.steps.map((s) => asScript(s)?.name);
+    const prune = flow.steps.findIndex(
+      (s) => asScript(s)?.name === "ensure-docs-dirs" && asScript(s)!.args.mode === "prune",
+    );
+
+    expect(prune).toBeGreaterThanOrEqual(0);
+    expect(prune).toBeLessThan(names.indexOf("generate-baseline"));
+  });
+
   test.each(UPDATE_FAMILY)("%s does not stamp the version", async (name) => {
     const flow = await loadFlow(name);
     const names = flow.steps.map((s) => asScript(s)?.name);

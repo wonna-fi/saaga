@@ -671,6 +671,43 @@ describe("saaga run init: corpus format version", () => {
     expect(line).not.toContain("iso_date");
   });
 
+  test("an agent that cannot create folders still writes into the corpus", async () => {
+    const { app } = await tmpAppEnv("nomkdir");
+    const docs = join(app, DEFAULT_DOCS_DIR);
+
+    // Like Copilot's file tool: writeFile without mkdir fails on a missing parent.
+    const writeArchitecture: FakeScenarioValue = {
+      exitCode: 0,
+      effect: async () => {
+        await writeFile(join(docs, "ARCHITECTURE.md"), "# Architecture — nomkdir\n", "utf8");
+      },
+    };
+    const writeIndexes: FakeScenarioValue = {
+      exitCode: 0,
+      effect: async () => {
+        for (const category of ["concepts", "patterns", "features"]) {
+          await writeFile(join(docs, category, "INDEX.md"), "# Index\n", "utf8");
+        }
+      },
+    };
+
+    const fake = new FakeAgent({
+      "Document the Architecture": writeArchitecture,
+      "Verify the Architecture Document": verifyScenario(() => "PASS"),
+      "Plan Domain Documentation": planInitScenario(SINGLE_PHASE_PLAN).scenario,
+      "Document a Plan Slice": writeIndexes,
+    });
+
+    expect(await runCli(["run", "init", app], { agent: fake })).toBe(0);
+
+    expect((await stat(join(docs, "ARCHITECTURE.md"))).isFile()).toBe(true);
+    for (const category of ["concepts", "patterns", "features"]) {
+      expect((await stat(join(docs, category, "INDEX.md"))).isFile()).toBe(true);
+    }
+    // Nothing was written into conventions/, so the prune step removed it.
+    expect(await readdir(docs)).not.toContain("conventions");
+  });
+
   test("generates the navigation layer and the corpus validates clean", async () => {
     const { app } = await tmpAppEnv("navdemo");
     const docs = join(app, DEFAULT_DOCS_DIR);

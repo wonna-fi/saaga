@@ -77,7 +77,7 @@ If a `.saagaignore` file exists at the project root, it lists paths and patterns
 
 ## Notes
 
-- Write the document to `{docs_dir}/ARCHITECTURE.md`. Create the `{docs_dir}/` directory if it does not exist.
+- Write the document to `{docs_dir}/ARCHITECTURE.md`. The `{docs_dir}/` directory already exists.
 - Start the document with a YAML frontmatter block, before the `#` title line:
 
   ```markdown

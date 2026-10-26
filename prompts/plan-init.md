@@ -159,8 +159,8 @@ phase of their own; name the families here, or say in one line that there are no
 
 Deliverables for Phase 0:
 
-1. Create folder structure: `{docs_dir}/concepts/`, `{docs_dir}/patterns/`, `{docs_dir}/features/`. Add `{docs_dir}/conventions/` **only if** Step 1d found at least one convention family; otherwise omit it entirely — an empty category is worse than no category.
-2. Create empty INDEX.md files for each folder created
+1. Create an empty `INDEX.md` in `{docs_dir}/concepts/`, `{docs_dir}/patterns/` and `{docs_dir}/features/`. The folders already exist.
+2. Create `{docs_dir}/conventions/INDEX.md` **only if** Step 1d found at least one convention family; otherwise leave `{docs_dir}/conventions/` empty — an empty category is worse than no category, and an empty folder is removed at the end of the run.
 
 Do NOT create or modify any agent rule file (`AGENTS.md`, `CLAUDE.md`, Cursor `.mdc`, or Copilot instructions) in this phase. Installing the documentation guidance into rule files is handled separately by the `install-rules` step, which is the single source of truth for that content.
 
