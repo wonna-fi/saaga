@@ -2,8 +2,25 @@ import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
-import { FakeAgent } from "../../src/agent/fake-agent.js";
+import { FakeAgent, type FakeScenarioValue } from "../../src/agent/fake-agent.js";
 import { runCli } from "../../src/cli.js";
+import { DEFAULT_DOCS_DIR } from "../../src/cli/config.js";
+
+/**
+ * `init` refuses to baseline a corpus whose planned documents are missing, so
+ * the architecture writer has to leave its document behind even in a test
+ * that only cares about config resolution.
+ */
+function architectureScenario(): FakeScenarioValue {
+  return {
+    exitCode: 0,
+    effect: async (opts) => {
+      const docs = join(opts.cwd, DEFAULT_DOCS_DIR);
+      await mkdir(docs, { recursive: true });
+      await writeFile(join(docs, "ARCHITECTURE.md"), "# Architecture\n", "utf8");
+    },
+  };
+}
 
 async function tmpApp(
   name: string,
@@ -33,7 +50,7 @@ phases:
 `;
 
     const fake = new FakeAgent({
-      "Document the Architecture": { exitCode: 0 },
+      "Document the Architecture": architectureScenario(),
       "Verify the Architecture Document": {
         exitCode: 0,
         effect: async (_opts, prompt) => {
@@ -83,7 +100,7 @@ phases:
 `;
 
     const fake = new FakeAgent({
-      "Document the Architecture": { exitCode: 0 },
+      "Document the Architecture": architectureScenario(),
       "Verify the Architecture Document": {
         exitCode: 0,
         effect: async (_opts, prompt) => {
@@ -144,7 +161,7 @@ phases:
 `;
 
     const fake = new FakeAgent({
-      "Document the Architecture": { exitCode: 0 },
+      "Document the Architecture": architectureScenario(),
       "Verify the Architecture Document": {
         exitCode: 0,
         effect: async (_opts, prompt) => {

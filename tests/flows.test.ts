@@ -147,6 +147,48 @@ describe("validate-docs wiring", () => {
   });
 });
 
+describe("check-planned-docs wiring", () => {
+  /**
+   * Every writer in `init` is an agent step, and an agent that could not
+   * create the docs directory still exits 0. The verify loops end in FAIL but
+   * `loop` exits silently at its cap, and `validate-docs` passes over an empty
+   * corpus — so a run could write a BASELINE marking the source as documented
+   * with no documents on disk, after which `update` found nothing to do. The
+   * gate's whole value is its position: before the baseline, not after it.
+   */
+  test("init checks the planned documents exist immediately before baselining", async () => {
+    const flow = await loadFlow("init");
+    const names = scriptSteps(flow.steps).map((s) => s.name);
+    const i = names.indexOf("check-planned-docs");
+
+    expect(i, "no check-planned-docs step").not.toBe(-1);
+    expect(names[i + 1]).toBe("generate-baseline");
+  });
+
+  test("it is given the corpus location and the plan the writers worked from", async () => {
+    const flow = await loadFlow("init");
+    const step = scriptSteps(flow.steps).find((s) => s.name === "check-planned-docs");
+
+    expect(step!.args).toEqual({
+      app_dir: "${app_path}",
+      docs_dir: "${docs_dir}",
+      plan: "${run_dir}/plans/${app}-init.plan.md",
+    });
+  });
+
+  /**
+   * The update family plans deletions as well as documents, and the roster
+   * parser cannot tell one from the other, so the gate stays out of them
+   * until that distinction exists.
+   */
+  test.each(UPDATE_FAMILY)("%s does not check planned documents", async (name) => {
+    const flow = await loadFlow(name);
+    expect(scriptSteps(flow.steps).map((s) => s.name)).not.toContain(
+      "check-planned-docs",
+    );
+  });
+});
+
 describe("generate-navigation wiring", () => {
   /**
    * The task card said to wire this *after* `validate-docs`. It runs before,

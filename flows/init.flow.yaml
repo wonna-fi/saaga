@@ -174,6 +174,16 @@ steps:
                         review_path: ${run_dir}/slice-${phase.number}/review-${iteration}.md
                         docs_dir: ${docs_dir}
 
+  # The verify loops exit silently at their cap, and validate-docs passes over
+  # an empty corpus, so this is what refuses to baseline a run whose writers
+  # produced nothing.
+  - script:
+      name: check-planned-docs
+      label: checking planned documents exist
+      app_dir: ${app_path}
+      docs_dir: ${docs_dir}
+      plan: ${run_dir}/plans/${app}-init.plan.md
+
   - script:
       name: generate-baseline
       label: generating baseline

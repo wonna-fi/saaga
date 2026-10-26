@@ -5,6 +5,7 @@ import { Writable } from "node:stream";
 import { describe, expect, test } from "vitest";
 import { FakeAgent, type FakeScenarioValue } from "../../src/agent/fake-agent.js";
 import { runCli } from "../../src/cli.js";
+import { DEFAULT_DOCS_DIR } from "../../src/cli/config.js";
 import {
   manifestModels,
   readManifest,
@@ -54,6 +55,22 @@ function planInitScenario(): FakeScenarioValue {
   };
 }
 
+/**
+ * `init` refuses to baseline a corpus whose planned documents are missing, so
+ * the architecture writer leaves its document on disk. It survives into the
+ * resumed run, where the step itself is replayed from the journal.
+ */
+function architectureScenario(): FakeScenarioValue {
+  return {
+    exitCode: 0,
+    effect: async (opts) => {
+      const docs = join(opts.cwd, DEFAULT_DOCS_DIR);
+      await mkdir(docs, { recursive: true });
+      await writeFile(join(docs, "ARCHITECTURE.md"), "# Architecture\n", "utf8");
+    },
+  };
+}
+
 function verifyScenario(): FakeScenarioValue {
   return {
     exitCode: 0,
@@ -69,7 +86,7 @@ function verifyScenario(): FakeScenarioValue {
 /** A working agent for the whole init flow. */
 function healthyAgent(): FakeAgent {
   return new FakeAgent({
-    "Document the Architecture": { exitCode: 0 },
+    "Document the Architecture": architectureScenario(),
     "Verify the Architecture Document": verifyScenario(),
     "Plan Domain Documentation": planInitScenario(),
     "Document a Plan Slice": { exitCode: 0 },
@@ -94,7 +111,7 @@ async function onlyRunDir(app: string): Promise<{ id: string; dir: string }> {
 async function interruptedInit(app: string) {
   const controller = new AbortController();
   const agent = new FakeAgent({
-    "Document the Architecture": { exitCode: 0 },
+    "Document the Architecture": architectureScenario(),
     "Verify the Architecture Document": verifyScenario(),
     "Plan Domain Documentation": planInitScenario(),
     "Document a Plan Slice": { exitCode: 0, effect: () => controller.abort() },
