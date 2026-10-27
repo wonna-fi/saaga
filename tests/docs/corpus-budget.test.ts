@@ -320,6 +320,41 @@ phases:
     expect(parse.docs.map((d) => d.path)).toEqual(["concepts/a.md"]);
   });
 
+  // A slice cites source files the same way it lists deliverables, leading
+  // the line with the path. None of them is a document this run writes.
+  test("a source path a slice cites is not a deliverable", () => {
+    const parse = parsePlannedDocs(
+      "- concepts/a.md — Core, 100 lines\n" +
+        "- concepts/a.md — owns: a; references: none\n" +
+        '- `docs/decisions.md` ("Caching") explains why sessions are not cached.\n' +
+        "- docs/seed-data.md is excluded; name it as the generator's input.\n" +
+        "- **Key files to analyze**:\n" +
+        "  - `CONTRIBUTING.md` — the release checklist\n" +
+        "  - `.claude/skills/release/SKILL.md`, `package.json`\n",
+      "saaga-docs",
+    );
+
+    expect(parse.docs.map((d) => d.path)).toEqual(["concepts/a.md"]);
+  });
+
+  // The docs-dir prefix says where the file goes, so a deliverable outside the
+  // categories is still a file slice-doc creates, and the ceiling must see it.
+  test("a docs-dir path outside the categories is still a deliverable", () => {
+    const parse = parsePlannedDocs(
+      "- `saaga-docs/overview.md`\n- {docs_dir}/guides/setup.md — how to run it\n",
+      "saaga-docs",
+    );
+
+    expect(parse.docs.map((d) => d.path)).toEqual(["guides/setup.md", "overview.md"]);
+  });
+
+  // `normalizeDocPath` keeps `..` segments, so a category prefix alone would
+  // let a cited path outside the corpus through.
+  test("a path that climbs out of its category is not a deliverable", () => {
+    const parse = parsePlannedDocs("- `concepts/../../CONTRIBUTING.md`\n", "saaga-docs");
+    expect(parse.docs).toEqual([]);
+  });
+
   test("an ambiguous basename is reported rather than guessed", () => {
     const parse = parsePlannedDocs(
       "- a.md — Core, 150 lines\n" +
@@ -464,6 +499,20 @@ describe("the verdict", () => {
     expect(report.unbudgeted).toEqual(["concepts/a.md"]);
     expect(report.lines).toBe(UNBUDGETED_CHARGE + 120 + 250);
     expect(report.reasons).toContain("unbudgeted");
+  });
+
+  // The run that found this: two cited source files charged 400 lines and
+  // failed a plan that was within its ceiling, three plans running.
+  test("source files a plan cites are not charged against the ceiling", () => {
+    const plan =
+      budgetedDocs(5, 100) +
+      "- `docs/decisions.md` explains why the sandbox has no network.\n" +
+      "- `docs/seed-data.md` is excluded; cite the generator instead.\n";
+
+    const report = checkPlanBudget(parsed(plan), { docs: 10, lines: 800 }, source, 1);
+    expect(report.lines).toBe(750);
+    expect(report.unbudgeted).toEqual([]);
+    expect(report.status).toBe("PASS");
   });
 
   // The plan may state its own totals; they are informational.

@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import {
   ARCHITECTURE_DOC,
   countNonZeroPhases,
+  isCategoryDoc,
   parsePlannedDocs,
 } from "../docs/corpus-budget.js";
 import { CATEGORY_ORDER } from "../docs/navigation.js";
@@ -61,11 +62,11 @@ export async function checkPlannedDocs(
   }
 
   // The budget gate's roster, narrowed to documents filed under a category
-  // folder, where every writer template puts them. The roster over-counts on
-  // purpose, because any line that leads with a `.md` path costs budget. Here
-  // that would demand a source file named under "Key files to analyze"
-  // (`CONTRIBUTING.md`, `.claude/skills/x/SKILL.md`), or a basename two
-  // categories share, inside the docs directory, and fail a complete corpus.
+  // folder, where every writer template puts them. The roster charges a bare
+  // basename, a docs-dir path outside the categories, or any path a budget or
+  // ownership line names, because each costs budget. Requiring them here would
+  // demand files no writer template puts there, or one file for a basename two
+  // categories share, and fail a complete corpus.
   const paths = parsePlannedDocs(planText, docsDir)
     .docs.map((d) => d.path)
     .filter(isCategoryDoc);
@@ -118,15 +119,6 @@ export async function checkPlannedDocs(
   }
 
   return { expected: paths.length, missing: 0 };
-}
-
-/**
- * Filed under a category folder. A `..` segment can climb out of the docs
- * directory, onto a file this run never wrote, so it disqualifies the path.
- */
-function isCategoryDoc(path: string): boolean {
-  const [category, ...rest] = path.split("/");
-  return rest.length > 0 && !rest.includes("..") && CATEGORY_ORDER.includes(category);
 }
 
 async function isFile(path: string): Promise<boolean> {
