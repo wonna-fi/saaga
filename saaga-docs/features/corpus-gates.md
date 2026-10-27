@@ -60,7 +60,7 @@ Before working with this feature, understand these concepts:
 
 | Flow | Gates, in order |
 |------|-----------------|
-| `init` | `check-format-version` (init), `ensure-gitignore`, `check-plan-budget` (report, in the plan loop), `check-plan-budget` (enforce), `stamp-format-version`, `validate-docs` |
+| `init` | `check-format-version` (init), `ensure-gitignore`, `check-plan-budget` (report, in the plan loop), `check-plan-budget` (enforce), `check-planned-docs` (before the baseline: every planned document must exist on disk), `stamp-format-version`, `validate-docs` |
 | `update`, `quick-update`, `verify-quick-updates` | `check-format-version` (update), `validate-docs` |
 
 ### Validation Rules
@@ -78,7 +78,7 @@ Before working with this feature, understand these concepts:
 
 | Scenario | Behavior |
 |----------|----------|
-| Docs directory absent or empty | "No corpus": passes in both modes, and `validate-docs` returns an empty result rather than failing — every flow stays runnable against a greenfield project |
+| Docs directory absent, empty, or holding only empty category folders | "No corpus": passes in both modes, and `validate-docs` returns an empty result rather than failing — every flow stays runnable against a greenfield project |
 | Docs directory populated but unstamped | Version 0; the update-family flows refuse it as a pre-beta corpus |
 | The repository has no measurable source | The budget passes with `no-measurable-source` and warns, so a language missing from the extension allowlist is visible rather than quietly ungoverned |
 | The plan's decisions parse to nothing | `UNPARSEABLE`; the report says so and tells the author not to cut documents in response |

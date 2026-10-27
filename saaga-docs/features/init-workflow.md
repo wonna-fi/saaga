@@ -42,7 +42,10 @@ The steps below are `flows/init.flow.yaml` in order; how any flow's steps are di
 is [flow execution](./flow-execution.md)'s subject, and the deterministic checks are
 [corpus gates](./corpus-gates.md)'.
 
-1. `check-format-version` in `mode: init`, then `ensure-gitignore` for `.saaga-runs/`.
+1. `check-format-version` in `mode: init`, then `ensure-gitignore` for `.saaga-runs/`,
+   then `ensure-docs-dirs` in `mode: create`, because some backends cannot create a
+   missing folder and the corpus's category folders must exist before the first agent
+   writes into them.
 2. **Architecture.** An agent step on `document-architecture` writes
    `<docs_dir>/ARCHITECTURE.md`, with `${run_dir}/app-structure.md` offered as scratch
    space.
@@ -69,8 +72,8 @@ is [flow execution](./flow-execution.md)'s subject, and the deterministic checks
    against the same review.
 6. **Phase 0** is documented outside the `foreach`, by a `slice-doc` agent step with
    `phase_number: 0` — and so without a verify/fix loop. `plan-init` reserves phase 0 for
-   creating the category directories and their empty `INDEX.md` files, which must exist
-   before anything writes into them and are not worth verifying.
+   the empty category `INDEX.md` files (the folders already exist from `ensure-docs-dirs`),
+   which must exist before anything writes into them and are not worth verifying.
 7. `install-rules` writes the always-on agent rules — see
    [Install Rules](./install-rules.md).
 8. **The slice loop** — `foreach` over `${phases}` with `when: '${phase.number} != 0'`.
@@ -78,7 +81,11 @@ is [flow execution](./flow-execution.md)'s subject, and the deterministic checks
    verify/fix loop shape as step 5 with `verify-domain-documentation` in place of
    `verify-architecture`, its own `status` variable, and artifacts under
    `${run_dir}/slice-${phase.number}/`.
-9. **The tail**: `generate-baseline`, `stamp-format-version`, `generate-navigation` (see
+9. **The tail**: `ensure-docs-dirs` in `mode: prune` removes category folders nothing was
+   written into, then `check-planned-docs` fails the run if any document the plan names
+   (plus `ARCHITECTURE.md` and each used category's `INDEX.md`) is not on disk — the verify
+   loops exit silently at their cap, so without it an empty corpus would be baselined.
+   Then `generate-baseline`, `stamp-format-version`, `generate-navigation` (see
    [Navigation Generation](./navigation-generation.md)), `validate-docs`.
 
 Both verify steps are handed `${iteration}` and `${loop_max}` — the counters the `loop`
@@ -114,6 +121,7 @@ it, `if` runs the fixer — is shared by every agent-backed flow.
 | The plan lists only phase 0 | The `foreach` has no surviving items; `install-rules` and the tail still run |
 | Architecture verification never reaches `PASS` | The loop exits at its cap and the run continues — there is no enforce step for the architecture document |
 | A slice's third verification round returns `FAIL` | `fix-documentation` still runs, but nothing verifies its work; the flow moves to the next phase |
+| A planned document was never written | `check-planned-docs` fails the run before the baseline, with a resume hint; no baseline is written |
 | The corpus already carries a format stamp | `check-format-version` in `init` mode refuses the run; see [corpus gates](./corpus-gates.md) |
 
 ## Technical Implementation

@@ -74,6 +74,8 @@ run resumes.
 | `check-format-version` | Refuse a flow whose templates do not match the corpus on disk |
 | `stamp-format-version` | Write the format stamp onto a freshly generated corpus |
 | `ensure-gitignore` | Add a pattern to the project's `.gitignore` |
+| `ensure-docs-dirs` | Create the docs directory and its category folders (`mode: create`), or remove the empty ones (`mode: prune`) |
+| `check-planned-docs` | Fail if a document the plan names, `ARCHITECTURE.md` or a used category's `INDEX.md` is missing on disk |
 | `generate-baseline` | Write [`BASELINE`](./baseline-and-change-detection.md) |
 | `detect-changes` | Classify the work tree against `BASELINE` |
 | `generate-navigation` | Rebuild the [generated pages](../features/navigation-generation.md) |
@@ -81,7 +83,7 @@ run resumes.
 | `install-rules` | Write always-on agent rules into the repository; see [install rules](../features/install-rules.md) |
 | `archive-quick-update`, `collect-quick-updates`, `remove-quick-updates`, `cleanup-quick-update-dir` | The quick-update artifact lifecycle; see [quick-update workflows](../features/quick-update-workflows.md) |
 
-Five of these are gates rather than producers — what each one fails a run for is owned by
+Six of these are gates rather than producers — what each one fails a run for is owned by
 [corpus gates](../features/corpus-gates.md).
 
 ## Reference Implementations
