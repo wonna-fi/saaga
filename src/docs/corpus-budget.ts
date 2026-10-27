@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { parse as parseYaml } from "yaml";
 
 import { listInScopeFiles } from "../scripts/file-manifest.js";
+import { CATEGORY_ORDER } from "./navigation.js";
 import { CONVENTION_MAX_BODY_LINES } from "./validate.js";
 
 /**
@@ -256,17 +257,28 @@ function stripFences(text: string): string {
  */
 export function normalizeDocPath(raw: string, docsDir: string): string | null {
   let p = raw.trim().replace(/^\/+/, "");
-  for (const prefix of [`${docsDir}/`, "{docs_dir}/", "<docs_dir>/"]) {
-    if (p.startsWith(prefix)) {
-      p = p.slice(prefix.length);
-      break;
-    }
-  }
+  const prefix = docsDirPrefix(p, docsDir);
+  if (prefix) p = p.slice(prefix.length);
   p = p
     .split("/")
     .filter((s) => s !== "" && s !== ".")
     .join("/");
   return p.toLowerCase().endsWith(".md") ? p : null;
+}
+
+/** The docs-dir prefix a plan path is written with, if any, in any of its three forms. */
+function docsDirPrefix(path: string, docsDir: string): string | undefined {
+  const p = path.trim().replace(/^\/+/, "");
+  return [`${docsDir}/`, "{docs_dir}/", "<docs_dir>/"].find((prefix) => p.startsWith(prefix));
+}
+
+/**
+ * Filed under a category folder. A `..` segment can climb out of the docs
+ * directory, onto a file this run never wrote, so it disqualifies the path.
+ */
+export function isCategoryDoc(path: string): boolean {
+  const [category, ...rest] = path.split("/");
+  return rest.length > 0 && !rest.includes("..") && CATEGORY_ORDER.includes(category);
 }
 
 /**
@@ -370,6 +382,12 @@ export function parsePlannedDocs(planText: string, docsDir: string): PlanParse {
   // refers to one. Requiring the path be the entire line was too strict: the
   // plan format does not forbid a description after it, and a deliverable
   // missed here is a file `slice-doc` creates for free.
+  //
+  // Only a path in the corpus is a deliverable: under a category folder, the
+  // architecture document, or written with the docs-dir prefix. A slice's "Key
+  // files to analyze" and its notes lead with source paths too
+  // (`docs/decisions.md`, `CONTRIBUTING.md`); each was charged as an unbudgeted
+  // document, and two of them failed a plan that was within its ceiling.
   for (const raw of body.split("\n")) {
     const line = raw.trim().replace(/^[-*+]\s+/, "");
     if (/owns\s*:|references\s*:/i.test(line)) continue;
@@ -386,8 +404,12 @@ export function parsePlannedDocs(planText: string, docsDir: string): PlanParse {
     const rest = head.slice(tokens[0].length);
     if (rest !== "" && !/^[\s`*_).,;:—–-]/.test(rest)) continue;
 
-    const path = normalizeDocPath(stripDecoration(tokens[0]), docsDir);
+    const written = stripDecoration(tokens[0]);
+    const path = normalizeDocPath(written, docsDir);
     if (!path || isGenerated(path)) continue;
+    const inCorpus =
+      isCategoryDoc(path) || path === ARCHITECTURE_DOC || docsDirPrefix(written, docsDir);
+    if (!inCorpus) continue;
 
     upsert(path);
   }
