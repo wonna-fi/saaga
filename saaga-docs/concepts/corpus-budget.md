@@ -65,6 +65,10 @@ ceilings of zero, which the check treats as "no ceiling applies".
 `parsePlannedDocs()` takes the union of three line shapes, because none is complete alone:
 budget lines (`<path> — <Tier>, <n> lines`), ownership lines (`<path> — owns:`), and
 deliverable lines that *lead* with exactly one `.md` path and carry no `owns:`/`references:`.
+A deliverable path counts only if it is a corpus path: under a category folder
+(`isCategoryDoc()`, shared with the planned-docs existence check), the architecture document,
+or written with the docs-dir prefix. A source path a plan merely cites, such as one in a
+slice's "Key files to analyze", is not rostered and is not charged as an unbudgeted document.
 Fenced blocks and generated `INDEX.md`, `README.md` and `GLOSSARY.md` are never rostered. A
 budget without a tier counts only for `ARCHITECTURE.md`; elsewhere it is ignored, leaving the
 document unbudgeted. A bare basename merges into the one qualified path sharing it, and is
